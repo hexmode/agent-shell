@@ -1,0 +1,83 @@
+#+TITLE: agent-shell
+#+AUTHOR: Álvaro Ramírez
+
+[[file:agent-shell.png]]
+
+* This project needs your funding
+
+As you pay for those useful LLM tokens, consider [[https://github.com/sponsors/xenodium][sponsoring]] development and maintenance of this project.
+
+=agent-shell= is in its infancy. It's got rough edges and lots of features to implement still. With your help, I can make this effort more [[https://github.com/sponsors/xenodium][sustainable]].
+
+Thank you!
+
+[[https://xenodium.com/][Alvaro]]
+
+* agent-shell
+
+A native Emacs shell to interact with LLM agents powered by ACP ([[https://agentclientprotocol.com][Agent Client Protocol]]).
+
+With agent-shell, you can chat with the likes of Gemin CLI, Claude Code, or any other ACP-driven agent.
+
+*Note:* This package is in the very early stages and is likely incomplete or may have some rough edges.
+
+* Setup
+
+** Installation
+
+=agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
+
+You can =shell-maker= install via:
+
+#+begin_src emacs-lisp
+  (use-package shell-maker
+    :ensure t)
+#+end_src
+
+=agent-shell= also depends on [[https://github.com/xenodium/acp.el][acp.el]], which isn't yet on MELPA. You can install with:
+
+#+begin_src emacs-lisp
+(use-package acp
+  :vc (:url "https://github.com/xenodium/acp.el"))
+#+end_src
+
+Finally, install =agent-shell= with:
+
+#+begin_src emacs-lisp
+(use-package agent-shell
+  :vc (:url "https://github.com/xenodium/agent-shell"))
+#+end_src
+
+** Configuration
+
+Set your API keys for the agent providers you want to use:
+
+#+begin_src emacs-lisp
+;; Anthropic Claude API key
+(setq agent-shell-anthropic-key "your-anthropic-api-key-here")
+
+;; Google Gemini API key
+(setq agent-shell-google-key "your-google-api-key-here")
+#+end_src
+
+You can also set these as functions that load and return the keys:
+
+#+begin_src emacs-lisp
+(setq agent-shell-anthropic-key
+      (lambda () (auth-source-pass-get "secret" "anthropic-api-key")))
+
+(setq agent-shell-google-key
+      (lambda () (auth-source-pass-get "secret" "google-api-key")))
+#+end_src
+
+** Usage
+
+Start an agent shell session:
+
+- =M-x agent-shell-start-claude-code-agent= - Start a Claude Code agent session
+- =M-x agent-shell-start-gemini-agent= - Start a Gemini agent session
+
+** Keybindings
+
+- =C-c C-c= - Interrupt current agent operation
+- =TAB and Shift-TAB= - To navigate items
