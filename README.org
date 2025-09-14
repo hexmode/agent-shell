@@ -23,6 +23,16 @@ With agent-shell, you can chat with the likes of Gemin CLI, Claude Code, or any 
 
 * Setup
 
+** External dependencies
+
+*** ACP adapter for Claude Code
+
+For Anthropic's Claude Code, install [[https://github.com/zed-industries/claude-code-acp][Zed's claude-code-acp]].
+
+*** Gemini CLI
+
+For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sure to get a recent release supporting the =--experimental-acp= flag.
+
 ** Installation
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
