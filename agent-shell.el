@@ -301,7 +301,8 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                     (list (cons :title (map-elt update 'title))
                                           (cons :status (map-elt update 'status))
                                           (cons :kind (map-elt update 'kind))
-                                          (cons :raw-input (map-elt update 'rawInput))
+                                          (cons :command (map-nested-elt update '(rawInput command)))
+                                          (cons :description (map-nested-elt update '(rawInput description)))
                                           (cons :content (map-elt update 'content))))
                                    (agent-shell--update-dialog-block
                                     :shell shell
@@ -642,22 +643,37 @@ For example, shut down ACP client."
 (defun agent-shell-make-tool-call-label (state tool-call-id)
   "Create tool call label from STATE using TOOL-CALL-ID."
   (when-let ((tool-call (map-nested-elt state `(:tool-calls ,tool-call-id))))
-    (let ((status (map-elt tool-call :status))
-          (kind (map-elt tool-call :kind))
-          (title (map-elt tool-call :title)))
+    (let* ((status (map-elt tool-call :status))
+           (status-label (when status
+                           (agent-shell--status-label status)))
+           (kind (map-elt tool-call :kind))
+           (kind-label (when kind
+                         (agent-shell--add-text-properties
+                          (propertize (format " %s " kind) 'font-lock-face 'default)
+                          'font-lock-face
+                          `(:box t))))
+           (title (map-elt tool-call :title))
+           (description (map-elt tool-call :description)))
       (concat
-       (when status
-         (agent-shell--status-label status))
-       (when (and status kind)
+       (when status-label
+         status-label)
+       (when (and status-label kind-label)
          " ")
-       (when kind
-         (agent-shell--add-text-properties
-          (propertize (format " %s " kind) 'font-lock-face 'default)
-          'font-lock-face
-          `(:box t)))
-       (when title
-         "\n\n  ")
-       (when title (propertize title 'font-lock-face 'font-lock-doc-markup-face))))))
+       (when kind-label
+         kind-label)
+       (when (or title description)
+         " ")
+       (cond ((and title description
+                   (not (equal (string-remove-prefix "`" (string-remove-suffix "`" (string-trim title)))
+                               (string-remove-prefix "`" (string-remove-suffix "`" (string-trim description))))))
+              (concat
+               (propertize title 'font-lock-face 'font-lock-doc-markup-face)
+               " "
+               (propertize description 'font-lock-face 'font-lock-doc-face)))
+             (title
+              (propertize title 'font-lock-face 'font-lock-doc-markup-face))
+             (description
+              (propertize description 'font-lock-face 'font-lock-doc-markup-face)))))))
 
 (defun agent-shell--format-plan (entries)
   "Format plan ENTRIES for shell rendering."
