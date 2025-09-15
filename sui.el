@@ -53,7 +53,7 @@ For existing blocks, the current expansion state is preserved unless explicitly 
         (when match
           (goto-char (prop-match-beginning match)))
         (if (and match (not create-new))
-            ;; Found existing block - update it
+            ;; Found existing block - delete and regenerate
             (let* ((existing-model (sui--read-dialog-block-at-point))
                    (existing-body (map-elt existing-model :body))
                    (indicator-overlay (seq-find (lambda (ov)
@@ -78,9 +78,11 @@ For existing blocks, the current expansion state is preserved unless explicitly 
                                                              (map-elt existing-model :label-right)))
                                       (cons :body final-body))))
 
-              ;; Delete and regenerate, preserving collapsed state
+              ;; Delete existing block
               (delete-region block-start block-end)
               (goto-char block-start)
+
+              ;; Regenerate from final-model
               (sui--insert-dialog-block final-model block-id
                                         (if has-collapsed
                                             (not collapsed)  ; preserve existing state
@@ -90,16 +92,10 @@ For existing blocks, the current expansion state is preserved unless explicitly 
           ;; Not found or create-new - insert new block
           (goto-char (point-max))
           (insert (sui--required-newlines 2))
-          (let ((insert-model (delq nil
-                                    (list (cons :namespace-id namespace-id)
-                                          (cons :block-id (map-elt model :block-id))
-                                          (when new-label-left (cons :label-left new-label-left))
-                                          (when new-label-right (cons :label-right new-label-right))
-                                          (when new-body (cons :body new-body))))))
-            (sui--insert-dialog-block insert-model block-id expanded no-navigation)
-            (insert "\n\n"))))
-      (when on-post-process
-        (funcall on-post-process)))))
+          (sui--insert-dialog-block model block-id expanded no-navigation)
+          (insert "\n\n"))))
+    (when on-post-process
+      (funcall on-post-process))))
 
 (defun sui--read-dialog-block (block-start block-end block-id)
   "Read dialog block between BLOCK-START and BLOCK-END with BLOCK-ID into a model."
