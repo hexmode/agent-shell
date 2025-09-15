@@ -94,60 +94,88 @@ For existing blocks, the current expansion state is preserved unless overridden.
       (when on-post-process
         (funcall on-post-process)))))
 
-(defun sui--read-dialog-block-at (block-start block-id)
-  "Read dialog block between BLOCK-START and BLOCK-END with BLOCK-ID into a model."
-  (let ((namespace-id nil)
-        (id nil)
-        (label-left nil)
-        (label-right nil)
-        (body nil)
-        (collapsed nil)
-        (state (get-text-property block-start 'sui-state)))
-
+(defun sui--read-dialog-block-at (position block-id)
+  "Read dialog block at POSITION with BLOCK-ID."
+  (when-let ((dialog (list (cons :block-id block-id)))
+             (state (get-text-property position 'sui-state))
+             (range (sui--block-range :position position)))
+    ;; TODO: Get rid of merging block namespace and id.
     ;; Extract namespace-id from block-id if it contains a dash
     (when (string-match "^\\(.+\\)-\\(.+\\)$" block-id)
-      (setq namespace-id (match-string 1 block-id))
-      (setq id (match-string 2 block-id)))
-
+      (setf (map-elt dialog :namespace-id) (match-string 1 block-id))
+      (setf (map-elt dialog :block-id) (match-string 2 block-id)))
     (save-excursion
-      (goto-char block-start)
-      (setq collapsed (map-elt state :collapsed))
-      (when (and (map-elt state :label-left-start)
-                 (map-elt state :label-left-end))
-        (setq label-left (buffer-substring (map-elt state :label-left-start)
-                                           (map-elt state :label-left-end))))
-      (when (and (map-elt state :label-right-start)
-                 (map-elt state :label-right-end))
-        (setq label-right (buffer-substring (map-elt state :label-right-start)
-                                            (map-elt state :label-right-end))))
-      (setq body (map-elt state :body)))
-    (delq nil (list (when namespace-id
-                      (cons :namespace-id namespace-id))
-                    (when id
-                      (cons :block-id id))
-                    (when label-left
-                      (cons :label-left label-left))
-                    (when label-right
-                      (cons :label-right label-right))
-                    (when body
-                      (cons :body body))
-                    (cons :collapsed collapsed)))))
+      (save-restriction
+        (narrow-to-region (map-elt range :start)
+                          (map-elt range :end))
+        (goto-char (map-elt range :start))
+        (setf (map-elt dialog :collapsed) (map-elt state :collapsed))
+        (when-let ((label-left (sui--nearest-range-matching-property
+                                :property 'sui-section :value 'label-left)))
+          (setf (map-elt dialog :label-left) (buffer-substring (map-elt label-left :start)
+                                                               (map-elt label-left :end))))
+        (when-let ((label-right (sui--nearest-range-matching-property
+                                 :property 'sui-section :value 'label-right)))
+          (setf (map-elt dialog :label-right) (buffer-substring (map-elt label-right :start)
+                                                                (map-elt label-right :end))))
+        (if-let ((body (map-elt state :body)))
+            (setf (map-elt dialog :body) body)
+          (when-let ((body (sui--nearest-range-matching-property
+                            :property 'sui-section :value 'body)))
+            (setf (map-elt dialog :body) (buffer-substring (map-elt body :start)
+                                                           (map-elt body :end)))))))
+    dialog))
 
 (defun sui--read-dialog-block-at-point ()
   "Read dialog block at point, returning model or nil if none found."
-  (when-let ((state (get-text-property (point) 'sui-state)))
-    (sui--read-dialog-block-at (map-elt state :block-start)
+  (when-let ((state (get-text-property (point) 'sui-state))
+             (range (sui--block-range :position (point))))
+    (sui--read-dialog-block-at (map-elt range :start)
                                (map-elt state :block-id))))
+
+(cl-defun sui--block-range (&key position)
+  "Get block range at POSITION if found.  Nil otherwise.
+
+In the form:
+
+  ((start . 1)
+   (end . 3))."
+  (when-let ((block-id (map-elt (get-text-property (or position (point)) 'sui-state) :block-id)))
+    (sui--nearest-range-matching-property
+     :property 'sui-state
+     :value block-id
+     :predicate (lambda (block-id property)
+                  (equal (map-elt property :block-id) block-id)))))
+
+(cl-defun sui--nearest-range-matching-property (&key property value (predicate t) from to)
+  "Return nearest range where PREDICATE is non-nil for PROPERTY and VALUE."
+  (save-excursion
+    (save-restriction
+      (when (and from to)
+        (narrow-to-region from to))
+      (let ((backward-match (or (text-property-search-backward property value predicate)
+                                (progn
+                                  (unless (eobp)
+                                    (forward-char 1))
+                                  (text-property-search-backward property value predicate))))
+            (forward-match (text-property-search-forward property value predicate)))
+        (when (or backward-match forward-match)
+          `((:start . ,(if backward-match
+                           (prop-match-beginning backward-match)
+                         (prop-match-beginning forward-match)))
+            (:end . ,(if forward-match
+                         (prop-match-end forward-match)
+                       (prop-match-end backward-match)))))))))
 
 (defun sui--insert-dialog-block (model block-id &optional expanded no-navigation)
   "Insert dialog block from MODEL with BLOCK-ID text properties.
 EXPANDED determines initial state (default nil for collapsed).
 NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
   (let ((block-start (point))
-        (block-end)
         (label-left (map-elt model :label-left))
         (label-right (map-elt model :label-right))
         (body (map-elt model :body))
+        (need-space nil)
         (indicator-start)
         (indicator-end)
         (label-left-start)
@@ -156,8 +184,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
         (label-right-end)
         (body-start)
         (body-end)
-        (collapsable nil)
-        (need-space nil))
+        (collapsable))
 
     ;; Insert collapse indicator if body exists
     (when (and body (or label-left label-right))
@@ -170,18 +197,15 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
                  (sui-toggle-dialog-block-at-point))
                (lambda ()
                  (message "Press RET to toggle"))))
-      ;; (put-text-property indicator-start (point) 'sui-block-id block-id)
-      ;; (put-text-property indicator-start (point) 'sui-collapsed (not expanded))
-      ;; (put-text-property indicator-start (point) 'sui-indicator t)
       (setq indicator-end (point))
-      (put-text-property indicator-start (point) 'sui-section 'indicator)
-      (put-text-property indicator-start (point) 'keymap (sui-make-action-keymap
-                                                          (lambda ()
-                                                            (interactive)
-                                                            (sui-toggle-dialog-block-at-point))))
-      (put-text-property indicator-start (point) 'read-only t)
-      (put-text-property indicator-start (point) 'front-sticky '(read-only)))
-
+      (add-text-properties indicator-start indicator-end
+                           `(sui-section indicator
+                                         keymap ,(sui-make-action-keymap
+                                                  (lambda ()
+                                                    (interactive)
+                                                    (sui-toggle-dialog-block-at-point)))
+                                         read-only t
+                                         front-sticky (read-only))))
     (when label-left
       (setq label-left-start (point))
       (insert (sui-add-action-to-text
@@ -192,15 +216,16 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
                (lambda ()
                  (message "Press RET to toggle"))))
       (setq label-left-end (point))
-      (put-text-property label-left-start (point) 'sui-section 'label-left)
-      ;; (put-text-property label-left-start (point) 'sui-block-id block-id)
-      (put-text-property label-left-start (point) 'help-echo block-id)
-      (put-text-property label-left-start (point) 'read-only t)
-      (put-text-property label-left-start (point) 'front-sticky '(read-only))
+      (add-text-properties label-left-start label-left-end
+                           `(sui-section label-left
+                                         help-echo ,block-id
+                                         read-only t
+                                         front-sticky (read-only)))
       (setq need-space t))
 
     (when label-right
-      (when need-space (insert " "))
+      (when need-space
+        (insert " "))
       (setq label-right-start (point))
       (insert (sui-add-action-to-text
                label-right
@@ -210,26 +235,28 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
                (lambda ()
                  (message "Press RET to toggle"))))
       (setq label-right-end (point))
-      (put-text-property label-right-start (point) 'sui-section 'label-right)
-      ;; (put-text-property label-right-start (point) 'sui-block-id block-id)
-      (put-text-property label-right-start (point) 'help-echo block-id)
-      (put-text-property label-right-start (point) 'read-only t)
-      (put-text-property label-right-start (point) 'front-sticky '(read-only)))
+      (add-text-properties label-right-start label-right-end
+                           `(sui-section label-right
+                                         help-echo ,block-id
+                                         read-only t
+                                         front-sticky (read-only))))
 
     (when body
       (when (or label-left label-right)
         (insert "\n\n"))
       (setq body-start (point))
-      ;; Removing 2 space indentation if found as it's added again below.
+      ;; Removing 2 space indentation if found. It's added again below.
       (insert (string-remove-prefix "  " body))
       (setq body-end (point))
-      ;; Now indent each line in place
+      ;; Indent each body line.
       (save-excursion
         (goto-char body-start)
         (while (< (point) body-end)
-          (unless (looking-at "^$")  ; Don't indent empty lines
+          ;; Ignore empty lines
+          (unless (looking-at "^$")
             (let ((indent-start (point)))
-              (insert "  ")  ; Two spaces for indentation
+              ;; Indent.
+              (insert "  ")
               (when (get-text-property 0 'face body)
                 (put-text-property
                  indent-start (point)
@@ -240,38 +267,27 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
                  'font-lock-face (get-text-property 0 'font-lock-face body)))
               (setq body-end (+ body-end 2))))  ; Adjust body-end position for inserted spaces
           (forward-line 1)))
-
       (setq body-end (point))
-      (setq block-end (point))
-      (put-text-property body-start body-end 'sui-section 'body)
-      (put-text-property body-start body-end 'help-echo block-id)
-      (put-text-property body-start body-end 'read-only t)
-      (put-text-property body-start body-end 'front-sticky '(read-only))
-
-      (when-let ((is-collapsable collapsable)
-                 (body-overlay (make-overlay (or label-right-end
-                                                 label-left-end) body-end)))
-        (overlay-put body-overlay 'evaporate t)
-        (overlay-put body-overlay 'sui-section 'body)
-        (overlay-put body-overlay 'invisible (not expanded))))
+      (add-text-properties body-start body-end
+                           `(sui-section body
+                                         help-echo ,block-id
+                                         read-only t
+                                         front-sticky (read-only))))
+    (when-let ((is-collapsable collapsable)
+               (body-overlay (make-overlay (or label-right-end
+                                               label-left-end) body-end)))
+      (overlay-put body-overlay 'evaporate t)
+      (overlay-put body-overlay 'sui-section 'body)
+      (overlay-put body-overlay 'invisible (not expanded)))
     (put-text-property
-     block-start body-end
-     'sui-state (list (cons :block-start block-start)
-                      (cons :block-end block-end)
-                      (cons :indicator-start indicator-start)
-                      (cons :indicator-end indicator-end)
-                      (cons :label-left-start label-left-start)
-                      (cons :label-left-end label-left-end)
-                      (cons :label-right-start label-right-start)
-                      (cons :label-right-end label-right-end)
-                      (cons :body body)
-                      (cons :body-start body-start)
-                      (cons :body-end body-end)
-                      (cons :block-id block-id)
-                      (cons :collapsed (not expanded))
-                      (cons :navigatable (not no-navigation))))
-    (put-text-property block-start body-end 'read-only t)
-    (put-text-property block-start body-end 'front-sticky '(read-only))))
+     block-start (or body-end label-right-end label-left-end)
+     'sui-state (list
+                 (cons :body body)
+                 (cons :block-id block-id)
+                 (cons :collapsed (not expanded))
+                 (cons :navigatable (not no-navigation))))
+    (put-text-property block-start (or body-end label-right-end label-left-end) 'read-only t)
+    (put-text-property block-start (or body-end label-right-end label-left-end) 'front-sticky '(read-only))))
 
 (defun sui--required-newlines (desired)
   "Return string of newlines needed to reach DESIRED (max 2) before point."
@@ -287,43 +303,36 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
   "Toggle visibility of dialog block body at point."
   (interactive)
   (save-excursion
-    (let* ((inhibit-read-only t)
-           (buffer-undo-list t)
-           (state (get-text-property (point) 'sui-state))
-           (body-overlay (seq-first (overlays-in (map-elt state :body-start)
-                                                 (map-elt state :body-end)))))
+    (when-let* ((inhibit-read-only t)
+                (buffer-undo-list t)
+                (state (get-text-property (point) 'sui-state))
+                (block (sui--block-range :position (point)))
+                (body (sui--nearest-range-matching-property
+                       :property 'sui-section :value 'body
+                       :from (map-elt block :start)
+                       :to (map-elt block :end)))
+                (indicator (sui--nearest-range-matching-property
+                            :property 'sui-section :value 'indicator
+                            :from (map-elt block :start)
+                            :to (map-elt block :end)))
+                (body-overlay (seq-first (overlays-in (map-elt body :start)
+                                                      (map-elt body :end))))
+                (overlay-found (equal (overlay-get body-overlay 'sui-section) 'body)))
       (when (equal (overlay-get body-overlay 'sui-section) 'body)
-        (if (map-elt state :collapsed)
-            ;; Expand
-            (progn
-              (overlay-put body-overlay 'invisible nil)
-              (delete-region (map-elt state :indicator-start)
-                             (map-elt state :indicator-end))
-              (goto-char (map-elt state :indicator-start))
-              (insert (sui-add-action-to-text
-                       "▼ "
-                       (lambda ()
-                         (interactive)
-                         (sui-toggle-dialog-block-at-point))
-                       (lambda ()
-                         (message "Press RET to toggle"))))
-              (map-put! state :collapsed nil))
-          ;; Collapse
-          (progn
-            (overlay-put body-overlay 'invisible t)
-            (delete-region (map-elt state :indicator-start)
-                           (map-elt state :indicator-end))
-            (goto-char (map-elt state :indicator-start))
-            (insert (sui-add-action-to-text
-                     "▶ "
-                     (lambda ()
-                       (interactive)
-                       (sui-toggle-dialog-block-at-point))
-                     (lambda ()
-                       (message "Press RET to toggle"))))
-            (map-put! state :collapsed t)))
-        (put-text-property (map-elt state :block-start)
-                           (map-elt state :block-end) 'sui-state state)))))
+        (let ((indicator-properties (text-properties-at (map-elt indicator :start))))
+          (overlay-put body-overlay 'invisible (not (map-elt state :collapsed)))
+          (delete-region (map-elt indicator :start)
+                         (map-elt indicator :end))
+          (goto-char (map-elt indicator :start))
+          (insert (if (map-elt state :collapsed)
+                      "▼ "
+                    "▶ "))
+          (add-text-properties (map-elt indicator :start)
+                               (map-elt indicator :end)
+                               indicator-properties)
+          (map-put! state :collapsed (not (map-elt state :collapsed))))
+        (put-text-property (map-elt block :start)
+                           (map-elt block :end) 'sui-state state)))))
 
 (defun sui-collapse-dialog-block-by-id (namespace-id block-id)
   "Collapse dialog block with NAMESPACE-ID and BLOCK-ID."
@@ -357,17 +366,18 @@ INDENT-STRING defaults to two spaces."
   "Jump to the next block."
   (interactive)
   (let* ((start-point (point))
-         (state (get-text-property (point) 'sui-state)))
+         (state (get-text-property (point) 'sui-state))
+         (block (sui--block-range :position (point))))
     ;; If in navigatable block, move past it first
     (when (map-elt state :navigatable)
-      (goto-char (map-elt state :block-end)))
+      (goto-char (map-elt block :end)))
     ;; Now find the next navigatable block
     (if-let ((next (text-property-search-forward
                     'sui-state nil
                     (lambda (_old-val new-val)
                       (and new-val (map-elt new-val :navigatable)))
                     t)))
-        (goto-char (map-elt (prop-match-value next) :block-start))
+        (goto-char (prop-match-beginning next))
       (goto-char start-point)
       (message "No more blocks"))))
 
@@ -375,17 +385,18 @@ INDENT-STRING defaults to two spaces."
   "Jump to the previous block."
   (interactive)
   (let* ((start-point (point))
-         (state (get-text-property (point) 'sui-state)))
+         (state (get-text-property (point) 'sui-state))
+         (block (sui--block-range :position (point))))
     ;; If in navigatable block, move to its start first
     (when (map-elt state :navigatable)
-      (goto-char (map-elt state :block-start)))
+      (goto-char (map-elt block :start)))
     ;; Now find the previous navigatable block
     (if-let ((prev (text-property-search-backward
                     'sui-state nil
                     (lambda (_old-val new-val)
                       (and new-val (map-elt new-val :navigatable)))
                     t)))
-        (goto-char (map-elt (prop-match-value prev) :block-start))
+        (goto-char (prop-match-beginning prev))
       (goto-char start-point)
       (message "No more blocks"))))
 
