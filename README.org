@@ -1,4 +1,4 @@
-#+TITLE: agent-shell
+#+TITLE: Emacs Agent Shell
 #+AUTHOR: Álvaro Ramírez
 
 [[file:agent-shell.png]]
