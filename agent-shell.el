@@ -427,14 +427,16 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                     :client (map-elt state :client)
                                     :state state))
                            :expanded t)
-                          (run-at-time
-                           0.1 nil (lambda ()
-                                     (acp-send-response
-                                      :client (map-elt state :client)
-                                      :response (acp-make-session-request-permission-response
-                                                 :request-id .id
-                                                 :option-id (agent-shell--prompt-for-permission .params.options)))
-                                     (sui-collapse-dialog-block-by-id (map-elt state :request-count) .params.toolCall.toolCallId)))
+                          (agent-shell--prompt-for-permission
+                           :model (agent-shell--make-prompt-for-permission-model
+                                   :options .params.options
+                                   :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
+                           :on-choice (lambda (option-id)
+                                        (acp-send-response
+                                         :client (map-elt state :client)
+                                         :response (acp-make-session-request-permission-response
+                                                    :request-id .id
+                                                    :option-id option-id))))
                           (map-put! state :last-entry-type "session/request_permission"))
                          (t
                           (agent-shell--update-dialog-block
@@ -503,11 +505,19 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                 (name (map-elt opt 'name)))
                            (when char
                              (map-into `((:label . ,(format "%s (%c)" name char))
+                                         (:option . ,name)
                                          (:char . ,char)
                                          (:kind . ,kind)
                                          (:option-id . ,(map-elt opt 'optionId)))
                                        'alist))))
                        options))))
+
+(defun agent-shell--make-tool-permission-header ()
+  "Create header text for tool permission dialog."
+  (concat
+   (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning) " "
+   (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
+   (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
 
 (cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
   "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
@@ -516,9 +526,9 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
           (tool-call-id .params.toolCall.toolCallId)
           (actions (agent-shell--prepare-permission-actions .params.options)))
       (let ((text (format "
-   %s %s %s%s
+%s %s %s%s
 
-   %s
+%s
 
 "
                           (propertize agent-shell-permission-icon
@@ -561,21 +571,84 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
             tool-call))
     (map-put! state :tool-calls updated-tools)))
 
-(defun agent-shell--prompt-for-permission (options)
-  "Prompt user for permission using OPTIONS and return selected option."
-  (let* ((actions (agent-shell--prepare-permission-actions options))
-         (labels (mapcar (lambda (item)
-                           (map-elt item :label))
-                         actions))
-         (valid-chars (mapcar (lambda (item)
-                                (map-elt item :char))
-                              actions))
-         (prompt (format "%s " (string-join labels " ")))
-         (choice-char (read-char-choice prompt valid-chars)))
-    (map-elt (seq-find (lambda (item)
-                         (= (map-elt item :char) choice-char))
-                       actions)
-             :option-id)))
+(cl-defun agent-shell--prompt-for-permission (&key model on-choice)
+  "Prompt user for permission using MODEL and invoke ON-CHOICE.
+
+MODEL is of the form by `agent-shell--make-prompt-for-permission-model'.
+
+ON-CHOICE is of the form: (lambda (choice))"
+  (let* ((description (if (map-elt model :description)
+                          (concat
+                           "\n"
+                           (agent-shell--make-tool-permission-header) "\n\n"
+                           (propertize
+                            (string-trim (map-elt model :description))
+                            'face 'comint-highlight-input) "\n")
+                        (concat (agent-shell--make-tool-permission-header) "\n")))
+         (actions (map-elt model :actions))
+         (transient-function (intern (format "agent-shell--permission-transient-%s"
+                                             (gensym))))
+         (cleanup-function (intern (format "%s-cleanup" transient-function))))
+    ;; Since transients are defined at runtime, we need to
+    ;; create unique interactive functions per invocation, but
+    ;; also need to remove them after usage. Thus the cleanup
+    ;; hook.
+    (eval
+     `(progn
+        (defun ,cleanup-function ()
+          "Cleanup function for transient."
+          (fmakunbound ',transient-function)
+          (fmakunbound ',cleanup-function)
+          (remove-hook 'transient-exit-hook #',cleanup-function))
+        (transient-define-prefix ,transient-function ()
+          "Permission prompt"
+          [:description
+           (lambda ()
+             ,description)
+           :class transient-row
+           ,@(mapcar (lambda (action)
+                       (let ((option-id (map-elt action :option-id)))
+                         `(,(char-to-string (map-elt action :char))
+                           ,(map-elt action :label)
+                           (lambda ()
+                             (interactive)
+                             (transient-quit-one)
+                             (funcall ',on-choice ',option-id)))))
+                     actions)])))
+
+    (add-hook 'transient-exit-hook cleanup-function)
+
+    (funcall transient-function)))
+
+(cl-defun agent-shell--make-prompt-for-permission-model (&key options tool-call)
+  "Create a permission prompt model from OPTIONS and optional TOOL-CALL.
+
+Model is of the form:
+
+((:description . \"Permission Required\\n\\nThe agent wants to run: git log --oneline -n 10\")
+   (:actions . (((:label . \"No (n)\")
+                 (:char . ?n)
+                 (:kind . \"reject_once\")
+                 (:option-id . \"opt-456\"))
+                ((:label . \"Yes (y)\")
+                 (:char . ?y)
+                 (:kind . \"allow_once\")
+                 (:option-id . \"opt-123\"))
+                ((:label . \"Always Approve (!)\")
+                 (:char . ?!)
+                 (:kind . \"allow_always\")
+                 (:option-id . \"opt-789\")))))"
+  (let ((description (concat
+                      (when (map-elt tool-call :title)
+                        (map-elt tool-call :title))
+                      (when (and (map-elt tool-call :title)
+                                 (map-elt tool-call :description))
+                        "\n\n")
+                      (when (map-elt tool-call :description)
+                        (map-elt tool-call :description))))
+        (actions (agent-shell--prepare-permission-actions options)))
+    `((:description . ,description)
+      (:actions . ,actions))))
 
 (cl-defun agent-shell--make-error-dialog-text (&key code message raw-error)
   "Create formatted error dialog text with CODE, MESSAGE, and RAW-ERROR."
