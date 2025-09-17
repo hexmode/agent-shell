@@ -290,14 +290,30 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
     (put-text-property block-start (or body-end label-right-end label-left-end) 'front-sticky '(read-only))))
 
 (defun sui--required-newlines (desired)
-  "Return string of newlines needed to reach DESIRED (max 2) before point."
-  (let ((desired (min 2 desired)))
-    (make-string
-     (cond
-      ((looking-back "\n\n" (- (point) 2)) 0)
-      ((looking-back "\n" (- (point) 1)) (max 0 (- desired 1)))
-      (t desired))
-     ?\n)))
+  "Return string of newlines needed to reach DESIRED before POSITION."
+  (let ((context (save-excursion
+                   (let ((end (point)))
+                     (forward-line (- (+ 1 desired)))
+                     (buffer-substring (point) end)))))
+    (with-temp-buffer
+      (insert context)
+      ;; When counting visible newlines before point,
+      ;; we may encounter invisible text, which may
+      ;; look like newlines but gives false negatives.
+      ;; In those cases, delete any 'invisible text
+      ;; and try counting.
+      (let ((inhibit-read-only t))
+        (goto-char (point-max))
+        (while (not (bobp))
+          (let* ((end (point))
+                 (start (previous-single-property-change end 'invisible nil (point-min))))
+            (if (get-text-property (1- end) 'invisible)
+                (delete-region start end))
+            (goto-char start))))
+      (goto-char (point-max))
+      (let ((pos (point)))
+        (skip-chars-backward "\n")
+        (make-string (max 0 (- desired (- pos (point)))) ?\n)))))
 
 (defun sui-toggle-dialog-block-at-point ()
   "Toggle visibility of dialog block body at point."
