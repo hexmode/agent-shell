@@ -1022,7 +1022,7 @@ LOCATION is the location information to include."
                      :x 0 :y 0 :width image-width :height image-height))
         (svg-text svg title
                   :x (+ image-width 10) :y text-height
-                  :fill (face-attribute 'default :foreground))
+                  :fill (face-attribute 'font-lock-variable-name-face :foreground))
         (svg-text svg location
                   :x (+ image-width 10) :y (* 2 text-height)
                   :fill (face-attribute 'font-lock-string-face :foreground))
