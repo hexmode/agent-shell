@@ -90,7 +90,7 @@ and AUTHENTICATE-REQUEST-MAKER."
     (unless api-key
       (user-error "Please set your `agent-shell-anthropic-key'"))
     (with-current-buffer
-        (agent-shell-start
+        (agent-shell--start
          :new-session t
          :mode-line-name "Claude Code"
          :buffer-name "Claude Code"
@@ -106,7 +106,7 @@ and AUTHENTICATE-REQUEST-MAKER."
     (unless api-key
       (user-error "Please set your `agent-shell-google-key'"))
     (with-current-buffer
-        (agent-shell-start
+        (agent-shell--start
          :new-session t
          :mode-line-name "Gemini"
          :buffer-name "Gemini"
@@ -231,7 +231,7 @@ and AUTHENTICATE-REQUEST-MAKER."
             :append t)
            (acp-send-request
             :client (map-elt agent-shell--state :client)
-            :request (acp-make-session-new-request :cwd default-directory)
+            :request (acp-make-session-new-request :cwd (agent-shell-cwd))
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
                             (map-put! agent-shell--state
@@ -810,11 +810,11 @@ PROPERTIES should be a plist of property-value pairs."
         (setq properties (cddr properties))))
     str))
 
-(cl-defun agent-shell-start (&key no-focus new-session mode-line-name welcome-function
-                                  buffer-name shell-prompt shell-prompt-regexp
-                                  client-maker
-                                  needs-authentication
-                                  authenticate-request-maker)
+(cl-defun agent-shell--start (&key no-focus new-session mode-line-name welcome-function
+                                   buffer-name shell-prompt shell-prompt-regexp
+                                   client-maker
+                                   needs-authentication
+                                   authenticate-request-maker)
   "Start an agent shell programmatically.
 
 Set NO-FOCUS to start in background.
@@ -831,12 +831,16 @@ Returns the shell buffer."
                   :prompt shell-prompt
                   :prompt-regexp shell-prompt-regexp))
          (agent-shell--config config)
+         (default-directory (agent-shell-cwd))
          (shell-buffer
           (shell-maker-start agent-shell--config
                              no-focus
                              welcome-function
                              new-session
-                             buffer-name
+                             (concat buffer-name
+                                     " Agent @ "
+                                     (file-name-nondirectory
+                                      (string-remove-suffix "/" default-directory)))
                              mode-line-name)))
     (with-current-buffer shell-buffer
       ;; Initialize buffer-local state
@@ -846,6 +850,9 @@ Returns the shell buffer."
                                       :authenticate-request-maker authenticate-request-maker))
       ;; Initialize buffer-local config
       (setq-local agent-shell--config config)
+      (setq header-line-format (format " %s Agent @ %s"
+                                       buffer-name
+                                       (string-remove-suffix "/" (abbreviate-file-name default-directory))))
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1))
     shell-buffer))
@@ -969,6 +976,17 @@ Could be a prompt or an expandable item."
             ((eq next-pos block-pos)
              (deactivate-mark)
              (goto-char block-pos))))))
+
+(defun agent-shell-cwd ()
+  "Return the CWD for this shell.
+
+If in a project, use project root."
+  (or (when (fboundp 'projectile-project-root)
+        (projectile-project-root))
+      (when (fboundp 'project-root)
+        (when-let ((proj (project-current)))
+          (project-root proj)))
+      default-directory))
 
 (provide 'agent-shell)
 
