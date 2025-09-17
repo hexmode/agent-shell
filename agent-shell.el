@@ -96,7 +96,7 @@ and AUTHENTICATE-REQUEST-MAKER."
          :buffer-name "Claude Code"
          :shell-prompt "Claude Code> "
          :shell-prompt-regexp "Claude Code> "
-         :client-maker (lambda (_shell _state)
+         :client-maker (lambda ()
                          (acp-make-claude-client :api-key api-key))))))
 
 (defun agent-shell-start-gemini-agent ()
@@ -115,7 +115,7 @@ and AUTHENTICATE-REQUEST-MAKER."
          :needs-authentication t
          :authenticate-request-maker (lambda ()
                                        (acp-make-authenticate-request :method-id "gemini-api-key"))
-         :client-maker (lambda (_shell _state)
+         :client-maker (lambda ()
                          (acp-make-gemini-client :api-key api-key))))))
 
 (defun agent-shell-interrupt ()
@@ -175,8 +175,8 @@ and AUTHENTICATE-REQUEST-MAKER."
             :expanded t)
            (if (map-elt agent-shell--state :client-maker)
                (progn
-                 (map-put! agent-shell--state :client (funcall (map-elt agent-shell--state :client-maker)
-                                                               shell agent-shell--state))
+                 (map-put! agent-shell--state
+                           :client (funcall (map-elt agent-shell--state :client-maker)))
                  (agent-shell--subscribe-to-client-events
                   :shell shell :state agent-shell--state)
                  (agent-shell--handle :command command :shell shell))
@@ -827,6 +827,8 @@ Set AUTHENTICATE-REQUEST-MAKER to create authentication requests.
 Set WELCOME-FUNCTION for custom welcome message.
 
 Returns the shell buffer."
+  (unless (and client-maker (funcall client-maker))
+    (error "No way to create a new client"))
   (let* ((config (agent-shell--make-config
                   :prompt shell-prompt
                   :prompt-regexp shell-prompt-regexp))
