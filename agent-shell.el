@@ -148,6 +148,10 @@ and AUTHENTICATE-REQUEST-MAKER."
 (defvar-keymap agent-shell-mode-map
   :parent shell-maker-mode-map
   :doc "Keymap for `agent-shell-mode'."
+  "TAB" #'agent-shell-next-item
+  "<tab>" #'agent-shell-next-item
+  "<backtab>" #'agent-shell-previous-item
+  "S-TAB" #'agent-shell-previous-item
   "C-c C-c" #'agent-shell-interrupt)
 
 (shell-maker-define-major-mode (agent-shell--make-config) agent-shell-mode-map)
@@ -918,6 +922,53 @@ by default."
             "KEY-NOT-FOUND")))
         (t
          nil)))
+
+(defun agent-shell-next-item ()
+  "Go to next item.
+
+Could be a prompt or an expandable item."
+  (interactive)
+  (unless (eq major-mode 'agent-shell-mode)
+    (user-error "Not in a shell"))
+  (let* ((prompt-pos (save-excursion
+                       (when (comint-next-prompt 1)
+                         (point))))
+         (block-pos (save-excursion
+                      (sui-forward-block)))
+         (next-pos (apply 'min (delq nil (list prompt-pos
+                                               block-pos)))))
+    (when next-pos
+      (cond ((eq next-pos prompt-pos)
+             (deactivate-mark)
+             (goto-char prompt-pos))
+            ((eq next-pos block-pos)
+             (deactivate-mark)
+             (goto-char block-pos))))))
+
+(defun agent-shell-previous-item ()
+  "Go to previous item.
+
+Could be a prompt or an expandable item."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (user-error "Not in a shell"))
+  (let* ((prompt-pos (save-excursion
+                       (when (comint-next-prompt (- 1))
+                         (point))))
+         (block-pos (save-excursion
+                      (sui-backward-block)))
+         (positions (delq nil (list prompt-pos
+                                    block-pos)))
+         (next-pos (when positions
+                     (apply 'max positions))))
+    (when next-pos
+      (cond ((eq next-pos prompt-pos)
+             (deactivate-mark)
+             (goto-char prompt-pos)
+             (comint-skip-prompt))
+            ((eq next-pos block-pos)
+             (deactivate-mark)
+             (goto-char block-pos))))))
 
 (provide 'agent-shell)
 

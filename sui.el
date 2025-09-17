@@ -425,10 +425,6 @@ ON-ENTERED is a function to call when the cursor enters the text."
 
 (defvar sui-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "TAB") #'sui-forward-block)
-    (define-key map (kbd "<tab>") #'sui-forward-block)
-    (define-key map (kbd "<backtab>") #'sui-backward-block)
-    (define-key map (kbd "S-TAB") #'sui-backward-block)
     map)
   "Keymap for `sui-mode'.")
 
