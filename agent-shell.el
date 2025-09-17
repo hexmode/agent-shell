@@ -829,6 +829,8 @@ Set WELCOME-FUNCTION for custom welcome message.
 Returns the shell buffer."
   (unless (and client-maker (funcall client-maker))
     (error "No way to create a new client"))
+  (unless (version<= "0.82.2" shell-maker-version)
+    (error "Please update shell-maker to version 0.82.2 or newer"))
   (let* ((config (agent-shell--make-config
                   :prompt shell-prompt
                   :prompt-regexp shell-prompt-regexp))
