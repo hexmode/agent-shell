@@ -365,40 +365,40 @@ INDENT-STRING defaults to two spaces."
 (defun sui-forward-block ()
   "Jump to the next block."
   (interactive)
-  (let* ((start-point (point))
-         (state (get-text-property (point) 'sui-state))
-         (block (sui--block-range :position (point))))
-    ;; If in navigatable block, move past it first
-    (when (map-elt state :navigatable)
-      (goto-char (map-elt block :end)))
-    ;; Now find the next navigatable block
-    (if-let ((next (text-property-search-forward
-                    'sui-state nil
-                    (lambda (_old-val new-val)
-                      (and new-val (map-elt new-val :navigatable)))
-                    t)))
-        (goto-char (prop-match-beginning next))
-      (goto-char start-point)
-      (message "No more blocks"))))
+  (when-let* ((start-point (point))
+              (found (save-excursion
+                       ;; In navigatable block already
+                       ;; move past it.
+                       (when-let ((state (get-text-property (point) 'sui-state))
+                                  (block (sui--block-range :position (point))))
+                         (goto-char (map-elt block :end)))
+                       (when-let ((next (text-property-search-forward
+                                         'sui-state nil
+                                         (lambda (_old-val new-val)
+                                           (and new-val (map-elt new-val :navigatable)))
+                                         t)))
+                         (prop-match-beginning next)))))
+    (goto-char found)
+    found))
 
 (defun sui-backward-block ()
   "Jump to the previous block."
   (interactive)
-  (let* ((start-point (point))
-         (state (get-text-property (point) 'sui-state))
-         (block (sui--block-range :position (point))))
-    ;; If in navigatable block, move to its start first
-    (when (map-elt state :navigatable)
-      (goto-char (map-elt block :start)))
-    ;; Now find the previous navigatable block
-    (if-let ((prev (text-property-search-backward
-                    'sui-state nil
-                    (lambda (_old-val new-val)
-                      (and new-val (map-elt new-val :navigatable)))
-                    t)))
-        (goto-char (prop-match-beginning prev))
-      (goto-char start-point)
-      (message "No more blocks"))))
+  (when-let* ((start-point (point))
+              (found (save-excursion
+                       ;; In navigatable block already
+                       ;; move to beginning.
+                       (when-let ((state (get-text-property (point) 'sui-state))
+                                  (block (sui--block-range :position (point))))
+                         (goto-char (map-elt block :start)))
+                       (when-let ((prev (text-property-search-backward
+                                         'sui-state nil
+                                         (lambda (_old-val new-val)
+                                           (and new-val (map-elt new-val :navigatable)))
+                                         t)))
+                         (prop-match-beginning prev)))))
+    (goto-char found)
+    found))
 
 (defun sui-make-action-keymap (action)
   "Create keymap with ACTION."
