@@ -629,19 +629,19 @@ ON-CHOICE is of the form: (lambda (choice))"
 
 Model is of the form:
 
-((:description . \"Permission Required\\n\\nThe agent wants to run: git log --oneline -n 10\")
+  ((:description . \"The agent wants to run: git log --oneline -n 10\")
    (:actions . (((:label . \"No (n)\")
-                 (:char . ?n)
-                 (:kind . \"reject_once\")
-                 (:option-id . \"opt-456\"))
-                ((:label . \"Yes (y)\")
-                 (:char . ?y)
-                 (:kind . \"allow_once\")
-                 (:option-id . \"opt-123\"))
-                ((:label . \"Always Approve (!)\")
-                 (:char . ?!)
-                 (:kind . \"allow_always\")
-                 (:option-id . \"opt-789\")))))"
+                   (:char . ?n)
+                   (:kind . \"reject_once\")
+                   (:option-id . \"opt-456\"))
+                  ((:label . \"Yes (y)\")
+                   (:char . ?y)
+                   (:kind . \"allow_once\")
+                   (:option-id . \"opt-123\"))
+                  ((:label . \"Always Approve (!)\")
+                   (:char . ?!)
+                   (:kind . \"allow_always\")
+                   (:option-id . \"opt-789\")))))"
   (let ((description (concat
                       (when (map-elt tool-call :title)
                         (map-elt tool-call :title))
