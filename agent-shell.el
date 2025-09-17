@@ -33,12 +33,13 @@
 
 ;;; Code:
 
+(require 'acp)
 (require 'json)
 (require 'map)
 (require 'markdown-overlays)
 (require 'shell-maker)
-(require 'acp)
 (require 'sui)
+(require 'svg nil :noerror)
 
 (defcustom agent-shell-google-key nil
   "Google API key as a string or a function that loads and returns it."
@@ -96,6 +97,7 @@ and AUTHENTICATE-REQUEST-MAKER."
          :buffer-name "Claude Code"
          :shell-prompt "Claude Code> "
          :shell-prompt-regexp "Claude Code> "
+         :icon-name "anthropic.png"
          :client-maker (lambda ()
                          (acp-make-claude-client :api-key api-key))))))
 
@@ -112,6 +114,7 @@ and AUTHENTICATE-REQUEST-MAKER."
          :buffer-name "Gemini"
          :shell-prompt "Gemini> "
          :shell-prompt-regexp "Gemini> "
+         :icon-name "gemini.png"
          :needs-authentication t
          :authenticate-request-maker (lambda ()
                                        (acp-make-authenticate-request :method-id "gemini-api-key"))
@@ -814,7 +817,8 @@ PROPERTIES should be a plist of property-value pairs."
                                    buffer-name shell-prompt shell-prompt-regexp
                                    client-maker
                                    needs-authentication
-                                   authenticate-request-maker)
+                                   authenticate-request-maker
+                                   icon-name)
   "Start an agent shell programmatically.
 
 Set NO-FOCUS to start in background.
@@ -856,9 +860,10 @@ Returns the shell buffer."
                                       :authenticate-request-maker authenticate-request-maker))
       ;; Initialize buffer-local config
       (setq-local agent-shell--config config)
-      (setq header-line-format (format " %s Agent @ %s"
-                                       buffer-name
-                                       (string-remove-suffix "/" (abbreviate-file-name default-directory))))
+      (setq header-line-format (agent-shell--make-header
+                                :icon-name icon-name
+                                :title (concat buffer-name " Agent")
+                                :location (string-remove-suffix "/" (abbreviate-file-name default-directory))))
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1))
     shell-buffer))
@@ -993,6 +998,73 @@ If in a project, use project root."
         (when-let ((proj (project-current)))
           (project-root proj)))
       default-directory))
+
+(cl-defun agent-shell--make-header (&key icon-name title location)
+  "Return header text.
+ICON-NAME is the name of the icon to display (gemini.png).
+TITLE is the title text to show.
+LOCATION is the location information to include."
+  (unless icon-name
+    (error ":icon-name is required"))
+  (unless title
+    (error ":title is required"))
+  (unless location
+    (error ":location is required"))
+  (if (display-graphic-p)
+      (let* ((image-height (* 3 (default-font-height)))
+             (image-width image-height)
+             (text-height 25)
+             (svg (svg-create (frame-pixel-width) (+ image-height 10)))
+             (icon-filename (agent-shell--fetch-agent-icon icon-name)))
+        (when icon-filename
+          (svg-embed svg icon-filename
+                     "image/png" nil
+                     :x 0 :y 0 :width image-width :height image-height))
+        (svg-text svg title
+                  :x (+ image-width 10) :y text-height
+                  :fill (face-attribute 'default :foreground))
+        (svg-text svg location
+                  :x (+ image-width 10) :y (* 2 text-height)
+                  :fill (face-attribute 'font-lock-string-face :foreground))
+        (propertize (format " %s" (with-temp-buffer
+                                    (svg-insert-image svg)
+                                    (buffer-string)))
+                    'ignore t
+                    'read-only t
+                    'face font-lock-comment-face
+                    'rear-nonsticky t))
+    (format " %s @ %s" title location)))
+
+(defun agent-shell--fetch-agent-icon (icon-name)
+  "Download ICON filename from GitHub, only if it exists and save as binary.
+
+ICON names can be found at https://github.com/lobehub/lobe-icons/tree/master/packages/static-png
+
+ICONs starting with https:// are downloaded directly from that location."
+  (when icon-name
+    (let* ((mode (if (eq (frame-parameter nil 'background-mode) 'dark) "dark" "light"))
+           (url (if (string-prefix-p "https://" (downcase icon-name))
+                    icon-name
+                  (concat "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/"
+                          mode "/" icon-name)))
+           (filename (file-name-nondirectory url))
+           (cache-dir (file-name-concat (temporary-file-directory) "chatgpt-shell" mode))
+           (cache-path (expand-file-name filename cache-dir)))
+      (unless (file-exists-p cache-path)
+        (make-directory cache-dir t)
+        (let ((buffer (url-retrieve-synchronously url t t 5.0)))
+          (when buffer
+            (with-current-buffer buffer
+              (goto-char (point-min))
+              (if (re-search-forward "^HTTP/1.1 200 OK" nil t)
+                  (progn
+                    (re-search-forward "\r?\n\r?\n")
+                    (let ((coding-system-for-write 'no-conversion))
+                      (write-region (point) (point-max) cache-path)))
+                (message "Icon fetch failed: %s" url)))
+            (kill-buffer buffer))))
+      (when (file-exists-p cache-path)
+        cache-path))))
 
 (provide 'agent-shell)
 
