@@ -254,18 +254,9 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
         (while (< (point) body-end)
           ;; Ignore empty lines
           (unless (looking-at "^$")
-            (let ((indent-start (point)))
-              ;; Indent.
-              (insert "  ")
-              (when (get-text-property 0 'face body)
-                (put-text-property
-                 indent-start (point)
-                 'face (get-text-property 0 'face body)))
-              (when (get-text-property 0 'font-lock-face body)
-                (put-text-property
-                 indent-start (point)
-                 'font-lock-face (get-text-property 0 'font-lock-face body)))
-              (setq body-end (+ body-end 2))))  ; Adjust body-end position for inserted spaces
+            ;; Indent.
+            (insert "  ")
+            (setq body-end (+ body-end 2)))  ; Adjust body-end position for inserted spaces
           (forward-line 1)))
       (setq body-end (point))
       (add-text-properties body-start body-end
