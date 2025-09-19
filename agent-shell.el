@@ -63,12 +63,13 @@
   :type 'string
   :group 'agent-shell)
 
-(cl-defun agent-shell--make-state (&key client-maker needs-authentication authenticate-request-maker)
+(cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
   "Construct shell state.
 
 Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION
 and AUTHENTICATE-REQUEST-MAKER."
-  (list (cons :client nil)
+  (list (cons :buffer buffer)
+        (cons :client nil)
         (cons :client-maker client-maker)
         (cons :initialized nil)
         (cons :needs-authentication needs-authentication)
@@ -169,7 +170,6 @@ and AUTHENTICATE-REQUEST-MAKER."
               (shell-maker--current-request-id))
     (cond ((not (map-elt agent-shell--state :client))
            (agent-shell--update-dialog-block
-            :shell shell
             :state agent-shell--state
             :block-id "starting"
             :label-left (propertize "Initialized" 'font-lock-face 'font-lock-doc-markup-face)
@@ -180,15 +180,13 @@ and AUTHENTICATE-REQUEST-MAKER."
                (progn
                  (map-put! agent-shell--state
                            :client (funcall (map-elt agent-shell--state :client-maker)))
-                 (agent-shell--subscribe-to-client-events
-                  :shell shell :state agent-shell--state)
+                 (agent-shell--subscribe-to-client-events :state agent-shell--state)
                  (agent-shell--handle :command command :shell shell))
              (funcall (map-elt shell :write-output) "No :client-maker found")
              (funcall (map-elt shell :finish-output) nil)))
           ((not (map-elt agent-shell--state :initialized))
            (with-current-buffer (map-elt shell :buffer)
              (agent-shell--update-dialog-block
-              :shell shell
               :state agent-shell--state
               :block-id "starting"
               :body "\n\nInitializing..."
@@ -207,7 +205,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                 (not (map-elt agent-shell--state :authenticated)))
            (with-current-buffer (map-elt shell :buffer)
              (agent-shell--update-dialog-block
-              :shell shell
               :state agent-shell--state
               :block-id "starting"
               :body "\n\nAuthenticating..."
@@ -227,7 +224,6 @@ and AUTHENTICATE-REQUEST-MAKER."
              (funcall (map-elt shell :finish-output) nil)))
           ((not (map-elt agent-shell--state :session-id))
            (agent-shell--update-dialog-block
-            :shell shell
             :state agent-shell--state
             :block-id "starting"
             :body "\n\nCreating session..."
@@ -241,7 +237,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                                       :session-id (map-elt response 'sessionId))
                             (with-current-buffer (map-elt shell :buffer)
                               (agent-shell--update-dialog-block
-                               :shell shell
                                :state agent-shell--state
                                :block-id "starting"
                                :body "\n\nReady"
@@ -268,33 +263,32 @@ and AUTHENTICATE-REQUEST-MAKER."
             :on-failure (agent-shell--make-error-handler
                          :state agent-shell--state :shell shell))))))
 
-(cl-defun agent-shell--subscribe-to-client-events (&key shell state)
+(cl-defun agent-shell--subscribe-to-client-events (&key state)
   "Subscribe SHELL and STATE to ACP events."
   (acp-subscribe-to-errors
    :client (map-elt state :client)
    :on-error (lambda (error)
-               (agent-shell--on-error :shell shell :state state :error error)))
+               (agent-shell--on-error :state state :error error)))
   (acp-subscribe-to-notifications
    :client (map-elt state :client)
    :on-notification (lambda (notification)
-                      (agent-shell--on-notification :shell shell :state state :notification notification)))
+                      (agent-shell--on-notification :state state :notification notification)))
   (acp-subscribe-to-requests
    :client (map-elt state :client)
    :on-request (lambda (request)
-                 (agent-shell--on-request :shell shell :state state :request request))))
+                 (agent-shell--on-request :state state :request request))))
 
-(cl-defun agent-shell--on-error (&key shell state error)
+(cl-defun agent-shell--on-error (&key state error)
   "Handle ERROR with SHELL an STATE."
   (let-alist error
     (agent-shell--update-dialog-block
-     :shell shell
      :state state
      :block-id "Error"
      :body (or .message "Some error ¯\\_ (ツ)_/¯")
      :create-new t
      :no-navigation t)))
 
-(cl-defun agent-shell--on-notification (&key shell state notification)
+(cl-defun agent-shell--on-notification (&key state notification)
   "Handle incoming notification using SHELL, STATE, and NOTIFICATION."
   (let-alist notification
     (cond ((equal .method "session/update")
@@ -311,7 +305,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                       (cons :description (map-nested-elt update '(rawInput description)))
                       (cons :content (map-elt update 'content))))
                (agent-shell--update-dialog-block
-                :shell shell
                 :state state
                 :block-id (map-elt update 'toolCallId)
                 :label-left (agent-shell-make-tool-call-label
@@ -323,7 +316,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                  ;;          (map-elt state :last-entry-type)
                  ;;          (equal (map-elt state :last-entry-type) "agent_thought_chunk"))
                  (agent-shell--update-dialog-block
-                  :shell shell
                   :state state
                   :block-id "agent_thought_chunk"
                   :label-left  (concat
@@ -337,7 +329,6 @@ and AUTHENTICATE-REQUEST-MAKER."
               ((equal (map-elt update 'sessionUpdate) "agent_message_chunk")
                (let-alist update
                  (agent-shell--update-dialog-block
-                  :shell shell
                   :state state
                   :block-id "agent_message_chunk"
                   :label-left nil ;;
@@ -350,7 +341,6 @@ and AUTHENTICATE-REQUEST-MAKER."
               ((equal (map-elt update 'sessionUpdate) "plan")
                (let-alist update
                  (agent-shell--update-dialog-block
-                  :shell shell
                   :state state
                   :block-id "plan"
                   :label-left (propertize "Plan" 'font-lock-face 'font-lock-doc-markup-face)
@@ -374,7 +364,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                                            "\n\n")
                                 "\n\n")))
                    (agent-shell--update-dialog-block
-                    :shell shell
                     :state state
                     :block-id .toolCallId
                     :label-left (agent-shell-make-tool-call-label
@@ -384,7 +373,6 @@ and AUTHENTICATE-REQUEST-MAKER."
               ((equal (map-elt update 'sessionUpdate) "available_commands_update")
                (let-alist update
                  (agent-shell--update-dialog-block
-                  :shell shell
                   :state state
                   :block-id "available_commands_update"
                   :label-left (propertize "Available commands" 'font-lock-face 'font-lock-doc-markup-face)
@@ -392,7 +380,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                (map-put! state :last-entry-type "available_commands_update"))
               (t
                (agent-shell--update-dialog-block
-                :shell shell
                 :state state
                 :block-id "Session Update - fallback"
                 :body (format "%s" notification)
@@ -401,17 +388,16 @@ and AUTHENTICATE-REQUEST-MAKER."
                (map-put! state :last-entry-type nil)))))
           (t
            (agent-shell--update-dialog-block
-            :shell shell
             :state state
             :block-id "Notification - fallback"
             :body (format "%s" notification)
             :create-new t
             :no-navigation t)
            (map-put! state :last-entry-type nil))))
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
 
-(cl-defun agent-shell--on-request (&key shell state request)
+(cl-defun agent-shell--on-request (&key state request)
   "Handle incoming request using SHELL, STATE, and REQUEST."
   (let-alist request
     (cond ((equal .method "session/request_permission")
@@ -421,12 +407,11 @@ and AUTHENTICATE-REQUEST-MAKER."
                   (cons :status .params.toolCall.status)
                   (cons :kind .params.toolCall.kind)))
            (agent-shell--update-dialog-block
-            :shell shell
             :state state
             :label-left (agent-shell-make-tool-call-label
                          state .params.toolCall.toolCallId)
             :block-id .params.toolCall.toolCallId
-            :body (with-current-buffer (map-elt shell :buffer)
+            :body (with-current-buffer (map-elt state :buffer)
                     (agent-shell--make-tool-call-permission-text
                      :request request
                      :client (map-elt state :client)
@@ -445,14 +430,13 @@ and AUTHENTICATE-REQUEST-MAKER."
            (map-put! state :last-entry-type "session/request_permission"))
           (t
            (agent-shell--update-dialog-block
-            :shell shell
             :state state
             :block-id "Unhandled Incoming Request"
             :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
             :create-new t
             :no-navigation t)
            (map-put! state :last-entry-type nil))))
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
 
 (defun agent-shell--stop-reason-description (stop-reason)
@@ -492,7 +476,6 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
     (let-alist error
       (with-current-buffer (map-elt shell :buffer)
         (agent-shell--update-dialog-block
-         :shell shell
          :state agent-shell--state
          :block-id (format "failed-%s-id:%s-code:%s"
                            (map-elt state :request-count)
@@ -864,6 +847,7 @@ Returns the shell buffer."
     (with-current-buffer shell-buffer
       ;; Initialize buffer-local state
       (setq-local agent-shell--state (agent-shell--make-state
+                                      :buffer shell-buffer
                                       :client-maker client-maker
                                       :needs-authentication needs-authentication
                                       :authenticate-request-maker authenticate-request-maker))
@@ -877,8 +861,8 @@ Returns the shell buffer."
       (sui-mode +1))
     shell-buffer))
 
-(cl-defun agent-shell--update-dialog-block (&key shell state block-id label-left label-right body append create-new no-navigation expanded)
-  "Update dialog block in SHELL buffer.
+(cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new no-navigation expanded)
+  "Update dialog block in the shell buffer.
 
 Creates or updates existing dialog using STATE's request count as namespace.
 BLOCK-ID uniquely identifies the block.
@@ -888,7 +872,7 @@ Dialog can have LABEL-LEFT, LABEL-RIGHT, and BODY.
 Optional flags: APPEND text to existing content, CREATE-NEW block,
 NO-NAVIGATION to skip navigation, EXPANDED to show block expanded
 by default."
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt state :buffer)
     ;; (message "agent-shell--update-dialog-block: %s" body)
     (shell-maker-with-auto-scroll-edit
      (sui-update-dialog-block
