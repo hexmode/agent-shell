@@ -268,6 +268,193 @@ and AUTHENTICATE-REQUEST-MAKER."
             :on-failure (agent-shell--make-error-handler
                          :state agent-shell--state :shell shell))))))
 
+(cl-defun agent-shell--subscribe-to-client-events (&key shell state)
+  "Subscribe SHELL and STATE to ACP events."
+  (acp-subscribe-to-errors
+   :client (map-elt state :client)
+   :on-error (lambda (error)
+               (agent-shell--on-error :shell shell :state state :error error)))
+  (acp-subscribe-to-notifications
+   :client (map-elt state :client)
+   :on-notification (lambda (notification)
+                      (agent-shell--on-notification :shell shell :state state :notification notification)))
+  (acp-subscribe-to-requests
+   :client (map-elt state :client)
+   :on-request (lambda (request)
+                 (agent-shell--on-request :shell shell :state state :request request))))
+
+(cl-defun agent-shell--on-error (&key shell state error)
+  "Handle ERROR with SHELL an STATE."
+  (let-alist error
+    (agent-shell--update-dialog-block
+     :shell shell
+     :state state
+     :block-id "Error"
+     :body (or .message "Some error ¯\\_ (ツ)_/¯")
+     :create-new t
+     :no-navigation t)))
+
+(cl-defun agent-shell--on-notification (&key shell state notification)
+  "Handle incoming notification using SHELL, STATE, and NOTIFICATION."
+  (let-alist notification
+    (cond ((equal .method "session/update")
+           (let ((update (map-elt (map-elt notification 'params) 'update)))
+             (cond
+              ((equal (map-elt update 'sessionUpdate) "tool_call")
+               (agent-shell--save-tool-call
+                state
+                (map-elt update 'toolCallId)
+                (list (cons :title (map-elt update 'title))
+                      (cons :status (map-elt update 'status))
+                      (cons :kind (map-elt update 'kind))
+                      (cons :command (map-nested-elt update '(rawInput command)))
+                      (cons :description (map-nested-elt update '(rawInput description)))
+                      (cons :content (map-elt update 'content))))
+               (agent-shell--update-dialog-block
+                :shell shell
+                :state state
+                :block-id (map-elt update 'toolCallId)
+                :label-left (agent-shell-make-tool-call-label
+                             state (map-elt update 'toolCallId)))
+               (map-put! state :last-entry-type "tool_call"))
+              ((equal (map-elt update 'sessionUpdate) "agent_thought_chunk")
+               (let-alist update
+                 ;; (message "agent_thought_chunk: last-type=%s, will-append=%s"
+                 ;;          (map-elt state :last-entry-type)
+                 ;;          (equal (map-elt state :last-entry-type) "agent_thought_chunk"))
+                 (agent-shell--update-dialog-block
+                  :shell shell
+                  :state state
+                  :block-id "agent_thought_chunk"
+                  :label-left  (concat
+                                agent-shell-thought-process-icon
+                                " "
+                                (propertize "Thought process" 'font-lock-face font-lock-doc-markup-face))
+                  :body .content.text
+                  :append (equal (map-elt state :last-entry-type)
+                                 "agent_thought_chunk")))
+               (map-put! state :last-entry-type "agent_thought_chunk"))
+              ((equal (map-elt update 'sessionUpdate) "agent_message_chunk")
+               (let-alist update
+                 (agent-shell--update-dialog-block
+                  :shell shell
+                  :state state
+                  :block-id "agent_message_chunk"
+                  :label-left nil ;;
+                  :body .content.text
+                  :create-new (not (equal (map-elt state :last-entry-type)
+                                          "agent_message_chunk"))
+                  :append t
+                  :no-navigation t))
+               (map-put! state :last-entry-type "agent_message_chunk"))
+              ((equal (map-elt update 'sessionUpdate) "plan")
+               (let-alist update
+                 (agent-shell--update-dialog-block
+                  :shell shell
+                  :state state
+                  :block-id "plan"
+                  :label-left (propertize "Plan" 'font-lock-face 'font-lock-doc-markup-face)
+                  :body (agent-shell--format-plan .entries)
+                  :expanded t))
+               (map-put! state :last-entry-type "plan"))
+              ((equal (map-elt update 'sessionUpdate) "tool_call_update")
+               (let-alist update
+                 ;; Update stored tool call data with new status and content
+                 (agent-shell--save-tool-call
+                  state
+                  .toolCallId
+                  (list (cons :status (map-elt update 'status))
+                        (cons :content (map-elt update 'content))))
+                 (let ((output (concat
+                                "\n\n"
+                                (mapconcat (lambda (item)
+                                             (let-alist item
+                                               .content.text))
+                                           .content
+                                           "\n\n")
+                                "\n\n")))
+                   (agent-shell--update-dialog-block
+                    :shell shell
+                    :state state
+                    :block-id .toolCallId
+                    :label-left (agent-shell-make-tool-call-label
+                                 state .toolCallId)
+                    :body (string-trim output))))
+               (map-put! state :last-entry-type "tool_call_update"))
+              ((equal (map-elt update 'sessionUpdate) "available_commands_update")
+               (let-alist update
+                 (agent-shell--update-dialog-block
+                  :shell shell
+                  :state state
+                  :block-id "available_commands_update"
+                  :label-left (propertize "Available commands" 'font-lock-face 'font-lock-doc-markup-face)
+                  :body (agent-shell--format-available-commands (map-elt update 'availableCommands))))
+               (map-put! state :last-entry-type "available_commands_update"))
+              (t
+               (agent-shell--update-dialog-block
+                :shell shell
+                :state state
+                :block-id "Session Update - fallback"
+                :body (format "%s" notification)
+                :create-new t
+                :no-navigation t)
+               (map-put! state :last-entry-type nil)))))
+          (t
+           (agent-shell--update-dialog-block
+            :shell shell
+            :state state
+            :block-id "Notification - fallback"
+            :body (format "%s" notification)
+            :create-new t
+            :no-navigation t)
+           (map-put! state :last-entry-type nil))))
+  (with-current-buffer (map-elt shell :buffer)
+    (markdown-overlays-put)))
+
+(cl-defun agent-shell--on-request (&key shell state request)
+  "Handle incoming request using SHELL, STATE, and REQUEST."
+  (let-alist request
+    (cond ((equal .method "session/request_permission")
+           (agent-shell--save-tool-call
+            state .params.toolCall.toolCallId
+            (list (cons :title .params.toolCall.title)
+                  (cons :status .params.toolCall.status)
+                  (cons :kind .params.toolCall.kind)))
+           (agent-shell--update-dialog-block
+            :shell shell
+            :state state
+            :label-left (agent-shell-make-tool-call-label
+                         state .params.toolCall.toolCallId)
+            :block-id .params.toolCall.toolCallId
+            :body (with-current-buffer (map-elt shell :buffer)
+                    (agent-shell--make-tool-call-permission-text
+                     :request request
+                     :client (map-elt state :client)
+                     :state state))
+            :expanded t)
+           (agent-shell--prompt-for-permission
+            :model (agent-shell--make-prompt-for-permission-model
+                    :options .params.options
+                    :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
+            :on-choice (lambda (option-id)
+                         (acp-send-response
+                          :client (map-elt state :client)
+                          :response (acp-make-session-request-permission-response
+                                     :request-id .id
+                                     :option-id option-id))))
+           (map-put! state :last-entry-type "session/request_permission"))
+          (t
+           (agent-shell--update-dialog-block
+            :shell shell
+            :state state
+            :block-id "Unhandled Incoming Request"
+            :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
+            :create-new t
+            :no-navigation t)
+           (map-put! state :last-entry-type nil))))
+  (with-current-buffer (map-elt shell :buffer)
+    (markdown-overlays-put)))
+
 (defun agent-shell--stop-reason-description (stop-reason)
   "Return a human-readable text description for STOP-REASON.
 
@@ -279,183 +466,6 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
     ("refusal" "Refused")
     ("cancelled" "Cancelled")
     (_ (format "Stop for unknown reason: %s" stop-reason))))
-
-(cl-defun agent-shell--subscribe-to-client-events (&key shell state)
-  "Subscribe SHELL and STATE to ACP events."
-  (acp-subscribe-to-errors
-   :client (map-elt state :client)
-   :on-error (lambda (error)
-               (let-alist error
-                 (agent-shell--update-dialog-block
-                  :shell shell
-                  :state state
-                  :block-id "Error"
-                  :body (or .message "Some error ¯\\_ (ツ)_/¯")
-                  :create-new t
-                  :no-navigation t))))
-  (acp-subscribe-to-notifications
-   :client (map-elt state :client)
-   :on-notification (lambda (notification)
-                      (acp--log "NOTIFICATION" "%s" notification)
-                      (let-alist notification
-                        (cond ((equal .method "session/update")
-                               (let ((update (map-elt (map-elt notification 'params) 'update)))
-                                 (cond
-                                  ((equal (map-elt update 'sessionUpdate) "tool_call")
-                                   (agent-shell--save-tool-call
-                                    state
-                                    (map-elt update 'toolCallId)
-                                    (list (cons :title (map-elt update 'title))
-                                          (cons :status (map-elt update 'status))
-                                          (cons :kind (map-elt update 'kind))
-                                          (cons :command (map-nested-elt update '(rawInput command)))
-                                          (cons :description (map-nested-elt update '(rawInput description)))
-                                          (cons :content (map-elt update 'content))))
-                                   (agent-shell--update-dialog-block
-                                    :shell shell
-                                    :state state
-                                    :block-id (map-elt update 'toolCallId)
-                                    :label-left (agent-shell-make-tool-call-label
-                                                 state (map-elt update 'toolCallId)))
-                                   (map-put! state :last-entry-type "tool_call"))
-                                  ((equal (map-elt update 'sessionUpdate) "agent_thought_chunk")
-                                   (let-alist update
-                                     ;; (message "agent_thought_chunk: last-type=%s, will-append=%s"
-                                     ;;          (map-elt state :last-entry-type)
-                                     ;;          (equal (map-elt state :last-entry-type) "agent_thought_chunk"))
-                                     (agent-shell--update-dialog-block
-                                      :shell shell
-                                      :state state
-                                      :block-id "agent_thought_chunk"
-                                      :label-left  (concat
-                                                    agent-shell-thought-process-icon
-                                                    " "
-                                                    (propertize "Thought process" 'font-lock-face font-lock-doc-markup-face))
-                                      :body .content.text
-                                      :append (equal (map-elt state :last-entry-type)
-                                                     "agent_thought_chunk")))
-                                   (map-put! state :last-entry-type "agent_thought_chunk"))
-                                  ((equal (map-elt update 'sessionUpdate) "agent_message_chunk")
-                                   (let-alist update
-                                     (agent-shell--update-dialog-block
-                                      :shell shell
-                                      :state state
-                                      :block-id "agent_message_chunk"
-                                      :label-left nil ;;
-                                      :body .content.text
-                                      :create-new (not (equal (map-elt state :last-entry-type)
-                                                              "agent_message_chunk"))
-                                      :append t
-                                      :no-navigation t))
-                                   (map-put! state :last-entry-type "agent_message_chunk"))
-                                  ((equal (map-elt update 'sessionUpdate) "plan")
-                                   (let-alist update
-                                     (agent-shell--update-dialog-block
-                                      :shell shell
-                                      :state state
-                                      :block-id "plan"
-                                      :label-left (propertize "Plan" 'font-lock-face 'font-lock-doc-markup-face)
-                                      :body (agent-shell--format-plan .entries)
-                                      :expanded t))
-                                   (map-put! state :last-entry-type "plan"))
-                                  ((equal (map-elt update 'sessionUpdate) "tool_call_update")
-                                   (let-alist update
-                                     ;; Update stored tool call data with new status and content
-                                     (agent-shell--save-tool-call
-                                      state
-                                      .toolCallId
-                                      (list (cons :status (map-elt update 'status))
-                                            (cons :content (map-elt update 'content))))
-                                     (let ((output (concat
-                                                    "\n\n"
-                                                    (mapconcat (lambda (item)
-                                                                 (let-alist item
-                                                                   .content.text))
-                                                               .content
-                                                               "\n\n")
-                                                    "\n\n")))
-                                       (agent-shell--update-dialog-block
-                                        :shell shell
-                                        :state state
-                                        :block-id .toolCallId
-                                        :label-left (agent-shell-make-tool-call-label
-                                                     state .toolCallId)
-                                        :body (string-trim output))))
-                                   (map-put! state :last-entry-type "tool_call_update"))
-                                  ((equal (map-elt update 'sessionUpdate) "available_commands_update")
-                                   (let-alist update
-                                     (agent-shell--update-dialog-block
-                                      :shell shell
-                                      :state state
-                                      :block-id "available_commands_update"
-                                      :label-left (propertize "Available commands" 'font-lock-face 'font-lock-doc-markup-face)
-                                      :body (agent-shell--format-available-commands (map-elt update 'availableCommands))))
-                                   (map-put! state :last-entry-type "available_commands_update"))
-                                  (t
-                                   (agent-shell--update-dialog-block
-                                    :shell shell
-                                    :state state
-                                    :block-id "Session Update - fallback"
-                                    :body (format "%s" notification)
-                                    :create-new t
-                                    :no-navigation t)
-                                   (map-put! state :last-entry-type nil)))))
-                              (t
-                               (agent-shell--update-dialog-block
-                                :shell shell
-                                :state state
-                                :block-id "Notification - fallback"
-                                :body (format "%s" notification)
-                                :create-new t
-                                :no-navigation t)
-                               (map-put! state :last-entry-type nil))))
-                      (with-current-buffer (map-elt shell :buffer)
-                        (markdown-overlays-put))))
-  (acp-subscribe-to-requests
-   :client (map-elt state :client)
-   :on-request (lambda (request)
-                 (acp--log "INCOMING REQUEST" "%s" request)
-                 (let-alist request
-                   (cond ((equal .method "session/request_permission")
-                          (agent-shell--save-tool-call
-                           state .params.toolCall.toolCallId
-                           (list (cons :title .params.toolCall.title)
-                                 (cons :status .params.toolCall.status)
-                                 (cons :kind .params.toolCall.kind)))
-                          (agent-shell--update-dialog-block
-                           :shell shell
-                           :state state
-                           :label-left (agent-shell-make-tool-call-label
-                                        state .params.toolCall.toolCallId)
-                           :block-id .params.toolCall.toolCallId
-                           :body (with-current-buffer (map-elt shell :buffer)
-                                   (agent-shell--make-tool-call-permission-text
-                                    :request request
-                                    :client (map-elt state :client)
-                                    :state state))
-                           :expanded t)
-                          (agent-shell--prompt-for-permission
-                           :model (agent-shell--make-prompt-for-permission-model
-                                   :options .params.options
-                                   :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
-                           :on-choice (lambda (option-id)
-                                        (acp-send-response
-                                         :client (map-elt state :client)
-                                         :response (acp-make-session-request-permission-response
-                                                    :request-id .id
-                                                    :option-id option-id))))
-                          (map-put! state :last-entry-type "session/request_permission"))
-                         (t
-                          (agent-shell--update-dialog-block
-                           :shell shell
-                           :state state
-                           :block-id "Unhandled Incoming Request"
-                           :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
-                           :create-new t
-                           :no-navigation t)
-                          (map-put! state :last-entry-type nil))))
-                 (with-current-buffer (map-elt shell :buffer)
-                   (markdown-overlays-put)))))
 
 (defun agent-shell--format-available-commands (commands)
   "Format COMMANDS for shell rendering."
@@ -696,7 +706,6 @@ Model is of the form:
   "Clean up resources.
 
 For example, shut down ACP client."
-  (acp--log "CLEANING-UP" "")
   (unless (eq major-mode (shell-maker-major-mode shell-maker--config))
     (user-error "Not in an agent shell"))
   (when (map-elt agent-shell--state :client)
@@ -1036,11 +1045,11 @@ LOCATION is the location information to include."
     (format " %s @ %s" title location)))
 
 (defun agent-shell--fetch-agent-icon (icon-name)
-  "Download ICON filename from GitHub, only if it exists and save as binary.
+  "Download icon with ICON-NAME from GitHub, only if it exists, and save as binary.
 
-ICON names can be found at https://github.com/lobehub/lobe-icons/tree/master/packages/static-png
+Names can be found at https://github.com/lobehub/lobe-icons/tree/master/packages/static-png
 
-ICONs starting with https:// are downloaded directly from that location."
+Icon names starting with https:// are downloaded directly from that location."
   (when icon-name
     (let* ((mode (if (eq (frame-parameter nil 'background-mode) 'dark) "dark" "light"))
            (url (if (string-prefix-p "https://" (downcase icon-name))
