@@ -77,6 +77,7 @@ and AUTHENTICATE-REQUEST-MAKER."
         (cons :authenticated nil)
         (cons :session-id nil)
         (cons :last-entry-type nil)
+        (cons :chunked-group-count 0)
         (cons :request-count 0)
         (cons :tool-calls nil)))
 
@@ -327,9 +328,13 @@ and AUTHENTICATE-REQUEST-MAKER."
                  ;; (message "agent_thought_chunk: last-type=%s, will-append=%s"
                  ;;          (map-elt state :last-entry-type)
                  ;;          (equal (map-elt state :last-entry-type) "agent_thought_chunk"))
+                 (unless (equal (map-elt state :last-entry-type)
+                                "agent_thought_chunk")
+                   (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count))))
                  (agent-shell--update-dialog-block
                   :state state
-                  :block-id "agent_thought_chunk"
+                  :block-id (format "%s-agent_thought_chunk"
+                                    (map-elt state :chunked-group-count))
                   :label-left  (concat
                                 agent-shell-thought-process-icon
                                 " "
@@ -339,10 +344,13 @@ and AUTHENTICATE-REQUEST-MAKER."
                                  "agent_thought_chunk")))
                (map-put! state :last-entry-type "agent_thought_chunk"))
               ((equal (map-elt update 'sessionUpdate) "agent_message_chunk")
+               (unless (equal (map-elt state :last-entry-type) "agent_message_chunk")
+                 (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count))))
                (let-alist update
                  (agent-shell--update-dialog-block
                   :state state
-                  :block-id "agent_message_chunk"
+                  :block-id (format "%s-agent_message_chunk"
+                                    (map-elt state :chunked-group-count))
                   :label-left nil ;;
                   :body .content.text
                   :create-new (not (equal (map-elt state :last-entry-type)
