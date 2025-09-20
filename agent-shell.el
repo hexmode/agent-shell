@@ -178,10 +178,24 @@ and AUTHENTICATE-REQUEST-MAKER."
                (progn
                  (map-put! agent-shell--state
                            :client (funcall (map-elt agent-shell--state :client-maker)))
-                 (agent-shell--subscribe-to-client-events :state agent-shell--state)
                  (agent-shell--handle :command command :shell shell))
              (funcall (map-elt shell :write-output) "No :client-maker found")
              (funcall (map-elt shell :finish-output) nil)))
+          ((or (not (map-nested-elt agent-shell--state '(:client :request-handlers)))
+               (not (map-nested-elt agent-shell--state '(:client :notification-handlers)))
+               (not (map-nested-elt agent-shell--state '(:client :error-handlers))))
+           (agent-shell--update-dialog-block
+            :state agent-shell--state
+            :block-id "starting"
+            :body "\n\nSubscribing..."
+            :append t)
+           (if (map-elt agent-shell--state :client)
+               (progn
+                 (agent-shell--subscribe-to-client-events :state agent-shell--state)
+                 (agent-shell--handle :command command :shell shell))
+             (funcall (map-elt shell :write-output) "No :client found")
+             (funcall (map-elt shell :finish-output) nil))
+           )
           ((not (map-elt agent-shell--state :initialized))
            (with-current-buffer (map-elt shell :buffer)
              (agent-shell--update-dialog-block
