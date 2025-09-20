@@ -91,16 +91,15 @@ and AUTHENTICATE-REQUEST-MAKER."
   (let ((api-key (agent-shell-anthropic-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-anthropic-key'"))
-    (with-current-buffer
-        (agent-shell--start
-         :new-session t
-         :mode-line-name "Claude Code"
-         :buffer-name "Claude Code"
-         :shell-prompt "Claude Code> "
-         :shell-prompt-regexp "Claude Code> "
-         :icon-name "anthropic.png"
-         :client-maker (lambda ()
-                         (acp-make-claude-client :api-key api-key))))))
+    (agent-shell--start
+     :new-session t
+     :mode-line-name "Claude Code"
+     :buffer-name "Claude Code"
+     :shell-prompt "Claude Code> "
+     :shell-prompt-regexp "Claude Code> "
+     :icon-name "anthropic.png"
+     :client-maker (lambda ()
+                     (acp-make-claude-client :api-key api-key)))))
 
 (defun agent-shell-start-gemini-agent ()
   "Start an interactive Gemini CLI agent shell."
@@ -108,19 +107,18 @@ and AUTHENTICATE-REQUEST-MAKER."
   (let ((api-key (agent-shell-google-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-google-key'"))
-    (with-current-buffer
-        (agent-shell--start
-         :new-session t
-         :mode-line-name "Gemini"
-         :buffer-name "Gemini"
-         :shell-prompt "Gemini> "
-         :shell-prompt-regexp "Gemini> "
-         :icon-name "gemini.png"
-         :needs-authentication t
-         :authenticate-request-maker (lambda ()
-                                       (acp-make-authenticate-request :method-id "gemini-api-key"))
-         :client-maker (lambda ()
-                         (acp-make-gemini-client :api-key api-key))))))
+    (agent-shell--start
+     :new-session t
+     :mode-line-name "Gemini"
+     :buffer-name "Gemini"
+     :shell-prompt "Gemini> "
+     :shell-prompt-regexp "Gemini> "
+     :icon-name "gemini.png"
+     :needs-authentication t
+     :authenticate-request-maker (lambda ()
+                                   (acp-make-authenticate-request :method-id "gemini-api-key"))
+     :client-maker (lambda ()
+                     (acp-make-gemini-client :api-key api-key)))))
 
 (defun agent-shell-interrupt ()
   "Interrupt in-progress request."
