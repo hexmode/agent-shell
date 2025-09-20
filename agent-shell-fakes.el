@@ -25,9 +25,10 @@
     (unless first-prompt-text
       (error "No first prompt text available to kick replay off"))
     (with-current-buffer buffer
-      (goto-char (point-max))
-      (insert first-prompt-text)
-      (call-interactively #'shell-maker-submit))))
+      (save-excursion
+        (goto-char (point-max))
+        (insert first-prompt-text)
+        (call-interactively #'shell-maker-submit)))))
 
 (defun agent-shell-fakes-start-agent (messages)
   "Start a fake agent with traffic MESSAGES."
