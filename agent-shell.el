@@ -1020,10 +1020,18 @@ LOCATION is the location information to include."
              (image-width image-height)
              (text-height 25)
              (svg (svg-create (frame-pixel-width) (+ image-height 10)))
-             (icon-filename (agent-shell--fetch-agent-icon icon-name)))
-        (when icon-filename
+             (icon-filename (agent-shell--fetch-agent-icon icon-name))
+             (image-type (let ((ext (file-name-extension icon-name)))
+                           (cond
+                            ((member ext '("png" "PNG")) "image/png")
+                            ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
+                            ((member ext '("gif" "GIF")) "image/gif")
+                            ((member ext '("webp" "WEBP")) "image/webp")
+                            ((member ext '("svg" "SVG")) "image/svg+xml")
+                            (t "image/png")))))
+        (when (and icon-filename image-type)
           (svg-embed svg icon-filename
-                     "image/png" nil
+                     image-type nil
                      :x 0 :y 0 :width image-width :height image-height))
         (svg-text svg title
                   :x (+ image-width 10) :y text-height
