@@ -64,7 +64,7 @@
   :group 'agent-shell)
 
 (cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
-  "Construct shell state.
+  "Construct shell agent state with BUFFER.
 
 Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION
 and AUTHENTICATE-REQUEST-MAKER."
