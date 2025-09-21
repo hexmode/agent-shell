@@ -927,7 +927,7 @@ by default."
 (defun agent-shell-reset-logs ()
   "Reset all log buffers."
   (interactive)
-  (acp-reset-logs)
+  (acp-reset-logs :client (map-elt agent-shell--state :client))
   (message "Logs reset"))
 
 (defun agent-shell-google-key ()
