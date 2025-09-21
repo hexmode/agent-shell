@@ -1087,6 +1087,17 @@ Icon names starting with https:// are downloaded directly from that location."
       (when (file-exists-p cache-path)
         cache-path))))
 
+(defun agent-shell-view-traffic ()
+  "View agent shell traffic buffer."
+  (interactive)
+  (unless (eq major-mode 'agent-shell-mode)
+    (user-error "Not in a shell"))
+  (let ((traffic-buffer (acp-traffic-buffer :client (map-elt agent-shell--state :client))))
+    (when (with-current-buffer traffic-buffer
+            (= (buffer-size) 0))
+      (user-error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
+    (pop-to-buffer traffic-buffer)))
+
 (provide 'agent-shell)
 
 ;;; agent-shell.el ends here
