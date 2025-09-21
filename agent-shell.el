@@ -188,6 +188,7 @@ and AUTHENTICATE-REQUEST-MAKER."
            (agent-shell--update-dialog-block
             :state agent-shell--state
             :block-id "starting"
+            :label-left (propertize "Initialized" 'font-lock-face 'font-lock-doc-markup-face)
             :body "\n\nSubscribing..."
             :append t)
            (if (map-elt agent-shell--state :client)
