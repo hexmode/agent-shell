@@ -273,6 +273,17 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (overlay-put body-overlay 'evaporate t)
       (overlay-put body-overlay 'sui-section 'body)
       (overlay-put body-overlay 'invisible (not expanded)))
+    ;; Hide trailing whitespace (don't delete) in body.
+    (when body
+      (save-excursion
+        (goto-char body-end)
+        (when (re-search-backward "[^ \t\n]" body-start t)
+          (forward-char 1)
+          (when (< (point) body-end)
+            (let ((ws-overlay (make-overlay (point) body-end)))
+              (overlay-put ws-overlay 'invisible t)
+              (overlay-put ws-overlay 'evaporate t)
+              (overlay-put ws-overlay 'sui-section 'trailing-whitespace))))))
     (put-text-property
      block-start (or body-end label-right-end label-left-end)
      'sui-state (list
