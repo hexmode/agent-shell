@@ -856,9 +856,7 @@ Returns the shell buffer."
          (shell-buffer
           (shell-maker-start agent-shell--config
                              no-focus
-                             (or welcome-function
-                                 (lambda (_)
-                                   (concat "\n" (shell-maker-welcome-message config))))
+                             (or welcome-function #'shell-maker-welcome-message)
                              new-session
                              (concat buffer-name
                                      " Agent @ "
