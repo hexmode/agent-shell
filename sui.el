@@ -244,7 +244,9 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
     (when body
       (when (or label-left label-right)
         (insert "\n\n"))
-      (setq body (string-trim-right body))
+      ;; Never leave more than two trailing newlines.
+      (when (string-suffix-p "\n\n" body)
+        (setq body (concat (string-trim-right body) "\n\n")))
       (setq body-start (point))
       ;; Removing 2 space indentation if found. It's added again below.
       (insert (string-remove-prefix "  " body))
