@@ -44,7 +44,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
   (save-excursion
     (let* ((inhibit-read-only t)
            (namespace-id (map-elt model :namespace-id))
-           (block-id (format "%s-%s" namespace-id (map-elt model :block-id)))
+           (qualified-id (format "%s-%s" namespace-id (map-elt model :block-id)))
            (new-label-left (map-elt model :label-left))
            (new-label-right (map-elt model :label-right))
            (new-body (map-elt model :body))
@@ -53,7 +53,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
                     (text-property-search-backward
                      'sui-state nil
                      (lambda (_ state)
-                       (equal (map-elt state :block-id) block-id))
+                       (equal (map-elt state :qualified-id) qualified-id))
                      t))))
       (when match
         (goto-char (prop-match-beginning match)))
@@ -82,28 +82,30 @@ For existing blocks, the current expansion state is preserved unless overridden.
             (goto-char block-start)
 
             ;; Regenerate from final-model
-            (sui--insert-dialog-block final-model block-id
+            (sui--insert-dialog-block final-model qualified-id
                                       (not (map-elt state :collapsed))
                                       no-navigation))
 
         ;; Not found or create-new - insert new block
         (goto-char (point-max))
         (insert (sui--required-newlines 2))
-        (sui--insert-dialog-block model block-id expanded no-navigation)
+        (sui--insert-dialog-block model qualified-id expanded no-navigation)
         (insert "\n\n"))
       (when on-post-process
         (funcall on-post-process)))))
 
-(defun sui--read-dialog-block-at (position block-id)
-  "Read dialog block at POSITION with BLOCK-ID."
-  (when-let ((dialog (list (cons :block-id block-id)))
+
+;; TODO: Don't use qualified.
+(defun sui--read-dialog-block-at (position qualified-id)
+  "Read dialog block at POSITION with QUALIFIED-ID."
+  (when-let ((dialog (list (cons :block-id qualified-id)))
              (state (get-text-property position 'sui-state))
              (range (sui--block-range :position position)))
     ;; TODO: Get rid of merging block namespace and id.
-    ;; Extract namespace-id from block-id if it contains a dash
-    (when (string-match "^\\(.+\\)-\\(.+\\)$" block-id)
-      (setf (map-elt dialog :namespace-id) (match-string 1 block-id))
-      (setf (map-elt dialog :block-id) (match-string 2 block-id)))
+    ;; Extract namespace-id from qualified-id if it contains a dash
+    (when (string-match "^\\(.+\\)-\\(.+\\)$" qualified-id)
+      (setf (map-elt dialog :namespace-id) (match-string 1 qualified-id))
+      (setf (map-elt dialog :block-id) (match-string 2 qualified-id)))
     (save-excursion
       (save-restriction
         (narrow-to-region (map-elt range :start)
@@ -131,7 +133,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
   (when-let ((state (get-text-property (point) 'sui-state))
              (range (sui--block-range :position (point))))
     (sui--read-dialog-block-at (map-elt range :start)
-                               (map-elt state :block-id))))
+                               (map-elt state :qualified-id))))
 
 (cl-defun sui--block-range (&key position)
   "Get block range at POSITION if found.  Nil otherwise.
@@ -140,12 +142,12 @@ In the form:
 
   ((start . 1)
    (end . 3))."
-  (when-let ((block-id (map-elt (get-text-property (or position (point)) 'sui-state) :block-id)))
+  (when-let ((qualified-id (map-elt (get-text-property (or position (point)) 'sui-state) :qualified-id)))
     (sui--nearest-range-matching-property
      :property 'sui-state
-     :value block-id
-     :predicate (lambda (block-id property)
-                  (equal (map-elt property :block-id) block-id)))))
+     :value qualified-id
+     :predicate (lambda (qualified-id property)
+                  (equal (map-elt property :qualified-id) qualified-id)))))
 
 (cl-defun sui--nearest-range-matching-property (&key property value (predicate t) from to)
   "Return nearest range where PREDICATE is non-nil for PROPERTY and VALUE."
@@ -167,8 +169,8 @@ In the form:
                          (prop-match-end forward-match)
                        (prop-match-end backward-match)))))))))
 
-(defun sui--insert-dialog-block (model block-id &optional expanded no-navigation)
-  "Insert dialog block from MODEL with BLOCK-ID text properties.
+(defun sui--insert-dialog-block (model qualified-id &optional expanded no-navigation)
+  "Insert dialog block from MODEL with QUALIFIED-ID text properties.
 EXPANDED determines initial state (default nil for collapsed).
 NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
   (let ((block-start (point))
@@ -218,7 +220,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (setq label-left-end (point))
       (add-text-properties label-left-start label-left-end
                            `(sui-section label-left
-                                         help-echo ,block-id
+                                         help-echo ,qualified-id
                                          read-only t
                                          front-sticky (read-only)))
       (setq need-space t))
@@ -237,7 +239,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (setq label-right-end (point))
       (add-text-properties label-right-start label-right-end
                            `(sui-section label-right
-                                         help-echo ,block-id
+                                         help-echo ,qualified-id
                                          read-only t
                                          front-sticky (read-only))))
 
@@ -264,7 +266,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (setq body-end (point))
       (add-text-properties body-start body-end
                            `(sui-section body
-                                         help-echo ,block-id
+                                         help-echo ,qualified-id
                                          read-only t
                                          front-sticky (read-only))))
     (when-let ((is-collapsable collapsable)
@@ -288,7 +290,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
      block-start (or body-end label-right-end label-left-end)
      'sui-state (list
                  (cons :body body)
-                 (cons :block-id block-id)
+                 (cons :qualified-id qualified-id)
                  (cons :collapsed (not expanded))
                  (cons :navigatable (not no-navigation))))
     (put-text-property block-start (or body-end label-right-end label-left-end) 'read-only t)
@@ -358,12 +360,12 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
 (defun sui-collapse-dialog-block-by-id (namespace-id block-id)
   "Collapse dialog block with NAMESPACE-ID and BLOCK-ID."
   (save-excursion
-    (let ((full-block-id (format "%s-%s" namespace-id block-id)))
+    (let ((qualified-id (format "%s-%s" namespace-id block-id)))
       (goto-char (point-max))
       (when (text-property-search-backward
-             'sui-state block-id
+             'sui-state qualified-id
              (lambda (_ state)
-               (equal (map-elt state :block-id) full-block-id))
+               (equal (map-elt state :qualified-id) qualified-id))
              t)
         (sui-toggle-dialog-block-at-point)))))
 
