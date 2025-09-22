@@ -210,7 +210,10 @@ and AUTHENTICATE-REQUEST-MAKER."
               :append t))
            (acp-send-request
             :client (map-elt agent-shell--state :client)
-            :request (acp-make-initialize-request :protocol-version 1)
+            :request (acp-make-initialize-request
+                      :protocol-version 1
+                      :read-text-file-capability t
+                      :write-text-file-capability t)
             :on-success (lambda (_response)
                           ;; TODO: More to be handled?
                           (with-current-buffer (map-elt shell :buffer)
@@ -456,6 +459,14 @@ and AUTHENTICATE-REQUEST-MAKER."
             :no-navigation t)
            (agent-shell-previous-primary-permission-button)
            (map-put! state :last-entry-type "session/request_permission"))
+          ((equal .method "fs/read_text_file")
+           (agent-shell--on-fs-read-text-file-request
+            :state state
+            :request request))
+          ((equal .method "fs/write_text_file")
+           (agent-shell--on-fs-write-text-file-request
+            :state state
+            :request request))
           (t
            (agent-shell--update-dialog-block
             :state state
@@ -466,6 +477,65 @@ and AUTHENTICATE-REQUEST-MAKER."
            (map-put! state :last-entry-type nil))))
   (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
+
+(cl-defun agent-shell--on-fs-read-text-file-request (&key state request)
+  "Handle fs/read_text_file REQUEST with STATE."
+  (let-alist request
+    (condition-case err
+        (let* ((path .params.path)
+               (line (or .params.line 1))
+               (limit .params.limit)
+               (content (with-temp-buffer
+                          (insert-file-contents path)
+                          (when (> line 1)
+                            (goto-char (point-min))
+                            ;; Seems odd to use forward-line but
+                            ;; that's what `goto-line' recommends.
+                            (forward-line (1- line)))
+                          (let ((start (point)))
+                            (if limit
+                                ;; Seems odd to use forward-line but
+                                ;; that's what `goto-line' recommends.
+                                (forward-line limit)
+                              (goto-char (point-max)))
+                            (buffer-substring start (point))))))
+          (acp-send-response
+           :client (map-elt state :client)
+           :response (acp-make-fs-read-text-file-response
+                      :request-id .id
+                      :content content)))
+      (error
+       (acp-send-response
+        :client (map-elt state :client)
+        :response (acp-make-fs-read-text-file-response
+                   :request-id .id
+                   :error (acp-make-error
+                           :code -32603
+                           :message (error-message-string err))))))))
+
+(cl-defun agent-shell--on-fs-write-text-file-request (&key state request)
+  "Handle fs/write_text_file REQUEST with STATE."
+  (let-alist request
+    (condition-case err
+        (let* ((path .params.path)
+               (content .params.content)
+               (dir (file-name-directory path)))
+          (when (and dir (not (file-exists-p dir)))
+            (make-directory dir t))
+          (with-temp-file path
+            (insert content))
+          (acp-send-response
+           :client (map-elt state :client)
+           :response (acp-make-fs-write-text-file-response
+                      :request-id .id)))
+      (error
+       (acp-send-response
+        :client (map-elt state :client)
+        :response (acp-make-fs-write-text-file-response
+                   :request-id .id
+                   :error (acp-make-error
+                           :code -32603
+                           :message (error-message-string err))))))))
 
 (defun agent-shell--stop-reason-description (stop-reason)
   "Return a human-readable text description for STOP-REASON.
