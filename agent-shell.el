@@ -455,19 +455,6 @@ and AUTHENTICATE-REQUEST-MAKER."
             :expanded t
             :no-navigation t)
            (agent-shell-previous-primary-permission-button)
-           ;; TODO: Re-enable if we reckon inline permissions aren't good enough.
-           ;; (run-at-time
-           ;;  0.1 nil (lambda ()
-           ;;            (agent-shell--prompt-for-permission
-           ;;             :model (agent-shell--make-prompt-for-permission-model
-           ;;                     :options .params.options
-           ;;                     :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
-           ;;             :on-choice (lambda (option-id)
-           ;;                          (acp-send-response
-           ;;                           :client (map-elt state :client)
-           ;;                           :response (acp-make-session-request-permission-response
-           ;;                                      :request-id .id
-           ;;                                      :option-id option-id))))))
            (map-put! state :last-entry-type "session/request_permission"))
           (t
            (agent-shell--update-dialog-block
