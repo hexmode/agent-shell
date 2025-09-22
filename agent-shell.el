@@ -624,6 +624,13 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                          ;; [ Allow (y) ]
                                          (put-text-property (- (length button) 3) (- (length button) 1)
                                                             'agent-shell-permission-button t button)
+                                         (put-text-property (- (length button) 3) (- (length button) 1)
+                                                            'cursor-sensor-functions (list (lambda (_window _old-pos sensor-action)
+                                                                                             (when (eq sensor-action 'entered)
+                                                                                               (message "Press RET or %c to %s"
+                                                                                                        (map-elt action :char)
+                                                                                                        (map-elt action :option)))))
+                                                              button)
                                          button))
                                      actions
                                      " "))))
