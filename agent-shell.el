@@ -429,25 +429,28 @@ and AUTHENTICATE-REQUEST-MAKER."
                   (cons :kind .params.toolCall.kind)))
            (agent-shell--update-dialog-block
             :state state
-            :label-left (agent-shell-make-tool-call-label
-                         state .params.toolCall.toolCallId)
-            :block-id .params.toolCall.toolCallId
+            :block-id (format "permission-%s" .params.toolCall.toolCallId)
             :body (with-current-buffer (map-elt state :buffer)
                     (agent-shell--make-tool-call-permission-text
                      :request request
                      :client (map-elt state :client)
                      :state state))
-            :expanded t)
-           (agent-shell--prompt-for-permission
-            :model (agent-shell--make-prompt-for-permission-model
-                    :options .params.options
-                    :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
-            :on-choice (lambda (option-id)
-                         (acp-send-response
-                          :client (map-elt state :client)
-                          :response (acp-make-session-request-permission-response
-                                     :request-id .id
-                                     :option-id option-id))))
+            :expanded t
+            :no-navigation t)
+           (agent-shell-previous-primary-permission-button)
+           ;; TODO: Re-enable if we reckon inline permissions aren't good enough.
+           ;; (run-at-time
+           ;;  0.1 nil (lambda ()
+           ;;            (agent-shell--prompt-for-permission
+           ;;             :model (agent-shell--make-prompt-for-permission-model
+           ;;                     :options .params.options
+           ;;                     :tool-call (map-nested-elt state `(:tool-calls ,.params.toolCall.toolCallId)))
+           ;;             :on-choice (lambda (option-id)
+           ;;                          (acp-send-response
+           ;;                           :client (map-elt state :client)
+           ;;                           :response (acp-make-session-request-permission-response
+           ;;                                      :request-id .id
+           ;;                                      :option-id option-id))))))
            (map-put! state :last-entry-type "session/request_permission"))
           (t
            (agent-shell--update-dialog-block
@@ -546,39 +549,48 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
     (let ((request-id .id)
           (tool-call-id .params.toolCall.toolCallId)
           (actions (agent-shell--prepare-permission-actions .params.options)))
-      (let ((text (format "
-%s %s %s%s
+      (let ((text (format "╭───
 
-%s
+    %s %s %s%s
 
-"
+
+    %s
+
+
+╰───"
                           (propertize agent-shell-permission-icon
                                       'font-lock-face 'warning)
                           (propertize "Tool Permission" 'font-lock-face 'bold)
                           (propertize agent-shell-permission-icon
                                       'font-lock-face 'warning)
                           (if .params.toolCall.title
-                              (format "\n\n%s" .params.toolCall.title)
+                              (propertize
+                               (format "\n\n\n    %s" .params.toolCall.title)
+                               'font-lock-face 'comint-highlight-input)
                             "")
                           (mapconcat (lambda (action)
-                                       (agent-shell--make-button
-                                        :text (map-elt action :label)
-                                        :help (map-elt action :label)
-                                        :kind 'permission
-                                        :action (lambda ()
-                                                  (interactive)
-                                                  (acp-send-response
-                                                   :client client
-                                                   :response (acp-make-session-request-permission-response
-                                                              :request-id request-id
-                                                              :option-id (map-elt action :option-id)))
-                                                  (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id))))
+                                       (let ((button (agent-shell--make-button
+                                                      :text (map-elt action :label)
+                                                      :help (map-elt action :label)
+                                                      :kind 'permission
+                                                      :action (lambda ()
+                                                                (interactive)
+                                                                (acp-send-response
+                                                                 :client client
+                                                                 :response (acp-make-session-request-permission-response
+                                                                            :request-id request-id
+                                                                            :option-id (map-elt action :option-id)))
+                                                                (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)))))
+                                         ;; Make the button character navigatable.
+                                         ;;
+                                         ;; For example, the "y" in:
+                                         ;;
+                                         ;; [ Allow (y) ]
+                                         (put-text-property (- (length button) 3) (- (length button) 1)
+                                                            'agent-shell-permission-button t button)
+                                         button))
                                      actions
                                      " "))))
-        (font-lock-append-text-property 0 (length text)
-                                        'font-lock-face
-                                        `(:background ,(face-background 'next-error nil t) :extend t)
-                                        text)
         text))))
 
 (defun agent-shell--save-tool-call (state tool-call-id tool-call)
@@ -792,18 +804,19 @@ For example, shut down ACP client."
      "\n")))
 
 (cl-defun agent-shell--make-button (&key text help kind action)
-  "Make button with TEXT, HELP text, KIND, ACTION and NO-BOX."
-  (propertize
-   (format " %s " text)
-   'font-lock-face '(:box t)
-   'help-echo help
-   'pointer 'hand
-   'keymap (let ((map (make-sparse-keymap)))
-             (define-key map [mouse-1] action)
-             (define-key map (kbd "RET") action)
-             (define-key map [remap self-insert-command] 'ignore)
-             map)
-   'button kind))
+  "Make button with TEXT, HELP text, KIND, and ACTION."
+  (let ((button (propertize
+                 (format " %s " text)
+                 'font-lock-face '(:box t)
+                 'help-echo help
+                 'pointer 'hand
+                 'keymap (let ((map (make-sparse-keymap)))
+                           (define-key map [mouse-1] action)
+                           (define-key map (kbd "RET") action)
+                           (define-key map [remap self-insert-command] 'ignore)
+                           map)
+                 'button kind)))
+    button))
 
 (defun agent-shell--add-text-properties (string &rest properties)
   "Add text PROPERTIES to entire STRING and return the propertized string.
@@ -965,15 +978,16 @@ Could be a prompt or an expandable item."
                          (point))))
          (block-pos (save-excursion
                       (sui-forward-block)))
+         (button-pos (save-excursion
+                       (agent-shell-next-permission-button)))
          (next-pos (apply 'min (delq nil (list prompt-pos
-                                               block-pos)))))
+                                               block-pos
+                                               button-pos)))))
     (when next-pos
-      (cond ((eq next-pos prompt-pos)
-             (deactivate-mark)
-             (goto-char prompt-pos))
-            ((eq next-pos block-pos)
-             (deactivate-mark)
-             (goto-char block-pos))))))
+      (deactivate-mark)
+      (goto-char next-pos)
+      (when (eq next-pos prompt-pos)
+        (comint-skip-prompt)))))
 
 (defun agent-shell-previous-item ()
   "Go to previous item.
@@ -982,23 +996,63 @@ Could be a prompt or an expandable item."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (user-error "Not in a shell"))
-  (let* ((prompt-pos (save-excursion
+  (let* ((current-pos (point))
+         (prompt-pos (save-excursion
                        (when (comint-next-prompt (- 1))
-                         (point))))
+                         (let ((pos (point)))
+                           (when (< pos current-pos)
+                             pos)))))
          (block-pos (save-excursion
-                      (sui-backward-block)))
+                      (let ((pos (sui-backward-block)))
+                        (when (and pos (< pos current-pos))
+                          pos))))
+         (button-pos (save-excursion
+                       (let ((pos (agent-shell-previous-permission-button)))
+                         (when (and pos (< pos current-pos))
+                           pos))))
          (positions (delq nil (list prompt-pos
-                                    block-pos)))
+                                    block-pos
+                                    button-pos)))
          (next-pos (when positions
                      (apply 'max positions))))
     (when next-pos
-      (cond ((eq next-pos prompt-pos)
-             (deactivate-mark)
-             (goto-char prompt-pos)
-             (comint-skip-prompt))
-            ((eq next-pos block-pos)
-             (deactivate-mark)
-             (goto-char block-pos))))))
+      (deactivate-mark)
+      (goto-char next-pos)
+      (when (eq next-pos prompt-pos)
+        (comint-skip-prompt)))))
+
+(defun agent-shell-next-permission-button ()
+  "Jump to the next button."
+  (interactive)
+  (when-let* ((found (save-excursion
+                       (when (get-text-property (point) 'agent-shell-permission-button)
+                         (when-let ((next-change (next-single-property-change (point) 'agent-shell-permission-button)))
+                           (goto-char next-change)))
+                       (when-let ((next (text-property-search-forward
+                                         'agent-shell-permission-button t t)))
+                         (prop-match-beginning next)))))
+    (goto-char found)
+    found))
+
+(defun agent-shell-previous-permission-button ()
+  "Jump to the previous button."
+  (interactive)
+  (when-let* ((found (save-excursion
+                       (when (get-text-property (point) 'agent-shell-permission-button)
+                         (when-let ((prev-change (previous-single-property-change (point) 'agent-shell-permission-button)))
+                           (goto-char prev-change)))
+                       (when-let ((prev (text-property-search-backward
+                                         'agent-shell-permission-button t t)))
+                         (prop-match-beginning prev)))))
+    (goto-char found)
+    found))
+
+(defun agent-shell-previous-primary-permission-button ()
+  "Go backwards to the first button in a row of permission buttons."
+  (interactive)
+  (when (agent-shell-previous-permission-button)
+    (beginning-of-line)
+    (agent-shell-next-permission-button)))
 
 (defun agent-shell-cwd ()
   "Return the CWD for this shell.
