@@ -171,10 +171,11 @@ and AUTHENTICATE-REQUEST-MAKER."
            (agent-shell--update-dialog-block
             :state agent-shell--state
             :block-id "starting"
-            :label-left (propertize "Initialized" 'font-lock-face 'font-lock-doc-markup-face)
+            :label-left (format "%s %s"
+                                (agent-shell--status-label "in_progress")
+                                (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
             :body "Creating client..."
-            :create-new t
-            :expanded t)
+            :create-new t)
            (if (map-elt agent-shell--state :client-maker)
                (progn
                  (map-put! agent-shell--state
@@ -188,7 +189,9 @@ and AUTHENTICATE-REQUEST-MAKER."
            (agent-shell--update-dialog-block
             :state agent-shell--state
             :block-id "starting"
-            :label-left (propertize "Initialized" 'font-lock-face 'font-lock-doc-markup-face)
+            :label-left (format "%s %s"
+                                (agent-shell--status-label "in_progress")
+                                (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
             :body "\n\nSubscribing..."
             :append t)
            (if (map-elt agent-shell--state :client)
@@ -253,6 +256,9 @@ and AUTHENTICATE-REQUEST-MAKER."
                               (agent-shell--update-dialog-block
                                :state agent-shell--state
                                :block-id "starting"
+                               :label-left (format "%s %s"
+                                                   (agent-shell--status-label "completed")
+                                                   (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
                                :body "\n\nReady"
                                :append t))
                             (agent-shell--handle :command command :shell shell)))
