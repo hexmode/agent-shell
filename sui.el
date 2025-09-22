@@ -142,10 +142,10 @@ For existing blocks, the current expansion state is preserved unless overridden.
       (when match
         (let ((block-start (prop-match-beginning match))
               (block-end (prop-match-end match)))
-          ;; Remove leading whitespace
-          (goto-char block-start)
-          (when (re-search-backward "^[ \t]*$" nil t)
-            (setq block-start (match-beginning 0)))
+          ;; Remove vertical space that's part of the block.
+          (goto-char block-end)
+          (skip-chars-forward " \t\n")
+          (setq block-end (point))
           (delete-region block-start block-end))))))
 
 (defun sui--read-dialog-block-at-point ()
