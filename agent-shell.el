@@ -384,6 +384,14 @@ and AUTHENTICATE-REQUEST-MAKER."
                                            .content
                                            "\n\n")
                                 "\n\n")))
+                   ;; Status and permission are no longer pending. User
+                   ;; likely selected one of: accepted/rejected/always.
+                   ;; Remove stale permission dialog.
+                   (when (and (map-elt update 'status)
+                              (not (equal (map-elt update 'status) "pending")))
+                     ;; block-id must be the same as the one used as
+                     ;; agent-shell--update-dialog-block param by "session/request_permission".
+                     (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .toolCallId)))
                    (agent-shell--update-dialog-block
                     :state state
                     :block-id .toolCallId
@@ -429,6 +437,8 @@ and AUTHENTICATE-REQUEST-MAKER."
                   (cons :kind .params.toolCall.kind)))
            (agent-shell--update-dialog-block
             :state state
+            ;; block-id must be the same as the one used
+            ;; in agent-shell--delete-dialog-block param.
             :block-id (format "permission-%s" .params.toolCall.toolCallId)
             :body (with-current-buffer (map-elt state :buffer)
                     (agent-shell--make-tool-call-permission-text
@@ -914,6 +924,10 @@ Returns the shell buffer."
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1))
     shell-buffer))
+
+(cl-defun agent-shell--delete-dialog-block (&key state block-id)
+  "Delete dialog block with STATE and BLOCK-ID."
+  (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id))
 
 (cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new no-navigation expanded)
   "Update dialog block in the shell buffer.

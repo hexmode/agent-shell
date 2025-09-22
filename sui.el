@@ -95,7 +95,6 @@ For existing blocks, the current expansion state is preserved unless overridden.
         (funcall on-post-process)))))
 
 
-;; TODO: Don't use qualified.
 (defun sui--read-dialog-block-at (position qualified-id)
   "Read dialog block at POSITION with QUALIFIED-ID."
   (when-let ((dialog (list (cons :block-id qualified-id)))
@@ -127,6 +126,27 @@ For existing blocks, the current expansion state is preserved unless overridden.
             (setf (map-elt dialog :body) (buffer-substring (map-elt body :start)
                                                            (map-elt body :end)))))))
     dialog))
+
+(cl-defun sui-delete-dialog-block (&key namespace-id block-id)
+  "Delete dialog block with NAMESPACE-ID and BLOCK-ID."
+  (save-excursion
+    (let* ((inhibit-read-only t)
+           (qualified-id (format "%s-%s" namespace-id block-id))
+           (match (progn
+                    (goto-char (point-max))
+                    (text-property-search-backward
+                     'sui-state nil
+                     (lambda (_ state)
+                       (equal (map-elt state :qualified-id) qualified-id))
+                     t))))
+      (when match
+        (let ((block-start (prop-match-beginning match))
+              (block-end (prop-match-end match)))
+          ;; Remove leading whitespace
+          (goto-char block-start)
+          (when (re-search-backward "^[ \t]*$" nil t)
+            (setq block-start (match-beginning 0)))
+          (delete-region block-start block-end))))))
 
 (defun sui--read-dialog-block-at-point ()
   "Read dialog block at point, returning model or nil if none found."
