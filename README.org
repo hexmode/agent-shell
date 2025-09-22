@@ -47,15 +47,15 @@ You can =shell-maker= install via:
 =agent-shell= also depends on [[https://github.com/xenodium/acp.el][acp.el]], which isn't yet on MELPA. You can install with:
 
 #+begin_src emacs-lisp
-(use-package acp
-  :vc (:url "https://github.com/xenodium/acp.el"))
+  (use-package acp
+    :vc (:fetcher github :repo "xenodium/acp.el"))
 #+end_src
 
 Finally, install =agent-shell= with:
 
 #+begin_src emacs-lisp
-(use-package agent-shell
-  :vc (:url "https://github.com/xenodium/agent-shell"))
+  (use-package agent-shell
+    :vc (:fetcher github :repo "xenodium/agent-shell"))
 #+end_src
 
 ** Configuration
