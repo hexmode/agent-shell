@@ -390,6 +390,7 @@ and AUTHENTICATE-REQUEST-MAKER."
                                            .content
                                            "\n\n")
                                 "\n\n")))
+                   ;; Hide permission after sending response.
                    ;; Status and permission are no longer pending. User
                    ;; likely selected one of: accepted/rejected/always.
                    ;; Remove stale permission dialog.
@@ -559,7 +560,7 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
    (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
    (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
 
-(cl-defun agent-shell--make-tool-call-permission-text (&key request client _state)
+(cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
   "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
   (let-alist request
     (let* ((request-id .id)
@@ -571,14 +572,16 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                          (define-key map (vector char)
                                      (lambda ()
                                        (interactive)
-                                       ;; TODO: Hide permission dialog after sending?
-                                       ;; (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)
                                        (acp-send-response
                                         :client client
                                         :response (acp-make-session-request-permission-response
                                                    :request-id request-id
                                                    :option-id (map-elt action :option-id)))
-                                       (message "%s" (map-elt action :option))
+                                       ;; Hide permission after sending response.
+                                       ;; block-id must be the same as the one used as
+                                       ;; agent-shell--update-dialog-block param by "session/request_permission".
+                                       (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
+                                       (message "Selected: %s" (map-elt action :option))
                                        (goto-char (point-max))))))
                      map)))
       (let ((text (format "╭───
@@ -608,14 +611,16 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                                       :keymap keymap
                                                       :action (lambda ()
                                                                 (interactive)
-                                                                ;; TODO: Hide permission dialog after sending?
-                                                                ;; (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)
                                                                 (acp-send-response
                                                                  :client client
                                                                  :response (acp-make-session-request-permission-response
                                                                             :request-id request-id
                                                                             :option-id (map-elt action :option-id)))
-                                                                (message "%s" (map-elt action :option))
+                                                                ;; Hide permission after sending response.
+                                                                ;; block-id must be the same as the one used as
+                                                                ;; agent-shell--update-dialog-block param by "session/request_permission".
+                                                                (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
+                                                                (message "Selected: %s" (map-elt action :option))
                                                                 (goto-char (point-max))))))
                                          ;; Make the button character navigatable.
                                          ;;
