@@ -6,10 +6,13 @@
 
 ;;; Code:
 
+(require 'acp-fakes)
+
 (defun agent-shell-fakes-load-session ()
   "Load and replay a traffic session from file."
   (interactive)
-  (let* ((messages (acp-fakes-read-traffic-file))
+  (let* ((traffic-file (read-file-name "Load traffic file: " nil nil t))
+         (messages (acp-traffic-read-file traffic-file))
          (buffer (agent-shell-fakes-start-agent messages))
          (first-prompt (progn
                          (unless buffer
