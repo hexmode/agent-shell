@@ -543,12 +543,28 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
    (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
    (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
 
-(cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
+(cl-defun agent-shell--make-tool-call-permission-text (&key request client _state)
   "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
   (let-alist request
-    (let ((request-id .id)
-          (tool-call-id .params.toolCall.toolCallId)
-          (actions (agent-shell--prepare-permission-actions .params.options)))
+    (let* ((request-id .id)
+           (_tool-call-id .params.toolCall.toolCallId)
+           (actions (agent-shell--prepare-permission-actions .params.options))
+           (keymap (let ((map (make-sparse-keymap)))
+                     (dolist (action actions)
+                       (when-let ((char (map-elt action :char)))
+                         (define-key map (vector char)
+                                     (lambda ()
+                                       (interactive)
+                                       ;; TODO: Hide permission dialog after sending?
+                                       ;; (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)
+                                       (acp-send-response
+                                        :client client
+                                        :response (acp-make-session-request-permission-response
+                                                   :request-id request-id
+                                                   :option-id (map-elt action :option-id)))
+                                       (message "%s" (map-elt action :option))
+                                       (goto-char (point-max))))))
+                     map)))
       (let ((text (format "╭───
 
     %s %s %s%s
@@ -573,14 +589,18 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                                       :text (map-elt action :label)
                                                       :help (map-elt action :label)
                                                       :kind 'permission
+                                                      :keymap keymap
                                                       :action (lambda ()
                                                                 (interactive)
+                                                                ;; TODO: Hide permission dialog after sending?
+                                                                ;; (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)
                                                                 (acp-send-response
                                                                  :client client
                                                                  :response (acp-make-session-request-permission-response
                                                                             :request-id request-id
                                                                             :option-id (map-elt action :option-id)))
-                                                                (sui-collapse-dialog-block-by-id (map-elt state :request-count) tool-call-id)))))
+                                                                (message "%s" (map-elt action :option))
+                                                                (goto-char (point-max))))))
                                          ;; Make the button character navigatable.
                                          ;;
                                          ;; For example, the "y" in:
@@ -803,8 +823,8 @@ For example, shut down ACP client."
      entries
      "\n")))
 
-(cl-defun agent-shell--make-button (&key text help kind action)
-  "Make button with TEXT, HELP text, KIND, and ACTION."
+(cl-defun agent-shell--make-button (&key text help kind action keymap)
+  "Make button with TEXT, HELP text, KIND, KEYMAP, and ACTION."
   (let ((button (propertize
                  (format " %s " text)
                  'font-lock-face '(:box t)
@@ -814,6 +834,8 @@ For example, shut down ACP client."
                            (define-key map [mouse-1] action)
                            (define-key map (kbd "RET") action)
                            (define-key map [remap self-insert-command] 'ignore)
+                           (when keymap
+                             (set-keymap-parent map keymap))
                            map)
                  'button kind)))
     button))
