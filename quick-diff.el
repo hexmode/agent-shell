@@ -53,11 +53,13 @@ Arguments:
   :ON-EXIT   - Function called with (t/nil) when buffer is killed
   :OLD-LABEL - Label for old content (default: \"before\")
   :NEW-LABEL - Label for new content (default: \"after\")"
-  (let* ((buf (generate-new-buffer "*quick-diff*")))
+  (let* ((diff-buffer (generate-new-buffer "*quick-diff*"))
+         (calling-buffer (current-buffer)))
     (unwind-protect
         (progn
-          (with-current-buffer buf
+          (with-current-buffer diff-buffer
             (let ((inhibit-read-only t))
+              (setq header-line-format " n: next hunk p: previous hunk q: when done")
               (erase-buffer)
               (diff-mode)
               (insert "\n")
@@ -128,12 +130,14 @@ Arguments:
                     (overlay-put overlay 'evaporate t)))))
             (goto-char (point-min))
             (smerge-mode 1)
+            (setq header-line-format " n: next hunk p: previous hunk q: when done")
             (smerge-next)
             ;; Add kill-buffer-hook
             (when on-exit
               (add-hook 'kill-buffer-hook
                         (lambda ()
-                          (funcall on-exit (y-or-n-p "Accept changes?")))
+                          (with-current-buffer calling-buffer
+                            (funcall on-exit (y-or-n-p "Accept changes?"))))
                         nil t))
             (setq buffer-read-only t)
             (let ((map (make-sparse-keymap)))
@@ -142,7 +146,7 @@ Arguments:
               (define-key map "p" #'smerge-prev)
               (define-key map "q" #'kill-current-buffer)
               (use-local-map map))))
-      (pop-to-buffer buf))))
+      (pop-to-buffer diff-buffer))))
 
 (provide 'quick-diff)
 

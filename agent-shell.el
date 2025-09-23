@@ -42,6 +42,7 @@
 (require 'shell-maker)
 (require 'sui)
 (require 'svg nil :noerror)
+(require 'quick-diff)
 
 (defcustom agent-shell-google-key nil
   "Google API key as a string or a function that loads and returns it."
@@ -414,12 +415,14 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                (agent-shell--save-tool-call
                 state
                 (map-elt update 'toolCallId)
-                (list (cons :title (map-elt update 'title))
-                      (cons :status (map-elt update 'status))
-                      (cons :kind (map-elt update 'kind))
-                      (cons :command (map-nested-elt update '(rawInput command)))
-                      (cons :description (map-nested-elt update '(rawInput description)))
-                      (cons :content (map-elt update 'content))))
+                (append (list (cons :title (map-elt update 'title))
+                              (cons :status (map-elt update 'status))
+                              (cons :kind (map-elt update 'kind))
+                              (cons :command (map-nested-elt update '(rawInput command)))
+                              (cons :description (map-nested-elt update '(rawInput description)))
+                              (cons :content (map-elt update 'content)))
+                        (when-let ((diff (agent-shell--make-diff-info (map-elt update 'content))))
+                          (list (cons :diff diff)))))
                (agent-shell--update-dialog-block
                 :state state
                 :block-id (map-elt update 'toolCallId)
@@ -476,10 +479,14 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                  (agent-shell--save-tool-call
                   state
                   .toolCallId
-                  (list (cons :status (map-elt update 'status))
-                        (cons :content (map-elt update 'content))))
+                  (append (list (cons :status (map-elt update 'status))
+                                (cons :content (map-elt update 'content)))
+                          (when-let ((diff (agent-shell--make-diff-info (map-elt update 'content))))
+                            (list (cons :diff diff)))))
                  (let ((output (concat
                                 "\n\n"
+                                ;; TODO: Consider if there are other
+                                ;; types of content to display.
                                 (mapconcat (lambda (item)
                                              (let-alist item
                                                .content.text))
@@ -682,6 +689,32 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
      commands
      "\n")))
 
+(defun agent-shell--make-diff-info (content)
+  "Make diff information from tool_call_update's CONTENT.
+
+Returns in the form:
+
+ `((:old . old-text)
+   (:new . new-text))."
+   (when-let* ((diff-item (cond
+                          ;; Single diff object
+                          ((and content (equal (map-elt content 'type) "diff"))
+                           content)
+                          ;; Vector/array content - find diff item
+                          ((vectorp content)
+                           (seq-find (lambda (item)
+                                       (equal (map-elt item 'type) "diff"))
+                                     content))
+                          ;; List content - find diff item
+                          ((listp content)
+                           (seq-find (lambda (item)
+                                       (equal (map-elt item 'type) "diff"))
+                                     content))))
+              (old-text (map-elt diff-item 'oldText))
+              (new-text (map-elt diff-item 'newText)))
+    (list (cons :old old-text)
+          (cons :new new-text))))
+
 (cl-defun agent-shell--make-error-handler (&key state shell)
   "Create ACP error handler with SHELL STATE."
   (lambda (error raw-error)
@@ -735,7 +768,9 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
   "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
   (let-alist request
     (let* ((request-id .id)
-           (_tool-call-id .params.toolCall.toolCallId)
+           (tool-call-id .params.toolCall.toolCallId)
+           (tool-call (map-nested-elt state `(:tool-calls ,tool-call-id)))
+           (diff (map-elt tool-call :diff))
            (actions (agent-shell--prepare-permission-actions .params.options))
            (keymap (let ((map (make-sparse-keymap)))
                      (dolist (action actions)
@@ -754,13 +789,65 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                        (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
                                        (message "Selected: %s" (map-elt action :option))
                                        (goto-char (point-max))))))
-                     map)))
+                     ;; Add diff keybinding if diff info is available
+                     (when diff
+                       (define-key map "v"
+                                   (lambda ()
+                                     (interactive)
+                                     (quick-diff
+                                      :old (map-elt diff :old)
+                                      :new (map-elt diff :new)
+                                      :old-label "before"
+                                      :new-label "after"))))
+                     map))
+           (diff-button (when-let ((_ diff)
+                                   (button (agent-shell--make-button
+                                            :text "View (v)"
+                                            :help "Press v to view diff"
+                                            :kind 'permission
+                                            :keymap keymap
+                                            :action (lambda ()
+                                                      (interactive)
+                                                      (quick-diff
+                                                       :old (map-elt diff :old)
+                                                       :new (map-elt diff :new)
+                                                       :old-label "before"
+                                                       :new-label "after"
+                                                       :on-exit (lambda (accept)
+                                                                  (if-let ((action (if accept
+                                                                                       (seq-find (lambda (action)
+                                                                                                   (string= (map-elt action :kind) "allow_once"))
+                                                                                                 actions)
+                                                                                     (seq-find (lambda (action)
+                                                                                                 (string= (map-elt action :kind) "reject_once"))
+                                                                                               actions))))
+                                                                      (progn
+                                                                        (message "ACTION: %s" action)
+                                                                        (message "CLIENT: %s" client)  ; ← Add this debug
+                                                                        (message "REQUEST-ID: %s" request-id)  ; ← Add this debug
+                                                                        (acp-send-response
+                                                                         :client client
+                                                                         :response (acp-make-session-request-permission-response
+                                                                                    :request-id request-id
+                                                                                    :option-id (map-elt action :option-id)))
+                                                                        ;; Hide permission after sending response.
+                                                                        ;; block-id must be the same as the one used as
+                                                                        ;; agent-shell--update-dialog-block param by "session/request_permission".
+                                                                        (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
+                                                                        (message "Selected: %s" (map-elt action :option))
+                                                                        (goto-char (point-max)))
+                                                                    (message "NO ACTION")
+                                                                    (error "No permission-granting options available"))))))))
+                          ;; Make the button character navigatable (the "v" in "View (v)")
+                          (put-text-property (- (length button) 3) (- (length button) 1)
+                                             'agent-shell-permission-button t button)
+                          button)))
       (let ((text (format "╭───
 
     %s %s %s%s
 
 
-    %s
+    %s%s
 
 
 ╰───"
@@ -773,6 +860,9 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                               (propertize
                                (format "\n\n\n    %s" .params.toolCall.title)
                                'font-lock-face 'comint-highlight-input)
+                            "")
+                          (if diff-button
+                              (concat diff-button " ")
                             "")
                           (mapconcat (lambda (action)
                                        (let ((button (agent-shell--make-button
@@ -806,7 +896,7 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
                                                                                                (message "Press RET or %c to %s"
                                                                                                         (map-elt action :char)
                                                                                                         (map-elt action :option)))))
-                                                              button)
+                                                            button)
                                          button))
                                      actions
                                      " "))))
