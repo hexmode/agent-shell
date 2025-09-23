@@ -79,14 +79,15 @@ For existing blocks, the current expansion state is preserved unless overridden.
                                                            (map-elt existing-model :label-right)))
                                     (cons :body final-body))))
 
-            ;; Delete existing block
-            (delete-region block-start block-end)
-            (goto-char block-start)
-
-            ;; Regenerate from final-model
-            (sui--insert-dialog-block final-model qualified-id
-                                      (not (map-elt state :collapsed))
-                                      navigation))
+            ;; Safely replace existing block using narrow-to-region
+            (save-excursion
+              (save-restriction
+                (narrow-to-region block-start block-end)
+                (delete-region (point-min) (point-max))
+                (goto-char (point-min))
+                (sui--insert-dialog-block final-model qualified-id
+                                          (not (map-elt state :collapsed))
+                                          navigation))))
 
         ;; Not found or create-new - insert new block
         (goto-char (point-max))
