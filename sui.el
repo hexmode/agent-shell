@@ -31,13 +31,15 @@ NAMESPACE-ID, BLOCK-ID, LABEL-LEFT, LABEL-RIGHT, and BODY are the keys."
         (cons :label-right (sui--string-or-nil label-right))
         (cons :body (sui--string-or-nil body))))
 
-(cl-defun sui-update-dialog-block (model &key append create-new on-post-process no-navigation expanded)
+(cl-defun sui-update-dialog-block (model &key append create-new on-post-process navigation expanded)
   "Update or add a dialog block using MODEL.
 
 When APPEND is non-nil, append to body instead of replacing.
 When CREATE-NEW is non-nil, create new block.
 When ON-POST-PROCESS is non-nil, call this function after updating.
-When NO-NAVIGATION is non-nil, block won't be TAB navigatable.
+When NAVIGATION is `never', block won't be TAB navigatable.
+When NAVIGATION is `auto', block is navigatable if non-empty body.
+When NAVIGATION is `always', block is always TAB navigatable.
 When EXPANDED is non-nil, body will be expanded by default.
 
 For existing blocks, the current expansion state is preserved unless overridden."
@@ -84,12 +86,12 @@ For existing blocks, the current expansion state is preserved unless overridden.
             ;; Regenerate from final-model
             (sui--insert-dialog-block final-model qualified-id
                                       (not (map-elt state :collapsed))
-                                      no-navigation))
+                                      navigation))
 
         ;; Not found or create-new - insert new block
         (goto-char (point-max))
         (insert (sui--required-newlines 2))
-        (sui--insert-dialog-block model qualified-id expanded no-navigation)
+        (sui--insert-dialog-block model qualified-id expanded navigation)
         (insert "\n\n"))
       (when on-post-process
         (funcall on-post-process)))))
@@ -189,10 +191,14 @@ In the form:
                          (prop-match-end forward-match)
                        (prop-match-end backward-match)))))))))
 
-(defun sui--insert-dialog-block (model qualified-id &optional expanded no-navigation)
+(defun sui--insert-dialog-block (model qualified-id &optional expanded navigation)
   "Insert dialog block from MODEL with QUALIFIED-ID text properties.
 EXPANDED determines initial state (default nil for collapsed).
-NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
+NAVIGATION controls navigability:
+
+ `never' (not navigatable)
+ `auto' (navigatable if body and indicator present)
+ `always' (always navigatable)."
   (let ((block-start (point))
         (label-left (map-elt model :label-left))
         (label-right (map-elt model :label-right))
@@ -312,7 +318,14 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
                  (cons :body body)
                  (cons :qualified-id qualified-id)
                  (cons :collapsed (not expanded))
-                 (cons :navigatable (not no-navigation))))
+                 (cons :navigatable (cond
+                                     ((eq navigation 'never) nil)
+                                     ((eq navigation 'always) t)
+                                     ((eq navigation 'auto)
+                                      (and body indicator-start))
+                                     (t
+                                      ;; Default to auto
+                                      (and body indicator-start))))))
     (put-text-property block-start (or body-end label-right-end label-left-end) 'read-only t)
     (put-text-property block-start (or body-end label-right-end label-left-end) 'front-sticky '(read-only))))
 

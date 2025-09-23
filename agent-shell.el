@@ -401,7 +401,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
      :block-id "Error"
      :body (or .message "Some error ¯\\_ (ツ)_/¯")
      :create-new t
-     :no-navigation t)))
+     :navigation 'never)))
 
 (cl-defun agent-shell--on-notification (&key state notification)
   "Handle incoming notification using SHELL, STATE, and NOTIFICATION."
@@ -458,7 +458,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                   :create-new (not (equal (map-elt state :last-entry-type)
                                           "agent_message_chunk"))
                   :append t
-                  :no-navigation t))
+                  :navigation 'never))
                (map-put! state :last-entry-type "agent_message_chunk"))
               ((equal (map-elt update 'sessionUpdate) "plan")
                (let-alist update
@@ -515,7 +515,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                 :block-id "Session Update - fallback"
                 :body (format "%s" notification)
                 :create-new t
-                :no-navigation t)
+                :navigation 'never)
                (map-put! state :last-entry-type nil)))))
           (t
            (agent-shell--update-dialog-block
@@ -523,7 +523,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
             :block-id "Notification - fallback"
             :body (format "%s" notification)
             :create-new t
-            :no-navigation t)
+            :navigation 'never)
            (map-put! state :last-entry-type nil))))
   (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
@@ -548,7 +548,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                      :client (map-elt state :client)
                      :state state))
             :expanded t
-            :no-navigation t)
+            :navigation 'never)
            (agent-shell-jump-to-latest-permission-button-row)
            (map-put! state :last-entry-type "session/request_permission"))
           ((equal .method "fs/read_text_file")
@@ -565,7 +565,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
             :block-id "Unhandled Incoming Request"
             :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
             :create-new t
-            :no-navigation t)
+            :navigation 'never)
            (map-put! state :last-entry-type nil))))
   (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
@@ -1096,7 +1096,7 @@ Returns the shell buffer."
   "Delete dialog block with STATE and BLOCK-ID."
   (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id))
 
-(cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new no-navigation expanded)
+(cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new navigation expanded)
   "Update dialog block in the shell buffer.
 
 Creates or updates existing dialog using STATE's request count as namespace.
@@ -1117,7 +1117,7 @@ by default."
        :label-left label-left
        :label-right label-right
        :body body)
-      :no-navigation no-navigation
+      :navigation navigation
       :append append
       :create-new create-new
       :expanded expanded))))
