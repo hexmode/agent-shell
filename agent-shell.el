@@ -457,7 +457,7 @@ and AUTHENTICATE-REQUEST-MAKER."
                      :state state))
             :expanded t
             :no-navigation t)
-           (agent-shell-previous-primary-permission-button)
+           (agent-shell-jump-to-latest-permission-button-row)
            (map-put! state :last-entry-type "session/request_permission"))
           ((equal .method "fs/read_text_file")
            (agent-shell--on-fs-read-text-file-request
@@ -1084,12 +1084,12 @@ Could be a prompt or an expandable item."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
     (user-error "Not in a shell"))
-  (let* ((prompt-pos (save-excursion
+  (let* ((prompt-pos (save-mark-and-excursion
                        (when (comint-next-prompt 1)
                          (point))))
-         (block-pos (save-excursion
+         (block-pos (save-mark-and-excursion
                       (sui-forward-block)))
-         (button-pos (save-excursion
+         (button-pos (save-mark-and-excursion
                        (agent-shell-next-permission-button)))
          (next-pos (apply 'min (delq nil (list prompt-pos
                                                block-pos
@@ -1108,16 +1108,16 @@ Could be a prompt or an expandable item."
   (unless (derived-mode-p 'agent-shell-mode)
     (user-error "Not in a shell"))
   (let* ((current-pos (point))
-         (prompt-pos (save-excursion
+         (prompt-pos (save-mark-and-excursion
                        (when (comint-next-prompt (- 1))
                          (let ((pos (point)))
                            (when (< pos current-pos)
                              pos)))))
-         (block-pos (save-excursion
+         (block-pos (save-mark-and-excursion
                       (let ((pos (sui-backward-block)))
                         (when (and pos (< pos current-pos))
                           pos))))
-         (button-pos (save-excursion
+         (button-pos (save-mark-and-excursion
                        (let ((pos (agent-shell-previous-permission-button)))
                          (when (and pos (< pos current-pos))
                            pos))))
@@ -1135,33 +1135,39 @@ Could be a prompt or an expandable item."
 (defun agent-shell-next-permission-button ()
   "Jump to the next button."
   (interactive)
-  (when-let* ((found (save-excursion
+  (when-let* ((found (save-mark-and-excursion
                        (when (get-text-property (point) 'agent-shell-permission-button)
                          (when-let ((next-change (next-single-property-change (point) 'agent-shell-permission-button)))
                            (goto-char next-change)))
                        (when-let ((next (text-property-search-forward
                                          'agent-shell-permission-button t t)))
                          (prop-match-beginning next)))))
+    (deactivate-mark)
     (goto-char found)
     found))
 
 (defun agent-shell-previous-permission-button ()
   "Jump to the previous button."
   (interactive)
-  (when-let* ((found (save-excursion
+  (when-let* ((found (save-mark-and-excursion
                        (when (get-text-property (point) 'agent-shell-permission-button)
                          (when-let ((prev-change (previous-single-property-change (point) 'agent-shell-permission-button)))
                            (goto-char prev-change)))
                        (when-let ((prev (text-property-search-backward
                                          'agent-shell-permission-button t t)))
                          (prop-match-beginning prev)))))
+    (deactivate-mark)
     (goto-char found)
     found))
 
-(defun agent-shell-previous-primary-permission-button ()
-  "Go backwards to the first button in a row of permission buttons."
+(defun agent-shell-jump-to-latest-permission-button-row ()
+  "Jump to the latest permission button row."
   (interactive)
-  (when (agent-shell-previous-permission-button)
+  (when-let ((found (save-mark-and-excursion
+                      (goto-char (point-max))
+                      (agent-shell-previous-permission-button))))
+    (deactivate-mark)
+    (goto-char found)
     (beginning-of-line)
     (agent-shell-next-permission-button)))
 

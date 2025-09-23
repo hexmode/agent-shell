@@ -41,7 +41,7 @@ When NO-NAVIGATION is non-nil, block won't be TAB navigatable.
 When EXPANDED is non-nil, body will be expanded by default.
 
 For existing blocks, the current expansion state is preserved unless overridden."
-  (save-excursion
+  (save-mark-and-excursion
     (let* ((inhibit-read-only t)
            (namespace-id (map-elt model :namespace-id))
            (qualified-id (format "%s-%s" namespace-id (map-elt model :block-id)))
@@ -105,7 +105,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
     (when (string-match "^\\(.+\\)-\\(.+\\)$" qualified-id)
       (setf (map-elt dialog :namespace-id) (match-string 1 qualified-id))
       (setf (map-elt dialog :block-id) (match-string 2 qualified-id)))
-    (save-excursion
+    (save-mark-and-excursion
       (save-restriction
         (narrow-to-region (map-elt range :start)
                           (map-elt range :end))
@@ -129,7 +129,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
 
 (cl-defun sui-delete-dialog-block (&key namespace-id block-id)
   "Delete dialog block with NAMESPACE-ID and BLOCK-ID."
-  (save-excursion
+  (save-mark-and-excursion
     (let* ((inhibit-read-only t)
            (qualified-id (format "%s-%s" namespace-id block-id))
            (match (progn
@@ -171,7 +171,7 @@ In the form:
 
 (cl-defun sui--nearest-range-matching-property (&key property value (predicate t) from to)
   "Return nearest range where PREDICATE is non-nil for PROPERTY and VALUE."
-  (save-excursion
+  (save-mark-and-excursion
     (save-restriction
       (when (and from to)
         (narrow-to-region from to))
@@ -274,7 +274,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (insert (string-remove-prefix "  " body))
       (setq body-end (point))
       ;; Indent each body line.
-      (save-excursion
+      (save-mark-and-excursion
         (goto-char body-start)
         (while (< (point) body-end)
           ;; Ignore empty lines
@@ -297,7 +297,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
       (overlay-put body-overlay 'invisible (not expanded)))
     ;; Hide trailing whitespace (don't delete) in body.
     (when body
-      (save-excursion
+      (save-mark-and-excursion
         (goto-char body-end)
         (when (re-search-backward "[^ \t\n]" body-start t)
           (forward-char 1)
@@ -318,7 +318,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
 
 (defun sui--required-newlines (desired)
   "Return string of newlines needed to reach DESIRED before POSITION."
-  (let ((context (save-excursion
+  (let ((context (save-mark-and-excursion
                    (let ((end (point)))
                      (forward-line (- (+ 1 desired)))
                      (buffer-substring (point) end)))))
@@ -345,7 +345,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
 (defun sui-toggle-dialog-block-at-point ()
   "Toggle visibility of dialog block body at point."
   (interactive)
-  (save-excursion
+  (save-mark-and-excursion
     (when-let* ((inhibit-read-only t)
                 (buffer-undo-list t)
                 (state (get-text-property (point) 'sui-state))
@@ -379,7 +379,7 @@ NO-NAVIGATION omits sui-navigatable property to exclude from navigation."
 
 (defun sui-collapse-dialog-block-by-id (namespace-id block-id)
   "Collapse dialog block with NAMESPACE-ID and BLOCK-ID."
-  (save-excursion
+  (save-mark-and-excursion
     (let ((qualified-id (format "%s-%s" namespace-id block-id)))
       (goto-char (point-max))
       (when (text-property-search-backward
@@ -409,7 +409,7 @@ INDENT-STRING defaults to two spaces."
   "Jump to the next block."
   (interactive)
   (when-let* ((start-point (point))
-              (found (save-excursion
+              (found (save-mark-and-excursion
                        ;; In navigatable block already
                        ;; move past it.
                        (when-let ((state (get-text-property (point) 'sui-state))
@@ -421,6 +421,7 @@ INDENT-STRING defaults to two spaces."
                                            (and new-val (map-elt new-val :navigatable)))
                                          t)))
                          (prop-match-beginning next)))))
+    (deactivate-mark)
     (goto-char found)
     found))
 
@@ -428,7 +429,7 @@ INDENT-STRING defaults to two spaces."
   "Jump to the previous block."
   (interactive)
   (when-let* ((start-point (point))
-              (found (save-excursion
+              (found (save-mark-and-excursion
                        ;; In navigatable block already
                        ;; move to beginning.
                        (when-let ((state (get-text-property (point) 'sui-state))
@@ -440,6 +441,7 @@ INDENT-STRING defaults to two spaces."
                                            (and new-val (map-elt new-val :navigatable)))
                                          t)))
                          (prop-match-beginning prev)))))
+    (deactivate-mark)
     (goto-char found)
     found))
 
