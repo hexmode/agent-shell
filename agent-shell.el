@@ -303,8 +303,9 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
             :client (map-elt agent-shell--state :client)
             :request (acp-make-initialize-request
                       :protocol-version 1
-                      :read-text-file-capability t
-                      :write-text-file-capability t)
+                      ;; TODO: Re-enable when acp.el bottleneck is fixed.
+                      :read-text-file-capability nil
+                      :write-text-file-capability nil)
             :on-success (lambda (_response)
                           ;; TODO: More to be handled?
                           (with-current-buffer (map-elt shell :buffer)
