@@ -1128,7 +1128,7 @@ BLOCK-ID uniquely identifies the block.
 Dialog can have LABEL-LEFT, LABEL-RIGHT, and BODY.
 
 Optional flags: APPEND text to existing content, CREATE-NEW block,
-NO-NAVIGATION to skip navigation, EXPANDED to show block expanded
+NAVIGATION for navigation style, EXPANDED to show block expanded
 by default."
   (with-current-buffer (map-elt state :buffer)
     ;; (message "agent-shell--update-dialog-block: %s" body)
