@@ -276,19 +276,9 @@ NAVIGATION controls navigability:
       (when (string-suffix-p "\n\n" body)
         (setq body (concat (string-trim-right body) "\n\n")))
       (setq body-start (point))
-      ;; Removing 2 space indentation if found. It's added again below.
-      (insert (string-remove-prefix "  " body))
-      (setq body-end (point))
-      ;; Indent each body line.
-      (save-mark-and-excursion
-        (goto-char body-start)
-        (while (< (point) body-end)
-          ;; Ignore empty lines
-          (unless (looking-at "^$")
-            ;; Indent.
-            (insert "  ")
-            (setq body-end (+ body-end 2)))  ; Adjust body-end position for inserted spaces
-          (forward-line 1)))
+      ;; Remove existing indentation and re-apply.
+      (let ((clean-body (string-remove-prefix "  " body)))
+        (insert (sui--indent-text clean-body)))
       (setq body-end (point))
       (add-text-properties body-start body-end
                            `(sui-section body
