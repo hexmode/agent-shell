@@ -434,9 +434,10 @@ INDENT-STRING defaults to two spaces."
                                            (and new-val (map-elt new-val :navigatable)))
                                          t)))
                          (prop-match-beginning next)))))
-    (deactivate-mark)
-    (goto-char found)
-    found))
+    (when found
+      (deactivate-mark)
+      (goto-char found)
+      found)))
 
 (defun sui-backward-block ()
   "Jump to the previous block."
@@ -454,9 +455,10 @@ INDENT-STRING defaults to two spaces."
                                            (and new-val (map-elt new-val :navigatable)))
                                          t)))
                          (prop-match-beginning prev)))))
-    (deactivate-mark)
-    (goto-char found)
-    found))
+    (when found
+      (deactivate-mark)
+      (goto-char found)
+      found)))
 
 (defun sui-make-action-keymap (action)
   "Create keymap with ACTION."
