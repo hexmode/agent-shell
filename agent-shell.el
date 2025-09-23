@@ -34,6 +34,8 @@
 ;;; Code:
 
 (require 'acp)
+(eval-when-compile
+  (require 'cl-lib))
 (require 'json)
 (require 'map)
 (require 'markdown-overlays)
