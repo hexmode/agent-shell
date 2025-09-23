@@ -116,10 +116,68 @@ and AUTHENTICATE-REQUEST-MAKER."
      :shell-prompt-regexp "Gemini> "
      :icon-name "gemini.png"
      :needs-authentication t
+     :welcome-function #'agent-shell--gemini-welcome-message
      :authenticate-request-maker (lambda ()
                                    (acp-make-authenticate-request :method-id "gemini-api-key"))
      :client-maker (lambda ()
                      (acp-make-gemini-client :api-key api-key)))))
+
+(defun agent-shell--gemini-welcome-message (config)
+  "Return Gemini CLI ASCII art as per own repo using `shell-maker' CONFIG."
+  (let ((art (agent-shell--indent-string 4 (agent-shell--gemini-ascii-art)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
+    (concat "\n\n\n"
+            art
+            "\n\n"
+            message)))
+
+(defun agent-shell--gemini-ascii-art ()
+  "Generate Gemini CLI ASCII art, inspirted by its codebase.
+
+https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/Header.tsx
+https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/AsciiArt.ts
+https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes/theme.ts"
+  (let* ((text (string-trim "
+ ███            █████████  ██████████ ██████   ██████ █████ ██████   █████ █████
+░░░███         ███░░░░░███░░███░░░░░█░░██████ ██████ ░░███ ░░██████ ░░███ ░░███
+  ░░░███      ███     ░░░  ░███  █ ░  ░███░█████░███  ░███  ░███░███ ░███  ░███
+    ░░░███   ░███          ░██████    ░███░░███ ░███  ░███  ░███░░███░███  ░███
+     ███░    ░███    █████ ░███░░█    ░███ ░░░  ░███  ░███  ░███ ░░██████  ░███
+   ███░      ░░███  ░░███  ░███ ░   █ ░███      ░███  ░███  ░███  ░░█████  ░███
+ ███░         ░░█████████  ██████████ █████     █████ █████ █████  ░░█████ █████
+░░░            ░░░░░░░░░  ░░░░░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░░ ░░░░░"))
+         (is-dark (eq (frame-parameter nil 'background-mode) 'dark))
+         (gradient-colors (if is-dark
+                              '("#4796E4" "#847ACE" "#C3677F")
+                            '("#3B82F6" "#8B5CF6" "#DD4C4C")))
+         (lines (split-string text "\n"))
+         (result ""))
+    (dolist (line lines)
+      (let ((line-length (length line))
+            (propertized-line ""))
+        (dotimes (i line-length)
+          (let* ((char (substring line i (1+ i)))
+                 (progress (/ (float i) line-length))
+                 (color (agent-shell--interpolate-gradient gradient-colors progress)))
+            (setq propertized-line
+                  (concat propertized-line
+                          (propertize char 'font-lock-face `(:foreground ,color))))))
+        (setq result (concat result propertized-line "\n"))))
+    (string-trim-right result)))
+
+(defun agent-shell--gemini-text ()
+  "Colorized Gemini text with Google-branded colors."
+  (let* ((is-dark (eq (frame-parameter nil 'background-mode) 'dark))
+         (colors (if is-dark
+                     '("#4796E4" "#6B82D9" "#847ACE" "#9E6FA8" "#B16C93" "#C3677F")
+                   '("#3B82F6" "#5F6CF6" "#8B5CF6" "#A757D0" "#C354A0" "#DD4C4C")))
+         (text "Gemini")
+         (result ""))
+    (dotimes (i (length text))
+      (setq result (concat result
+                           (propertize (substring text i (1+ i))
+                                       'font-lock-face `(:foreground ,(nth (mod i (length colors)) colors))))))
+    result))
 
 (defun agent-shell-interrupt ()
   "Interrupt in-progress request."
@@ -1030,17 +1088,6 @@ by default."
       :create-new create-new
       :expanded expanded))))
 
-(defun agent-shell--gemini-text ()
-  "Colorized Gemini text with Google-branded colors."
-  (let ((colors '("#4285F4" "#EA4335" "#FBBC04" "#4285F4" "#34A853" "#EA4335"))
-        (text "Gemini")
-        (result ""))
-    (dotimes (i (length text))
-      (setq result (concat result
-                           (propertize (substring text i (1+ i))
-                                       'font-lock-face `(:foreground ,(nth (mod i (length colors)) colors))))))
-    result))
-
 (defun agent-shell-toggle-logging ()
   "Toggle logging."
   (interactive)
@@ -1267,6 +1314,36 @@ Icon names starting with https:// are downloaded directly from that location."
             (= (buffer-size) 0))
       (user-error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
     (pop-to-buffer traffic-buffer)))
+
+(defun agent-shell--indent-string (n str)
+  "Indent STR lines by N spaces."
+  (mapconcat (lambda (line)
+               (concat (make-string n ?\s) line))
+             (split-string str "\n")
+             "\n"))
+
+(defun agent-shell--interpolate-gradient (colors progress)
+  "Interpolate between gradient COLORS based on PROGRESS (0.0 to 1.0)."
+  (let* ((segments (1- (length colors)))
+         (segment-size (/ 1.0 segments))
+         (segment (min (floor (/ progress segment-size)) (1- segments)))
+         (local-progress (/ (- progress (* segment segment-size)) segment-size))
+         (from-color (nth segment colors))
+         (to-color (nth (1+ segment) colors)))
+    (agent-shell--mix-colors from-color to-color local-progress)))
+
+(defun agent-shell--mix-colors (color1 color2 ratio)
+  "Mix two hex colors by RATIO (0.0 = COLOR1, 1.0 = COLOR2)."
+  (let* ((r1 (string-to-number (substring color1 1 3) 16))
+         (g1 (string-to-number (substring color1 3 5) 16))
+         (b1 (string-to-number (substring color1 5 7) 16))
+         (r2 (string-to-number (substring color2 1 3) 16))
+         (g2 (string-to-number (substring color2 3 5) 16))
+         (b2 (string-to-number (substring color2 5 7) 16))
+         (r (round (+ (* r1 (- 1 ratio)) (* r2 ratio))))
+         (g (round (+ (* g1 (- 1 ratio)) (* g2 ratio))))
+         (b (round (+ (* b1 (- 1 ratio)) (* b2 ratio)))))
+    (format "#%02x%02x%02x" r g b)))
 
 (provide 'agent-shell)
 
