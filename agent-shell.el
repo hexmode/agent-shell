@@ -569,6 +569,24 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
   (with-current-buffer (map-elt state :buffer)
     (markdown-overlays-put)))
 
+(cl-defun agent-shell--extract-buffer-text (&key buffer line limit)
+  "Extract text from BUFFER starting from LINE with optional LIMIT.
+LINE defaults to 1, LIMIT defaults to nil (read to end)."
+  (with-current-buffer buffer
+    (save-excursion
+      (goto-char (point-min))
+      (when (and line (> line 1))
+        ;; Seems odd to use forward-line but
+        ;; that's what `goto-line' recommends.
+        (forward-line (1- line)))
+      (let ((start (point)))
+        (if limit
+            ;; Seems odd to use forward-line but
+            ;; that's what `goto-line' recommends.
+            (forward-line limit)
+          (goto-char (point-max)))
+        (buffer-substring-no-properties start (point))))))
+
 (cl-defun agent-shell--on-fs-read-text-file-request (&key state request)
   "Handle fs/read_text_file REQUEST with STATE."
   (let-alist request
@@ -576,20 +594,14 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
         (let* ((path .params.path)
                (line (or .params.line 1))
                (limit .params.limit)
-               (content (with-temp-buffer
-                          (insert-file-contents path)
-                          (when (> line 1)
-                            (goto-char (point-min))
-                            ;; Seems odd to use forward-line but
-                            ;; that's what `goto-line' recommends.
-                            (forward-line (1- line)))
-                          (let ((start (point)))
-                            (if limit
-                                ;; Seems odd to use forward-line but
-                                ;; that's what `goto-line' recommends.
-                                (forward-line limit)
-                              (goto-char (point-max)))
-                            (buffer-substring start (point))))))
+               (existing-buffer (find-buffer-visiting path))
+               (content (if existing-buffer
+                            ;; Read from open buffer (includes unsaved changes)
+                            (agent-shell--extract-buffer-text :buffer existing-buffer :line line :limit limit)
+                          ;; No open buffer, read from file
+                          (with-temp-buffer
+                            (insert-file-contents path)
+                            (agent-shell--extract-buffer-text :buffer (current-buffer) :line line :limit limit)))))
           (acp-send-response
            :client (map-elt state :client)
            :response (acp-make-fs-read-text-file-response
@@ -610,11 +622,20 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
     (condition-case err
         (let* ((path .params.path)
                (content .params.content)
-               (dir (file-name-directory path)))
+               (dir (file-name-directory path))
+               (buffer (find-buffer-visiting path)))
           (when (and dir (not (file-exists-p dir)))
             (make-directory dir t))
-          (with-temp-file path
-            (insert content))
+          (if buffer
+              ;; Buffer is open, write and save.
+              (with-current-buffer buffer
+                (let ((inhibit-read-only t))
+                  (erase-buffer)
+                  (insert content)
+                  (basic-save-buffer)))
+            ;; No open buffer, write to file directly.
+            (with-temp-file path
+              (insert content)))
           (acp-send-response
            :client (map-elt state :client)
            :response (acp-make-fs-write-text-file-response
