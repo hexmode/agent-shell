@@ -303,9 +303,8 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
             :client (map-elt agent-shell--state :client)
             :request (acp-make-initialize-request
                       :protocol-version 1
-                      ;; TODO: Re-enable when acp.el bottleneck is fixed.
-                      :read-text-file-capability nil
-                      :write-text-file-capability nil)
+                      :read-text-file-capability t
+                      :write-text-file-capability t)
             :on-success (lambda (_response)
                           ;; TODO: More to be handled?
                           (with-current-buffer (map-elt shell :buffer)
@@ -794,11 +793,14 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
   "Store TOOL-CALL with TOOL-CALL-ID in STATE's :tool-calls alist."
   (let* ((tool-calls (map-elt state :tool-calls))
          (old-tool-call (map-elt tool-calls tool-call-id))
-         (updated-tools (copy-alist tool-calls)))
+         (updated-tools (copy-alist tool-calls))
+         (tool-call-overrides (seq-filter (lambda (pair)
+                                            (cdr pair))
+                                          tool-call)))
     (setf (alist-get tool-call-id updated-tools nil nil #'equal)
           (if old-tool-call
-              (map-merge 'alist old-tool-call tool-call)
-            tool-call))
+              (map-merge 'alist old-tool-call tool-call-overrides)
+            tool-call-overrides))
     (map-put! state :tool-calls updated-tools)))
 
 (cl-defun agent-shell--prompt-for-permission (&key model on-choice)
