@@ -1368,13 +1368,17 @@ Could be a prompt or an expandable item."
 (defun agent-shell-jump-to-latest-permission-button-row ()
   "Jump to the latest permission button row."
   (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (user-error "Not in a shell"))
   (when-let ((found (save-mark-and-excursion
                       (goto-char (point-max))
                       (agent-shell-previous-permission-button))))
     (deactivate-mark)
     (goto-char found)
     (beginning-of-line)
-    (agent-shell-next-permission-button)))
+    (agent-shell-next-permission-button)
+    (when-let ((window (get-buffer-window (current-buffer))))
+      (set-window-point window (point)))))
 
 (defun agent-shell-cwd ()
   "Return the CWD for this shell.
