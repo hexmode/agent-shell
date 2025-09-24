@@ -66,10 +66,6 @@ Arguments:
               (insert (let ((base-file (make-temp-file "base"))
                             (old-file (make-temp-file "old"))
                             (new-file (make-temp-file "new")))
-                        (with-temp-file base-file
-                          (insert old)
-                          (unless (string-suffix-p "\n" old)
-                            (insert "\n")))
                         (with-temp-file old-file
                           (insert old)
                           (unless (string-suffix-p "\n" old)
