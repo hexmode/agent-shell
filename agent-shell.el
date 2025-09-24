@@ -384,14 +384,17 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
   "Subscribe SHELL and STATE to ACP events."
   (acp-subscribe-to-errors
    :client (map-elt state :client)
+   :buffer (map-elt state :buffer)
    :on-error (lambda (error)
                (agent-shell--on-error :state state :error error)))
   (acp-subscribe-to-notifications
    :client (map-elt state :client)
+   :buffer (map-elt state :buffer)
    :on-notification (lambda (notification)
                       (agent-shell--on-notification :state state :notification notification)))
   (acp-subscribe-to-requests
    :client (map-elt state :client)
+   :buffer (map-elt state :buffer)
    :on-request (lambda (request)
                  (agent-shell--on-request :state state :request request))))
 
