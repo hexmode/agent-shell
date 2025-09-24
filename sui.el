@@ -50,7 +50,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
            (new-label-left (map-elt model :label-left))
            (new-label-right (map-elt model :label-right))
            (new-body (map-elt model :body))
-           (match (progn
+           (match (save-mark-and-excursion
                     (goto-char (point-max))
                     (text-property-search-backward
                      'sui-state nil
@@ -135,7 +135,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
   (save-mark-and-excursion
     (let* ((inhibit-read-only t)
            (qualified-id (format "%s-%s" namespace-id block-id))
-           (match (progn
+           (match (save-mark-and-excursion
                     (goto-char (point-max))
                     (text-property-search-backward
                      'sui-state nil
