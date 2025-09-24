@@ -542,9 +542,11 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
     (cond ((equal .method "session/request_permission")
            (agent-shell--save-tool-call
             state .params.toolCall.toolCallId
-            (list (cons :title .params.toolCall.title)
-                  (cons :status .params.toolCall.status)
-                  (cons :kind .params.toolCall.kind)))
+            (append (list (cons :title .params.toolCall.title)
+                          (cons :status .params.toolCall.status)
+                          (cons :kind .params.toolCall.kind))
+                    (when-let ((diff (agent-shell--make-diff-info .params.toolCall.content)))
+                      (list (cons :diff diff)))))
            (agent-shell--update-dialog-block
             :state state
             ;; block-id must be the same as the one used
