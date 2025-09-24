@@ -801,9 +801,7 @@ Returns in the form:
                                      (interactive)
                                      (quick-diff
                                       :old (map-elt diff :old)
-                                      :new (map-elt diff :new)
-                                      :old-label "before"
-                                      :new-label "after"))))
+                                      :new (map-elt diff :new)))))
                      map))
            (diff-button (when-let ((_ diff)
                                    (button (agent-shell--make-button
@@ -816,8 +814,6 @@ Returns in the form:
                                                       (quick-diff
                                                        :old (map-elt diff :old)
                                                        :new (map-elt diff :new)
-                                                       :old-label "before"
-                                                       :new-label "after"
                                                        :on-exit (lambda (accept)
                                                                   (if-let ((action (if accept
                                                                                        (seq-find (lambda (action)
