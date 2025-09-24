@@ -701,7 +701,7 @@ Returns in the form:
 
  `((:old . old-text)
    (:new . new-text))."
-   (when-let* ((diff-item (cond
+  (when-let* ((diff-item (cond
                           ;; Single diff object
                           ((and content (equal (map-elt content 'type) "diff"))
                            content)
