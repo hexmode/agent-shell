@@ -1454,7 +1454,7 @@ Icon names starting with https:// are downloaded directly from that location."
                   (concat "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/"
                           mode "/" icon-name)))
            (filename (file-name-nondirectory url))
-           (cache-dir (file-name-concat (temporary-file-directory) "chatgpt-shell" mode))
+           (cache-dir (file-name-concat (temporary-file-directory) "agent-shell" mode))
            (cache-path (expand-file-name filename cache-dir)))
       (unless (file-exists-p cache-path)
         (make-directory cache-dir t)
