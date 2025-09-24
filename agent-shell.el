@@ -1036,8 +1036,8 @@ Model is of the form:
   "Clean up resources.
 
 For example, shut down ACP client."
-  (unless (eq major-mode (shell-maker-major-mode shell-maker--config))
-    (user-error "Not in an agent shell"))
+  (unless (eq major-mode 'agent-shell-mode)
+    (user-error "Not in a shell"))
   (when (map-elt agent-shell--state :client)
     (acp-shutdown :client (map-elt agent-shell--state :client))))
 
