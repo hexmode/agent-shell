@@ -63,38 +63,9 @@ Arguments:
               (erase-buffer)
               (diff-mode)
               (insert "\n")
-              (insert (let ((base-file (make-temp-file "base"))
-                            (old-file (make-temp-file "old"))
-                            (new-file (make-temp-file "new")))
-                        (with-temp-file old-file
-                          (insert old)
-                          (unless (string-suffix-p "\n" old)
-                            (insert "\n")))
-                        (with-temp-file new-file
-                          (insert new)
-                          (unless (string-suffix-p "\n" new)
-                            (insert "\n")))
-                        (with-temp-buffer
-                          (let ((retval (call-process "diff3" nil t nil "-m" old-file base-file new-file)))
-                            (delete-file base-file)
-                            (delete-file old-file)
-                            (delete-file new-file)
-                            ;; 0: No differences or no conflicts.
-                            ;; 1: Merge conflicts.
-                            ;; 2: Error occurred.
-                            (when (= retval 2)
-                              (error (buffer-substring-no-properties (point-min)
-                                                                     (point-max))))
-                            (goto-char (point-min))
-                            (while (search-forward old-file nil t)
-                              (replace-match (or old-label "old")))
-                            (goto-char (point-min))
-                            (while (search-forward new-file nil t)
-                              (replace-match (or new-label "new")))
-                            (goto-char (point-min))
-                            (flush-lines "^|||||||")
-                            (buffer-substring-no-properties (point-min)
-                                                            (point-max))))))
+              (insert (quick-diff--generate-conflict-markers old new
+                                                  (or old-label "before")
+                                                  (or new-label "after")))
               (goto-char (point-min))
               (save-excursion
                 (while (re-search-forward
@@ -146,6 +117,73 @@ Arguments:
               (define-key map "q" #'kill-current-buffer)
               (use-local-map map))))
       (pop-to-buffer diff-buffer))))
+
+;; TODO: Find a better way to generate a browsable patch.
+(defun quick-diff--generate-conflict-markers (old new old-label new-label)
+  "Generate conflict markers from diff between OLD and NEW strings.
+OLD-LABEL and NEW-LABEL are used in the conflict marker headers.
+Returns a string with git-style conflict markers for differences."
+  (let ((old-file (make-temp-file "old"))
+        (new-file (make-temp-file "new")))
+    (unwind-protect
+        (progn
+          (with-temp-file old-file (insert old))
+          (with-temp-file new-file (insert new))
+          (with-temp-buffer
+            ;; Get unified diff
+            (call-process "diff" nil t nil "-U0" old-file new-file)
+            (goto-char (point-min))
+            (let ((old-lines (split-string old "\n" t))
+                  (new-lines (split-string new "\n" t))
+                  (result "")
+                  (last-pos 0)
+                  hunks)
+              ;; Collect all hunks first
+              (while (re-search-forward "^@@ -\\([0-9]+\\)\\(?:,\\([0-9]+\\)\\)? \\+\\([0-9]+\\)\\(?:,\\([0-9]+\\)\\)? @@" nil t)
+                (push (list (1- (string-to-number (match-string 1)))  ; old-start
+                            (if (match-string 2)                       ; old-count
+                                (string-to-number (match-string 2))
+                              1)
+                            (1- (string-to-number (match-string 3)))   ; new-start
+                            (if (match-string 4)                       ; new-count
+                                (string-to-number (match-string 4))
+                              1))
+                      hunks))
+              (setq hunks (nreverse hunks))
+              ;; Process hunks
+              (dolist (hunk hunks)
+                (let ((old-start (nth 0 hunk))
+                      (old-count (nth 1 hunk))
+                      (new-start (nth 2 hunk))
+                      (new-count (nth 3 hunk)))
+                  ;; Add unchanged lines before this hunk
+                  (while (< last-pos old-start)
+                    (when (< last-pos (length old-lines))
+                      (setq result (concat result (nth last-pos old-lines) "\n")))
+                    (setq last-pos (1+ last-pos)))
+                  ;; Add conflict marker
+                  (setq result (concat result "<<<<<<< " old-label "\n"))
+                  ;; Add old content
+                  (dotimes (i old-count)
+                    (when (< (+ old-start i) (length old-lines))
+                      (setq result (concat result (nth (+ old-start i) old-lines) "\n"))))
+                  (setq result (concat result "=======\n"))
+                  ;; Add new content
+                  (dotimes (i new-count)
+                    (when (< (+ new-start i) (length new-lines))
+                      (setq result (concat result (nth (+ new-start i) new-lines) "\n"))))
+                  (setq result (concat result ">>>>>>> " new-label "\n"))
+                  (setq last-pos (+ old-start old-count))))
+              ;; Add remaining unchanged lines
+              (while (< last-pos (length old-lines))
+                (setq result (concat result (nth last-pos old-lines) "\n"))
+                (setq last-pos (1+ last-pos)))
+              ;; If no hunks found, texts are identical
+              (if (string= result "")
+                  old
+                result))))
+      (delete-file old-file)
+      (delete-file new-file))))
 
 (provide 'quick-diff)
 
