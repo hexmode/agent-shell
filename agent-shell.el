@@ -4,7 +4,9 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.1.1
+;; Version: 0.1.2
+
+(defconst agent-shell--version "0.1.2")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -88,6 +90,11 @@ and AUTHENTICATE-REQUEST-MAKER."
     (agent-shell--make-state))
 
 (defvar agent-shell--config nil)
+
+(defun agent-shell-version ()
+  "Show `agent-shell' mode version."
+  (interactive)
+  (message "agent-shell v%s" agent-shell--version))
 
 (defun agent-shell-start-claude-code-agent ()
   "Start an interactive Claude Code agent shell."
