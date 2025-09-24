@@ -1212,6 +1212,10 @@ Returns the shell buffer."
 (cl-defun agent-shell--delete-dialog-block (&key state block-id)
   "Delete dialog block with STATE and BLOCK-ID."
   (with-current-buffer (map-elt state :buffer)
+    (unless (and (eq major-mode 'agent-shell-mode)
+                 (equal (current-buffer)
+                        (map-elt state :buffer)))
+      (error "Editing the wrong buffer: %s" (current-buffer)))
     (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id)))
 
 (cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new navigation expanded)
@@ -1226,7 +1230,10 @@ Optional flags: APPEND text to existing content, CREATE-NEW block,
 NAVIGATION for navigation style, EXPANDED to show block expanded
 by default."
   (with-current-buffer (map-elt state :buffer)
-    ;; (message "agent-shell--update-dialog-block: %s" body)
+    (unless (and (eq major-mode 'agent-shell-mode)
+                 (equal (current-buffer)
+                        (map-elt state :buffer)))
+      (error "Editing the wrong buffer: %s" (current-buffer)))
     (shell-maker-with-auto-scroll-edit
      (sui-update-dialog-block
       (sui-make-dialog-block-model
