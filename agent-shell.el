@@ -1211,7 +1211,8 @@ Returns the shell buffer."
 
 (cl-defun agent-shell--delete-dialog-block (&key state block-id)
   "Delete dialog block with STATE and BLOCK-ID."
-  (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id))
+  (with-current-buffer (map-elt state :buffer)
+    (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id)))
 
 (cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new navigation expanded)
   "Update dialog block in the shell buffer.
