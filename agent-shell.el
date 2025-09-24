@@ -722,7 +722,7 @@ Returns in the form:
 
 (cl-defun agent-shell--make-error-handler (&key state shell)
   "Create ACP error handler with SHELL STATE."
-  (lambda (error raw-error)
+  (lambda (error raw-message)
     (let-alist error
       (with-current-buffer (map-elt shell :buffer)
         (agent-shell--update-dialog-block
@@ -734,8 +734,7 @@ Returns in the form:
          :body (agent-shell--make-error-dialog-text
                 :code .code
                 :message .message
-                ;; TODO: Serialize to json and prettify
-                :raw-error raw-error)
+                :raw-message raw-message)
          :create-new t)))
     ;; TODO: Mark buffer command with shell failure.
     (with-current-buffer (map-elt shell :buffer)
@@ -996,7 +995,7 @@ Model is of the form:
     `((:description . ,description)
       (:actions . ,actions))))
 
-(cl-defun agent-shell--make-error-dialog-text (&key code message raw-error)
+(cl-defun agent-shell--make-error-dialog-text (&key code message raw-message)
   "Create formatted error dialog text with CODE, MESSAGE, and RAW-ERROR."
   (format "╭─
 
@@ -1017,9 +1016,9 @@ Model is of the form:
                      (interactive)
                      (agent-shell--view-as-error
                       (with-temp-buffer
-                        (insert raw-error)
-                        (json-pretty-print-buffer)
-                        (buffer-string)))))))
+                        (let ((print-circle t))
+                          (pp raw-message (current-buffer))
+                          (buffer-string))))))))
 
 (defun agent-shell--view-as-error (text)
   "Display TEXT in a read-only error buffer."
