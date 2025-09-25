@@ -52,14 +52,16 @@ You can =shell-maker= install via:
 
 #+begin_src emacs-lisp
   (use-package acp
-    :vc (:fetcher github :repo "xenodium/acp.el"))
+    :vc (:url "https://github.com/xenodium/acp.el"))
 #+end_src
+
+If you run into an error like =use-package: Keyword :vc received unknown argument=, ensure you're using the built-in =:vc= syntax shown above. Earlier guides relied on the external [[https://github.com/slotThe/vc-use-package][vc-use-package]] extension, which accepted =:fetcher=/:repo= keywords, but Emacs 30+ expects ELPA-style specs such as =:url=.
 
 Finally, install =agent-shell= with:
 
 #+begin_src emacs-lisp
   (use-package agent-shell
-    :vc (:fetcher github :repo "xenodium/agent-shell"))
+    :vc (:url "https://github.com/xenodium/agent-shell"))
 #+end_src
 
 ** Configuration
