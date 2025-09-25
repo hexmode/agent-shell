@@ -1432,13 +1432,9 @@ LOCATION is the location information to include."
         (svg-text svg location
                   :x (+ image-width 10) :y (* 2 text-height)
                   :fill (face-attribute 'font-lock-string-face :foreground))
-        (propertize (format " %s" (with-temp-buffer
-                                    (svg-insert-image svg)
-                                    (buffer-string)))
-                    'ignore t
-                    'read-only t
-                    'face font-lock-comment-face
-                    'rear-nonsticky t))
+        (format " %s" (with-temp-buffer
+                        (svg-insert-image svg)
+                        (buffer-string))))
     (format " %s @ %s" title location)))
 
 (defun agent-shell--fetch-agent-icon (icon-name)
