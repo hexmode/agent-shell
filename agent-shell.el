@@ -226,6 +226,42 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
                                        'font-lock-face `(:foreground ,(nth (mod i (length colors)) colors))))))
     result))
 
+;;;; OpenAI ;;;;
+
+(defcustom agent-shell-openai-key nil
+  "OpenAI API key as a string or a function that loads and returns it."
+  :type '(choice (function :tag "Function")
+                 (string :tag "String"))
+  :group 'agent-shell)
+
+(defun agent-shell-start-codex-agent ()
+  "Start an interactive Claude Code agent shell."
+  (interactive)
+  (let ((api-key (agent-shell-openai-key)))
+    (unless api-key
+      (user-error "Please set your `agent-shell-openai-key'"))
+    (agent-shell--start
+     :new-session t
+     :mode-line-name "Codex"
+     :buffer-name "Codex"
+     :shell-prompt "Codex> "
+     :shell-prompt-regexp "Codex> "
+     :icon-name "openai.png"
+     :client-maker (lambda ()
+                     (acp-make-codex-client :api-key api-key)))))
+
+(defun agent-shell-openai-key ()
+  "Get the OpenAI API key."
+  (cond ((stringp agent-shell-openai-key)
+         agent-shell-openai-key)
+        ((functionp agent-shell-openai-key)
+         (condition-case _err
+             (funcall agent-shell-openai-key)
+           (error
+            "KEY-NOT-FOUND")))
+        (t
+         nil)))
+
 (defun agent-shell-interrupt ()
   "Interrupt in-progress request."
   (interactive)
