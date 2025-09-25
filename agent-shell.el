@@ -61,6 +61,14 @@
   :type 'string
   :group 'agent-shell)
 
+(defcustom agent-shell-path-resolver-function nil
+  "Function for resolving remote paths on the local file-system, and vice versa.
+
+Expects a function that takes the path as its single argument, and
+returns the resolved path. Set to nil to disable mapping."
+  :type 'function
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
   "Construct shell agent state with BUFFER.
 
@@ -217,7 +225,7 @@ and AUTHENTICATE-REQUEST-MAKER."
             :append t)
            (acp-send-request
             :client (map-elt agent-shell--state :client)
-            :request (acp-make-session-new-request :cwd (agent-shell-cwd))
+            :request (acp-make-session-new-request :cwd (agent-shell--resolve-path (agent-shell-cwd)))
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
                             (map-put! agent-shell--state
@@ -473,7 +481,7 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
   "Handle fs/read_text_file REQUEST with STATE."
   (let-alist request
     (condition-case err
-        (let* ((path .params.path)
+        (let* ((path (agent-shell--resolve-path .params.path))
                (line (or .params.line 1))
                (limit .params.limit)
                (existing-buffer (find-buffer-visiting path))
@@ -502,7 +510,7 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
   "Handle fs/write_text_file REQUEST with STATE."
   (let-alist request
     (condition-case err
-        (let* ((path .params.path)
+        (let* ((path (agent-shell--resolve-path .params.path))
                (content .params.content)
                (dir (file-name-directory path))
                (buffer (find-buffer-visiting path)))
@@ -530,6 +538,34 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
                    :error (acp-make-error
                            :code -32603
                            :message (error-message-string err))))))))
+
+(defun agent-shell--resolve-path (path)
+  "Resolve PATH using `agent-shell-path-resolver-function'."
+  (funcall (or agent-shell-path-resolver-function #'identity) path))
+
+(defun agent-shell--get-devcontainer-workspace-path (cwd)
+  "Return devcontainer workspaceFolder for CWD; signal error if none found."
+  (let ((devcontainer-config-file-name (expand-file-name ".devcontainer/devcontainer.json" cwd)))
+    (condition-case _err
+        (or
+         (map-elt (json-read-file devcontainer-config-file-name) 'workspaceFolder)
+         (error "No workspace folder defined in %s" devcontainer-config-file-name))
+      (file-missing (error "Not found: %s" devcontainer-config-file-name))
+      (permission-denied (error "Not readable: %s" devcontainer-config-file-name))
+      (json-string-format (error "No valid JSON: %s" devcontainer-config-file-name)))))
+
+(defun agent-shell--resolve-devcontainer-path (path)
+  "Resolve PATH from a devcontainer in the local filesystem, and vice versa."
+  (let* ((cwd (agent-shell-cwd))
+         (devcontainer-path (agent-shell--get-devcontainer-workspace-path cwd)))
+    (if (string-prefix-p cwd path)
+        (string-replace cwd devcontainer-path path)
+      (if (string-prefix-p devcontainer-path path)
+          (let ((local-path (expand-file-name (string-replace devcontainer-path cwd path))))
+            (or
+             (and (file-in-directory-p local-path cwd) local-path)
+             (error "Resolves to path outside of working directory: %s" path)))
+        (error "Unexpected path outside of workspace folder: %s" path)))))
 
 (defun agent-shell--stop-reason-description (stop-reason)
   "Return a human-readable text description for STOP-REASON.

@@ -182,6 +182,31 @@ Start an agent shell session:
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
 - =M-x agent-shell-goose-start-agent= - Start a Goose agent session
 
+** Running agents in Devcontainers / Docker containers
+
+=agent-shell= provides rudimentary support for running agents in containers.
+
+Adapt the command that starts the agent so it is executed inside the container; for example:
+
+#+begin_src emacs-lisp
+(setq agent-shell-anthropic-claude-command '("devcontainer" "exec" "--workspace-folder" "." "claude-code-acp"))
+#+end_src
+
+Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container.
+It's expected to inject environment variables by means of your devcontainer configuration / Dockerfile.
+
+Next, set an =agent-shell-path-resolver-function= that resolves container paths in the local working directory, and vice versa.
+Agent shell provides the =agent-shell--resolve-devcontainer-path= function for use with devcontainers:
+
+#+begin_src emacs-lisp
+(setq agent-shell-path-resolver-function #'agent-shell--resolve-devcontainer-path)
+#+end_src
+
+Note that this allows the agent to access files on your local file-system.
+While care has been taken to restrict access to files in the local working directory, it's probably possible for a malicious agent to circumvent this restriction.
+
+All of the above settings can be applied on a per-project basis using [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Directory-Variables.html][directory-local variables]].
+
 ** Keybindings
 
 - =C-c C-c= - Interrupt current agent operation
