@@ -246,6 +246,7 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
      :buffer-name "Codex"
      :shell-prompt "Codex> "
      :shell-prompt-regexp "Codex> "
+     :welcome-function #'agent-shell--codex-welcome-message
      :icon-name "openai.png"
      :client-maker (lambda ()
                      (acp-make-codex-client :api-key api-key)))))
@@ -261,6 +262,38 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
             "KEY-NOT-FOUND")))
         (t
          nil)))
+
+(defun agent-shell--codex-welcome-message (config)
+  "Return Codex welcome message using `shell-maker' CONFIG."
+  (let ((art (agent-shell--indent-string 4 (agent-shell--codex-ascii-art)))
+        (message (string-trim-left (shell-maker-welcome-message config) "\n")))
+    (concat "\n\n"
+            art
+            "\n\n"
+            message)))
+
+(defun agent-shell--codex-ascii-art ()
+  "Codex ASCII art.
+
+From https://github.com/openai/codex/blob/main/codex-rs/tui/frames/slug/frame_1.txt."
+  (let* ((text (string-trim "
+          d-dcottoottd
+      dot5pot5tooeeod dgtd
+    tepetppgde   egpegxoxeet
+   cpdoppttd            5pecet
+  odc5pdeoeoo            g-eoot
+ xp te  ep5ceet           p-oeet
+tdg-p    poep5ged          g e5e
+eedee     t55ecep            gee
+eoxpe    ceedoeg-xttttttdtt og e
+ dxcp  dcte 5p egeddd-cttte5t5te
+ oddgd dot-5e   edpppp dpg5tcd5
+  pdt gt e              tp5pde
+    doteotd          dodtedtg
+      dptodgptccocc-optdtep
+        epgpexxdddtdctpg
+" "\n")))
+    (propertize text 'font-lock-face 'font-lock-doc-face)))
 
 (defun agent-shell-interrupt ()
   "Interrupt in-progress request."
