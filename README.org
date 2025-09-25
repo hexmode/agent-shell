@@ -33,6 +33,10 @@ For Anthropic's Claude Code, install [[https://github.com/zed-industries/claude-
 
 For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sure to get a recent release supporting the =--experimental-acp= flag.
 
+*** Codex
+
+For OpenAI's Codex, install [[https://github.com/cola-io/codex-acp][codex-acp]] and ensure the `codex-acp` executable is in PATH.
+
 ** Installation
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
@@ -68,6 +72,9 @@ Set your API keys for the agent providers you want to use:
 
 ;; Google Gemini API key
 (setq agent-shell-google-key "your-google-api-key-here")
+
+;; OpenAI Codex API key
+(setq agent-shell-openai-key "your-openai-api-key-here")
 #+end_src
 
 You can also set these as functions that load and return the keys:
@@ -78,6 +85,9 @@ You can also set these as functions that load and return the keys:
 
 (setq agent-shell-google-key
       (lambda () (auth-source-pass-get "secret" "google-api-key")))
+
+(setq agent-shell-openai-key
+      (lambda () (auth-source-pass-get "secret" "openai-api-key")))
 #+end_src
 
 ** Usage
@@ -85,6 +95,7 @@ You can also set these as functions that load and return the keys:
 Start an agent shell session:
 
 - =M-x agent-shell-start-claude-code-agent= - Start a Claude Code agent session
+- =M-x agent-shell-start-codex-agent= - Start a Codex agent session
 - =M-x agent-shell-start-gemini-agent= - Start a Gemini agent session
 
 ** Keybindings
