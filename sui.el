@@ -216,25 +216,35 @@ NAVIGATION controls navigability:
         (collapsable))
 
     ;; Insert collapse indicator if body exists
-    (when (and body (or label-left label-right))
-      (setq collapsable t)
-      (setq indicator-start (point))
-      (insert (sui-add-action-to-text
-               (if expanded "▼ " "▶ ")
-               (lambda ()
-                 (interactive)
-                 (sui-toggle-dialog-block-at-point))
-               (lambda ()
-                 (message "Press RET to toggle"))))
-      (setq indicator-end (point))
-      (add-text-properties indicator-start indicator-end
-                           `(sui-section indicator
-                                         keymap ,(sui-make-action-keymap
-                                                  (lambda ()
-                                                    (interactive)
-                                                    (sui-toggle-dialog-block-at-point)))
-                                         read-only t
-                                         front-sticky (read-only))))
+    (when-let ((has-labels (or label-left label-right)))
+      (if body
+          (progn
+            (setq collapsable has-labels)
+            (setq indicator-start (point))
+            (insert (sui-add-action-to-text
+                     (if expanded "▼ " "▶ ")
+                     (lambda ()
+                       (interactive)
+                       (sui-toggle-dialog-block-at-point))
+                     (lambda ()
+                       (message "Press RET to toggle"))))
+            (setq indicator-end (point))
+            (add-text-properties indicator-start indicator-end
+                                 `(sui-section indicator
+                                               keymap ,(sui-make-action-keymap
+                                                        (lambda ()
+                                                          (interactive)
+                                                          (sui-toggle-dialog-block-at-point)))
+                                               read-only t
+                                               front-sticky (read-only))))
+        ;; Reserving the space for expand indicators enables
+        ;; aligning columns but also avoids text jumping when
+        ;; body arrives later on.
+        (setq collapsable nil)
+        (setq indicator-start (point))
+        (insert "   ")
+        (setq indicator-end (point))))
+
     (when label-left
       (setq label-left-start (point))
       (insert (sui-add-action-to-text
@@ -279,7 +289,7 @@ NAVIGATION controls navigability:
       (setq body-start (point))
       ;; Remove existing indentation and re-apply.
       (let ((clean-body (string-remove-prefix "  " body)))
-        (insert (sui--indent-text clean-body)))
+        (insert (sui--indent-text clean-body "   ")))
       (setq body-end (point))
       (add-text-properties body-start body-end
                            `(sui-section body
