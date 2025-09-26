@@ -25,24 +25,44 @@
 
 ;;; Code:
 
+(eval-when-compile
+  (require 'cl-lib))
 (require 'shell-maker)
 (require 'acp)
 
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 
-(defcustom agent-shell-openai-key nil
-  "OpenAI API key as a string or a function that loads and returns it."
-  :type '(choice (function :tag "Function")
-                 (string :tag "String"))
+(cl-defun agent-shell-openai-make-authentication (&key api-key)
+  "Create OpenAI authentication configuration.
+
+API-KEY is the OpenAI API key string or function that returns it."
+  (unless api-key
+    (error "Must specify :api-key"))
+  `((:api-key . ,api-key)))
+
+(defcustom agent-shell-openai-authentication nil
+  "Configuration for OpenAI authentication.
+For API key (string):
+
+  (setq agent-shell-openai-authentication
+        (agent-shell-openai-make-authentication :api-key \"your-key\"))
+
+For API key (function):
+
+  (setq agent-shell-openai-authentication
+        (agent-shell-openai-make-authentication :api-key (lambda () ...)))"
+  :type 'alist
   :group 'agent-shell)
 
 (defun agent-shell-openai-start-codex ()
-  "Start an interactive Claude Code agent shell."
+  "Start an interactive Codex agent shell."
   (interactive)
+  (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
+    (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
-      (user-error "Please set your `agent-shell-openai-key'"))
+      (user-error "Please set your `agent-shell-openai-authentication'"))
     (agent-shell--start
      :new-session t
      :mode-line-name "Codex"
@@ -56,13 +76,13 @@
 
 (defun agent-shell-openai-key ()
   "Get the OpenAI API key."
-  (cond ((stringp agent-shell-openai-key)
-         agent-shell-openai-key)
-        ((functionp agent-shell-openai-key)
+  (cond ((stringp (map-elt agent-shell-openai-authentication :api-key))
+         (map-elt agent-shell-openai-authentication :api-key))
+        ((functionp (map-elt agent-shell-openai-authentication :api-key))
          (condition-case _err
-             (funcall agent-shell-openai-key)
+             (funcall (map-elt agent-shell-openai-authentication :api-key))
            (error
-            "KEY-NOT-FOUND")))
+            (error "Api key not found.  Check out `agent-shell-openai-authentication'"))))
         (t
          nil)))
 

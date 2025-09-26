@@ -114,13 +114,17 @@ For API key authentication:
 
 *** OpenAI Codex
 
+For API key authentication:
+
 #+begin_src emacs-lisp
 ;; With string
-(setq agent-shell-openai-key "your-openai-api-key-here")
+(setq agent-shell-openai-authentication
+      (agent-shell-openai-make-authentication :api-key "your-openai-api-key-here"))
 
 ;; With function
-(setq agent-shell-openai-key
-      (lambda () (auth-source-pass-get "secret" "openai-api-key")))
+(setq agent-shell-openai-authentication
+      (agent-shell-openai-make-authentication
+       :api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
 #+end_src
 
 ** Usage
