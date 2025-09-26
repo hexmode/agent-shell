@@ -1,13 +1,3 @@
-(acp-send-request
- :client (map-elt agent-shell--state :client)
- :request (acp-make-initialize-request
-           :protocol-version 1
-           :read-text-file-capability t
-           :write-text-file-capability t)
- :on-success (lambda (response)
-               (message "response:\n%s" response))
- :on-failure (lambda (error raw-message)
-               (message "raw-message:\n%s" raw-message)))
 ;;; agent-shell.el --- An agent shell powered by ACP -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024 Alvaro Ramirez
