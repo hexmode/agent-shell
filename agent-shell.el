@@ -915,7 +915,7 @@ For example, shut down ACP client."
 (defun agent-shell--status-label (status)
   "Convert STATUS codes to user-visible labels."
   (let* ((config (pcase status
-                   ("pending" '("pending" warning))
+                   ("pending" '("pending" font-lock-comment-face))
                    ("in_progress" '("in progress" warning))
                    ("completed" '("completed" success))
                    ("failed" '("failed" error))
