@@ -1,3 +1,13 @@
+(acp-send-request
+ :client (map-elt agent-shell--state :client)
+ :request (acp-make-initialize-request
+           :protocol-version 1
+           :read-text-file-capability t
+           :write-text-file-capability t)
+ :on-success (lambda (response)
+               (message "response:\n%s" response))
+ :on-failure (lambda (error raw-message)
+               (message "raw-message:\n%s" raw-message)))
 ;;; agent-shell.el --- An agent shell powered by ACP -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024 Alvaro Ramirez
@@ -1233,12 +1243,14 @@ Could be a prompt or an expandable item."
   "Return the CWD for this shell.
 
 If in a project, use project root."
-  (or (when (fboundp 'projectile-project-root)
-        (projectile-project-root))
-      (when (fboundp 'project-root)
-        (when-let ((proj (project-current)))
-          (project-root proj)))
-      default-directory))
+  (expand-file-name
+   (or (when (fboundp 'projectile-project-root)
+         (projectile-project-root))
+       (when (fboundp 'project-root)
+         (when-let ((proj (project-current)))
+           (project-root proj)))
+       default-directory
+       (error "No CWD available"))))
 
 (cl-defun agent-shell--make-header (&key icon-name title location)
   "Return header text.
