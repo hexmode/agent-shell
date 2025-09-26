@@ -25,6 +25,8 @@
 
 ;;; Code:
 
+(eval-when-compile
+  (require 'cl-lib))
 (require 'shell-maker)
 (require 'acp)
 
@@ -32,31 +34,78 @@
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--interpolate-gradient "agent-shell")
 
-(defcustom agent-shell-google-key nil
-  "Google API key as a string or a function that loads and returns it."
-  :type '(choice (function :tag "Function")
-                 (string :tag "String"))
+(cl-defun agent-shell-google-make-authentication (&key api-key login)
+  "Create Google authentication configuration.
+
+API-KEY is the Google API key string or function that returns it.
+LOGIN when non-nil indicates to use login-based authentication.
+
+Only one of API-KEY or LOGIN should be provided, never both."
+  (when (and api-key login)
+    (error "Cannot specify both :api-key and :login - choose one"))
+  (unless (or api-key login)
+    (error "Must specify either :api-key or :login"))
+  (cond
+   (api-key `((:api-key . ,api-key)))
+   (login `((:login . t)))))
+
+(defcustom agent-shell-google-authentication
+  (agent-shell-google-make-authentication :login t)
+  "Configuration for Google authentication.
+For login-based authentication (default):
+
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :login t))
+
+For API key (string):
+
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :api-key \"your-key\"))
+
+For API key (function):
+
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :api-key (lambda () ...)))"
+  :type 'alist
   :group 'agent-shell)
 
 (defun agent-shell-google-start-gemini ()
   "Start an interactive Gemini CLI agent shell."
   (interactive)
-  (let ((api-key (agent-shell-google-key)))
-    (unless api-key
-      (user-error "Please set your `agent-shell-google-key'"))
-    (agent-shell--start
-     :new-session t
-     :mode-line-name "Gemini"
-     :buffer-name "Gemini"
-     :shell-prompt "Gemini> "
-     :shell-prompt-regexp "Gemini> "
-     :icon-name "gemini.png"
-     :welcome-function #'agent-shell-google--gemini-welcome-message
-     :needs-authentication t
-     :authenticate-request-maker (lambda ()
-                                   (acp-make-authenticate-request :method-id "gemini-api-key"))
-     :client-maker (lambda ()
-                     (acp-make-gemini-client :api-key api-key)))))
+  (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
+    (user-error "Please migrate to use agent-shell-google-authentication and eval (makunbound 'agent-shell-google-key)"))
+  (agent-shell--start
+   :new-session t
+   :mode-line-name "Gemini"
+   :buffer-name "Gemini"
+   :shell-prompt "Gemini> "
+   :shell-prompt-regexp "Gemini> "
+   :icon-name "gemini.png"
+   :welcome-function #'agent-shell-google--gemini-welcome-message
+   :needs-authentication t
+   :authenticate-request-maker (lambda ()
+                                 (if (map-elt agent-shell-google-authentication :api-key)
+                                     (acp-make-authenticate-request :method-id "gemini-api-key")
+                                   (acp-make-authenticate-request :method-id "oauth-personal")))
+   :client-maker #'agent-shell-google-make-gemini-client))
+
+(defun agent-shell-google-make-gemini-client ()
+  "Create a Gemini client using configured authentication.
+
+Uses `agent-shell-google-authentication' for authentication configuration."
+  (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
+    (user-error "Please migrate to use agent-shell-google-authentication and eval (makunbound 'agent-shell-google-key).?"))
+  (cond
+   ((map-elt agent-shell-google-authentication :api-key)
+    (acp-make-client :command "gemini"
+                     :command-params '("--experimental-acp")
+                     :environment-variables (when-let ((api-key (agent-shell-google-key)))
+                                              (list (format "GEMINI_API_KEY=%s" api-key)))))
+   ((map-elt agent-shell-google-authentication :login)
+    (acp-make-client :command "gemini"
+                     :command-params '("--experimental-acp")))
+   (t
+    (error "Invalid authentication configuration"))))
 
 (defun agent-shell-google--gemini-welcome-message (config)
   "Return Gemini CLI ASCII art as per own repo using `shell-maker' CONFIG."
@@ -117,13 +166,13 @@ https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes
 
 (defun agent-shell-google-key ()
   "Get the Google API key."
-  (cond ((stringp agent-shell-google-key)
-         agent-shell-google-key)
-        ((functionp agent-shell-google-key)
+  (cond ((stringp (map-elt agent-shell-google-authentication :api-key))
+         (map-elt agent-shell-google-authentication :api-key))
+        ((functionp (map-elt agent-shell-google-authentication :api-key))
          (condition-case _err
-             (funcall agent-shell-google-key)
+             (funcall (map-elt agent-shell-google-authentication :api-key))
            (error
-            "KEY-NOT-FOUND")))
+            "Api key not found.  Check out `agent-shell-google-authentication'")))
         (t
          nil)))
 
