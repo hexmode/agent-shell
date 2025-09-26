@@ -45,7 +45,9 @@
 (require 'sui)
 (require 'svg nil :noerror)
 (require 'quick-diff)
-(require 'agent-shell-configs)
+(require 'agent-shell-anthropic)
+(require 'agent-shell-google)
+(require 'agent-shell-openai)
 
 (defcustom agent-shell-permission-icon "⚠" ;; 􀇾
   "Icon displayed when shell commands require permission to execute."
