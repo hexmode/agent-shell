@@ -92,13 +92,12 @@ and AUTHENTICATE-REQUEST-MAKER."
     (user-error "Not in a shell"))
   (unless (map-elt agent-shell--state :session-id)
     (user-error "No active session"))
-  (acp-send-request
-   :client (map-elt agent-shell--state :client)
-   :request (acp-make-session-cancel-request
-             :session-id (map-elt agent-shell--state :session-id)
-             :reason "User cancelled")
-   :on-success (lambda (_response)
-                 (message "Cancelling..."))))
+  (when (y-or-n-p "Abort?")
+    (acp-send-notification
+     :client (map-elt agent-shell--state :client)
+     :notification (acp-make-session-cancel-notification
+                    :session-id (map-elt agent-shell--state :session-id)
+                    :reason "User cancelled"))))
 
 (cl-defun agent-shell--make-config (&key prompt prompt-regexp)
   "Create `shell-maker' configuration with PROMPT and PROMPT-REGEXP."
@@ -240,6 +239,7 @@ and AUTHENTICATE-REQUEST-MAKER."
                                  (text . ,(substring-no-properties command)))])
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
+                            (map-put! agent-shell--state :session-id nil)
                             (let ((success (equal (map-elt response 'stopReason)
                                                   "end_turn")))
                               (unless success
@@ -247,8 +247,10 @@ and AUTHENTICATE-REQUEST-MAKER."
                                          (agent-shell--stop-reason-description
                                           (map-elt response 'stopReason))))
                               (funcall (map-elt shell :finish-output) t))))
-            :on-failure (agent-shell--make-error-handler
-                         :state agent-shell--state :shell shell))))))
+            :on-failure (lambda (error raw-message)
+                          (map-put! agent-shell--state :session-id nil)
+                          (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
+                                   error raw-message)))))))
 
 (cl-defun agent-shell--subscribe-to-client-events (&key state)
   "Subscribe SHELL and STATE to ACP events."
@@ -538,7 +540,7 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
 
 https://agentclientprotocol.com/protocol/schema#param-stop-reason"
   (pcase stop-reason
-    ("end_turn" "The language model finishes responding without requesting more tools")
+    ("end_turn" "Finished")
     ("max_tokens" "Max token limit reached")
     ("max_turn_requests" "Exceeded request limit")
     ("refusal" "Refused")
@@ -866,7 +868,7 @@ Model is of the form:
       (:actions . ,actions))))
 
 (cl-defun agent-shell--make-error-dialog-text (&key code message raw-message)
-  "Create formatted error dialog text with CODE, MESSAGE, and RAW-ERROR."
+  "Create formatted error dialog text with CODE, MESSAGE, and RAW-MESSAGE."
   (format "╭─
 
   %s Error (%s) %s
@@ -1045,6 +1047,8 @@ Returns the shell buffer."
     (error "No way to create a new client"))
   (unless (version<= "0.82.2" shell-maker-version)
     (error "Please update shell-maker to version 0.82.2 or newer"))
+  (unless (fboundp #'acp-make-session-cancel-notification)
+    (error "Please update acp.el to version 0.1.4 or newer"))
   (let* ((config (agent-shell--make-config
                   :prompt shell-prompt
                   :prompt-regexp shell-prompt-regexp))
