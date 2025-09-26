@@ -52,6 +52,7 @@ Only one of API-KEY or LOGIN should be provided, never both."
 (defcustom agent-shell-google-authentication
   (agent-shell-google-make-authentication :login t)
   "Configuration for Google authentication.
+
 For login-based authentication (default):
 
   (setq agent-shell-google-authentication
@@ -73,7 +74,7 @@ For API key (function):
   "Start an interactive Gemini CLI agent shell."
   (interactive)
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
-    (user-error "Please migrate to use agent-shell-google-authentication and eval (makunbound 'agent-shell-google-key)"))
+    (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (agent-shell--start
    :new-session t
    :mode-line-name "Gemini"
@@ -94,7 +95,7 @@ For API key (function):
 
 Uses `agent-shell-google-authentication' for authentication configuration."
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
-    (user-error "Please migrate to use agent-shell-google-authentication and eval (makunbound 'agent-shell-google-key).?"))
+    (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (cond
    ((map-elt agent-shell-google-authentication :api-key)
     (acp-make-client :command "gemini"

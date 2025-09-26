@@ -87,7 +87,7 @@ For api key:
 
 Uses `agent-shell-anthropic-authentication' for authentication configuration."
   (when (and (boundp 'agent-shell-anthropic-key) agent-shell-anthropic-key)
-    (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (makunbound 'agent-shell-anthropic-key).?"))
+    (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (setq agent-shell-anthropic-key nil)"))
   (cond
    ((map-elt agent-shell-anthropic-authentication :api-key)
     (acp-make-client :command "claude-code-acp"
