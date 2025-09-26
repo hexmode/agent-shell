@@ -216,8 +216,6 @@ and AUTHENTICATE-REQUEST-MAKER."
             :request (acp-make-session-new-request :cwd (agent-shell-cwd))
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
-                            (map-put! agent-shell--state
-                                      :session-id (map-elt response 'sessionId))
                             (with-current-buffer (map-elt shell :buffer)
                               (agent-shell--update-dialog-block
                                :state agent-shell--state
