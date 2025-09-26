@@ -36,28 +36,83 @@
 
 ;;;; Anthropic ;;;;
 
-(defcustom agent-shell-anthropic-key nil
-  "Anthropic API key as a string or a function that loads and returns it."
-  :type '(choice (function :tag "Function")
-                 (string :tag "String"))
-  :group 'agent-shell)
+(cl-defun agent-shell-make-anthropic-authentication (&key api-key login)
+  "Create anthropic authentication configuration.
+
+API-KEY is the Anthropic API key string.
+LOGIN when non-nil indicates to use login-based authentication.
+
+Only one of API-KEY or LOGIN should be provided, never both."
+  (when (and api-key login)
+    (error "Cannot specify both :api-key and :login - choose one"))
+  (unless (or api-key login)
+    (error "Must specify either :api-key or :login"))
+  (cond
+   (api-key `((:api-key . ,api-key)))
+   (login `((:login . t)))))
+
+(defcustom agent-shell-anthropic-authentication
+  (agent-shell-make-anthropic-authentication :login t)
+  "Configuration for Anthropic authentication.
+For Subcription/login (default):
+
+  (setq agent-shell-anthropic-authentication
+        (agent-shell-make-anthropic-authentication :login t))
+
+For api key:
+
+  (setq agent-shell-anthropic-authentication
+        (agent-shell-make-anthropic-authentication :api-key \"your-key\"))
+
+  or
+
+  (setq agent-shell-anthropic-authentication
+        (agent-shell-make-anthropic-authentication :api-key (lambda () ... )))"
+  :type 'alist
+  :group 'acp)
 
 (defun agent-shell-start-claude-code-agent ()
   "Start an interactive Claude Code agent shell."
   (interactive)
-  (let ((api-key (agent-shell-anthropic-key)))
-    (unless api-key
-      (user-error "Please set your `agent-shell-anthropic-key'"))
-    (agent-shell--start
-     :new-session t
-     :mode-line-name "Claude Code"
-     :buffer-name "Claude Code"
-     :shell-prompt "Claude Code> "
-     :shell-prompt-regexp "Claude Code> "
-     :icon-name "anthropic.png"
-     :welcome-function #'agent-shell--claude-code-welcome-message
-     :client-maker (lambda ()
-                     (acp-make-claude-client :api-key api-key)))))
+  (agent-shell--start
+   :new-session t
+   :mode-line-name "Claude Code"
+   :buffer-name "Claude Code"
+   :shell-prompt "Claude Code> "
+   :shell-prompt-regexp "Claude Code> "
+   :icon-name "anthropic.png"
+   :welcome-function #'agent-shell--claude-code-welcome-message
+   :client-maker (lambda ()
+                   (agent-shell-make-claude-client))))
+
+(defun agent-shell-make-claude-client ()
+  "Create a Claude Code ACP client using configured authentication.
+
+Uses `agent-shell-anthropic-authentication' for authentication configuration."
+  (when (and (boundp 'agent-shell-anthropic-key) agent-shell-anthropic-key)
+    (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (makunbound 'agent-shell-anthropic-key)."))
+  (cond
+   ((map-elt agent-shell-anthropic-authentication :api-key)
+    (acp-make-client :command "claude-code-acp"
+                     :environment-variables (list (format "ANTHROPIC_API_KEY=%s"
+                                                          (agent-shell-anthropic-key)))))
+   ((map-elt agent-shell-anthropic-authentication :login)
+    (acp-make-client :command "claude-code-acp"
+                     :environment-variables (list "ANTHROPIC_API_KEY=")))
+   (t
+    (error "Invalid authentication configuration"))))
+
+(defun agent-shell-anthropic-key ()
+  "Get the Anthropic API key."
+  (cond ((stringp (map-elt agent-shell-anthropic-authentication :api-key))
+         (map-elt agent-shell-anthropic-authentication :api-key))
+        ((functionp (map-elt agent-shell-anthropic-authentication :api-key))
+         (condition-case _err
+             (funcall (map-elt agent-shell-anthropic-authentication :api-key))
+           (error
+            "api-key not found")))
+        (t
+         nil)))
 
 (defun agent-shell--claude-code-welcome-message (config)
   "Return Claude Code ASCII art as per own repo using `shell-maker' CONFIG."
@@ -252,18 +307,6 @@ eoxpe    ceedoeg-xttttttdtt og e
         ((functionp agent-shell-google-key)
          (condition-case _err
              (funcall agent-shell-google-key)
-           (error
-            "KEY-NOT-FOUND")))
-        (t
-         nil)))
-
-(defun agent-shell-anthropic-key ()
-  "Get the Anthropic API key."
-  (cond ((stringp agent-shell-anthropic-key)
-         agent-shell-anthropic-key)
-        ((functionp agent-shell-anthropic-key)
-         (condition-case _err
-             (funcall agent-shell-anthropic-key)
            (error
             "KEY-NOT-FOUND")))
         (t
