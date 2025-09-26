@@ -216,16 +216,17 @@ and AUTHENTICATE-REQUEST-MAKER."
             :request (acp-make-session-new-request :cwd (agent-shell-cwd))
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
-                            (with-current-buffer (map-elt shell :buffer)
-                              (agent-shell--update-dialog-block
-                               :state agent-shell--state
-                               :block-id "starting"
-                               :label-left (format "%s %s"
-                                                   (agent-shell--status-label "completed")
-                                                   (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
-                               :body "\n\nReady"
-                               :append t))
-                            (agent-shell--handle :command command :shell shell)))
+                            (map-put! agent-shell--state
+                                      :session-id (map-elt response 'sessionId))
+                            (agent-shell--update-dialog-block
+                             :state agent-shell--state
+                             :block-id "starting"
+                             :label-left (format "%s %s"
+                                                 (agent-shell--status-label "completed")
+                                                 (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
+                             :body "\n\nReady"
+                             :append t))
+                          (agent-shell--handle :command command :shell shell))
             :on-failure (agent-shell--make-error-handler
                          :state agent-shell--state :shell shell)))
           (t
@@ -237,7 +238,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                                  (text . ,(substring-no-properties command)))])
             :on-success (lambda (response)
                           (with-current-buffer (map-elt shell :buffer)
-                            (map-put! agent-shell--state :session-id nil)
                             (let ((success (equal (map-elt response 'stopReason)
                                                   "end_turn")))
                               (unless success
@@ -246,7 +246,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                                           (map-elt response 'stopReason))))
                               (funcall (map-elt shell :finish-output) t))))
             :on-failure (lambda (error raw-message)
-                          (map-put! agent-shell--state :session-id nil)
                           (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
                                    error raw-message)))))))
 
