@@ -329,7 +329,6 @@ and AUTHENTICATE-REQUEST-MAKER."
                   :state state
                   :block-id (format "%s-agent_message_chunk"
                                     (map-elt state :chunked-group-count))
-                  :label-left nil ;;
                   :body .content.text
                   :create-new (not (equal (map-elt state :last-entry-type)
                                           "agent_message_chunk"))
