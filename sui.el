@@ -50,6 +50,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
            (new-label-left (map-elt model :label-left))
            (new-label-right (map-elt model :label-right))
            (new-body (map-elt model :body))
+           (block-start nil)
            (match (save-mark-and-excursion
                     (goto-char (point-max))
                     (text-property-search-backward
@@ -65,7 +66,6 @@ For existing blocks, the current expansion state is preserved unless overridden.
             (let* ((existing-model (sui--read-dialog-block-at-point))
                    (state (get-text-property (point) 'sui-state))
                    (existing-body (map-elt existing-model :body))
-                   (block-start (prop-match-beginning match))
                    (block-end (prop-match-end match))
                    (final-body (if new-body
                                    (if (and append existing-body)
@@ -79,6 +79,7 @@ For existing blocks, the current expansion state is preserved unless overridden.
                                       (cons :label-right (or new-label-right
                                                              (map-elt existing-model :label-right)))
                                       (cons :body final-body))))
+              (setq block-start (prop-match-beginning match))
 
               ;; Safely replace existing block using narrow-to-region
               (save-excursion
@@ -93,10 +94,17 @@ For existing blocks, the current expansion state is preserved unless overridden.
           ;; Not found or create-new - insert new block
           (goto-char (point-max))
           (insert (sui--required-newlines 2))
+          (setq block-start (point))
           (sui--insert-dialog-block model qualified-id expanded navigation)
           (insert "\n\n")))
       (when on-post-process
-        (funcall on-post-process)))))
+        (funcall on-post-process))
+      (when-let ((block-range (sui--block-range :position block-start)))
+        (list (cons :block block-range)
+              (cons :body (sui--nearest-range-matching-property
+                           :property 'sui-section :value 'body
+                           :from (map-elt block-range :start)
+                           :to (map-elt block-range :end))))))))
 
 
 (defun sui--read-dialog-block-at (position qualified-id)

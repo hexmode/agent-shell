@@ -407,9 +407,7 @@ and AUTHENTICATE-REQUEST-MAKER."
             :body (format "%s" notification)
             :create-new t
             :navigation 'never)
-           (map-put! state :last-entry-type nil))))
-  (with-current-buffer (map-elt state :buffer)
-    (markdown-overlays-put)))
+           (map-put! state :last-entry-type nil)))))
 
 (cl-defun agent-shell--on-request (&key state request)
   "Handle incoming request using SHELL, STATE, and REQUEST."
@@ -451,9 +449,7 @@ and AUTHENTICATE-REQUEST-MAKER."
             :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
             :create-new t
             :navigation 'never)
-           (map-put! state :last-entry-type nil))))
-  (with-current-buffer (map-elt state :buffer)
-    (markdown-overlays-put)))
+           (map-put! state :last-entry-type nil)))))
 
 (cl-defun agent-shell--extract-buffer-text (&key buffer line limit)
   "Extract text from BUFFER starting from LINE with optional LIMIT.
@@ -1107,17 +1103,22 @@ by default."
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
     (shell-maker-with-auto-scroll-edit
-     (sui-update-dialog-block
-      (sui-make-dialog-block-model
-       :namespace-id (map-elt state :request-count)
-       :block-id block-id
-       :label-left label-left
-       :label-right label-right
-       :body body)
-      :navigation navigation
-      :append append
-      :create-new create-new
-      :expanded expanded))))
+     (when-let ((range (sui-update-dialog-block
+                        (sui-make-dialog-block-model
+                         :namespace-id (map-elt state :request-count)
+                         :block-id block-id
+                         :label-left label-left
+                         :label-right label-right
+                         :body body)
+                        :navigation navigation
+                        :append append
+                        :create-new create-new
+                        :expanded expanded))
+                (body-start (map-nested-elt range '(:body :start)))
+                (body-end (map-nested-elt range '(:body :end))))
+       (save-restriction
+         (narrow-to-region body-start body-end)
+         (markdown-overlays-put))))))
 
 (defun agent-shell-toggle-logging ()
   "Toggle logging."
