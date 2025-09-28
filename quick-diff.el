@@ -104,7 +104,8 @@ Arguments:
               (define-key map "p" #'diff-hunk-prev)
               (define-key map "q" #'kill-current-buffer)
               (use-local-map map))))
-      (pop-to-buffer diff-buffer))))
+      (display-buffer diff-buffer '(display-buffer-use-some-window
+                                    display-buffer-same-window)))))
 
 (defun quick-diff--make-diff (old new)
   (let ((old-file (make-temp-file "old"))
