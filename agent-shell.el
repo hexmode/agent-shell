@@ -93,9 +93,9 @@ and AUTHENTICATE-REQUEST-MAKER."
   "Interrupt in-progress request."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (unless (map-elt agent-shell--state :session-id)
-    (user-error "No active session"))
+    (error "No active session"))
   (when (y-or-n-p "Abort?")
     (acp-send-notification
      :client (map-elt agent-shell--state :client)
@@ -903,7 +903,7 @@ Model is of the form:
 
 For example, shut down ACP client."
   (unless (eq major-mode 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (when (map-elt agent-shell--state :client)
     (acp-shutdown :client (map-elt agent-shell--state :client))))
 
@@ -1138,7 +1138,7 @@ by default."
 Could be a prompt or an expandable item."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (let* ((prompt-pos (save-mark-and-excursion
                        (when (comint-next-prompt 1)
                          (point))))
@@ -1161,7 +1161,7 @@ Could be a prompt or an expandable item."
 Could be a prompt or an expandable item."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (let* ((current-pos (point))
          (prompt-pos (save-mark-and-excursion
                        (when (comint-next-prompt (- 1))
@@ -1219,7 +1219,7 @@ Could be a prompt or an expandable item."
   "Jump to the latest permission button row."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (when-let ((found (save-mark-and-excursion
                       (goto-char (point-max))
                       (agent-shell-previous-permission-button))))
@@ -1318,11 +1318,11 @@ Icon names starting with https:// are downloaded directly from that location."
   "View agent shell traffic buffer."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
-    (user-error "Not in a shell"))
+    (error "Not in a shell"))
   (let ((traffic-buffer (acp-traffic-buffer :client (map-elt agent-shell--state :client))))
     (when (with-current-buffer traffic-buffer
             (= (buffer-size) 0))
-      (user-error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
+      (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
     (pop-to-buffer traffic-buffer)))
 
 (defun agent-shell--indent-string (n str)
@@ -1356,11 +1356,11 @@ Icon names starting with https:// are downloaded directly from that location."
     (format "#%02x%02x%02x" r g b)))
 
 (defun agent-shell-ensure-executable (executable &optional error-message &rest format-args)
-  "Ensure EXECUTABLE exists in PATH or signal user-error.
+  "Ensure EXECUTABLE exists in PATH or signal error.
 ERROR-MESSAGE defaults to \"Executable %s not found\".
 FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
   (unless (executable-find executable)
-    (apply #'user-error (concat (format "Executable \"%s\" not found.  Do you need (add-to-list 'exec-path \"another/path/to/consider/\")?" executable)
+    (apply #'error (concat (format "Executable \"%s\" not found.  Do you need (add-to-list 'exec-path \"another/path/to/consider/\")?" executable)
                                 (when error-message
                                   "  ")
                                 error-message) format-args)))
