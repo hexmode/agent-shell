@@ -57,43 +57,44 @@ For existing blocks, the current expansion state is preserved unless overridden.
                      (lambda (_ state)
                        (equal (map-elt state :qualified-id) qualified-id))
                      t))))
-      (when match
-        (goto-char (prop-match-beginning match)))
-      (if (and match (not create-new))
-          ;; Found existing block - delete and regenerate
-          (let* ((existing-model (sui--read-dialog-block-at-point))
-                 (state (get-text-property (point) 'sui-state))
-                 (existing-body (map-elt existing-model :body))
-                 (block-start (prop-match-beginning match))
-                 (block-end (prop-match-end match))
-                 (final-body (if new-body
-                                 (if (and append existing-body)
-                                     (concat existing-body new-body)
-                                   new-body)
-                               existing-body))
-                 (final-model (list (cons :namespace-id namespace-id)
-                                    (cons :block-id (map-elt model :block-id))
-                                    (cons :label-left (or new-label-left
-                                                          (map-elt existing-model :label-left)))
-                                    (cons :label-right (or new-label-right
-                                                           (map-elt existing-model :label-right)))
-                                    (cons :body final-body))))
+      (when (or new-label-left new-label-right new-body)
+        (when match
+          (goto-char (prop-match-beginning match)))
+        (if (and match (not create-new))
+            ;; Found existing block - delete and regenerate
+            (let* ((existing-model (sui--read-dialog-block-at-point))
+                   (state (get-text-property (point) 'sui-state))
+                   (existing-body (map-elt existing-model :body))
+                   (block-start (prop-match-beginning match))
+                   (block-end (prop-match-end match))
+                   (final-body (if new-body
+                                   (if (and append existing-body)
+                                       (concat existing-body new-body)
+                                     new-body)
+                                 existing-body))
+                   (final-model (list (cons :namespace-id namespace-id)
+                                      (cons :block-id (map-elt model :block-id))
+                                      (cons :label-left (or new-label-left
+                                                            (map-elt existing-model :label-left)))
+                                      (cons :label-right (or new-label-right
+                                                             (map-elt existing-model :label-right)))
+                                      (cons :body final-body))))
 
-            ;; Safely replace existing block using narrow-to-region
-            (save-excursion
-              (save-restriction
-                (narrow-to-region block-start block-end)
-                (delete-region (point-min) (point-max))
-                (goto-char (point-min))
-                (sui--insert-dialog-block final-model qualified-id
-                                          (not (map-elt state :collapsed))
-                                          navigation))))
+              ;; Safely replace existing block using narrow-to-region
+              (save-excursion
+                (save-restriction
+                  (narrow-to-region block-start block-end)
+                  (delete-region (point-min) (point-max))
+                  (goto-char (point-min))
+                  (sui--insert-dialog-block final-model qualified-id
+                                            (not (map-elt state :collapsed))
+                                            navigation))))
 
-        ;; Not found or create-new - insert new block
-        (goto-char (point-max))
-        (insert (sui--required-newlines 2))
-        (sui--insert-dialog-block model qualified-id expanded navigation)
-        (insert "\n\n"))
+          ;; Not found or create-new - insert new block
+          (goto-char (point-max))
+          (insert (sui--required-newlines 2))
+          (sui--insert-dialog-block model qualified-id expanded navigation)
+          (insert "\n\n")))
       (when on-post-process
         (funcall on-post-process)))))
 
