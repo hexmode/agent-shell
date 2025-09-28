@@ -1354,6 +1354,16 @@ Icon names starting with https:// are downloaded directly from that location."
          (b (round (+ (* b1 (- 1 ratio)) (* b2 ratio)))))
     (format "#%02x%02x%02x" r g b)))
 
+(defun agent-shell-ensure-executable (executable &optional error-message &rest format-args)
+  "Ensure EXECUTABLE exists in PATH or signal user-error.
+ERROR-FORMAT defaults to \"Executable %s not found\".
+FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
+  (unless (executable-find executable)
+    (apply #'user-error (concat (format "Executable \"%s\" not found.  Do you need (add-to-list 'exec-path \"another/path/to/consider/\")?" executable)
+                                (when error-message
+                                  "  ")
+                                error-message) format-args)))
+
 (provide 'agent-shell)
 
 ;;; agent-shell.el ends here

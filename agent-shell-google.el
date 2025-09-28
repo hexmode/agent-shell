@@ -83,6 +83,8 @@ The first element is the command name, and the rest are command parameters."
   (interactive)
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
+  (agent-shell-ensure-executable (car agent-shell-google-gemini-command)
+                                 "See https://github.com/google-gemini/gemini-cli for installation.")
   (agent-shell--start
    :new-session t
    :mode-line-name "Gemini"

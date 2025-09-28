@@ -68,9 +68,8 @@ The first element is the command name, and the rest are command parameters."
   (interactive)
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
-  (unless (executable-find (car agent-shell-openai-codex-command))
-    (user-error "Executable %s not found.  See https://github.com/cola-io/codex-acp"
-                (car agent-shell-openai-codex-command)))
+  (agent-shell-ensure-executable (car agent-shell-openai-codex-command)
+                                 "See https://github.com/cola-io/codex-acp for installation.")
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-openai-authentication'"))

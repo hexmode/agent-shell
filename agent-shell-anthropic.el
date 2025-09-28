@@ -79,6 +79,8 @@ The first element is the command name, and the rest are command parameters."
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."
   (interactive)
+  (agent-shell-ensure-executable (car agent-shell-anthropic-claude-command)
+                                 "See https://github.com/zed-industries/claude-code-acp for installation.")
   (agent-shell--start
    :new-session t
    :mode-line-name "Claude Code"

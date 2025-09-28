@@ -66,6 +66,8 @@ The first element is the command name, and the rest are command parameters."
 (defun agent-shell-goose-start ()
   "Start an interactive Goose agent shell."
   (interactive)
+  (agent-shell-ensure-executable (car agent-shell-goose-command)
+                                 "See https://block.github.io/goose/docs/getting-started/installation.")
   (let ((api-key (agent-shell-goose-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-goose-authentication'"))
