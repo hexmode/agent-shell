@@ -1356,7 +1356,7 @@ Icon names starting with https:// are downloaded directly from that location."
 
 (defun agent-shell-ensure-executable (executable &optional error-message &rest format-args)
   "Ensure EXECUTABLE exists in PATH or signal user-error.
-ERROR-FORMAT defaults to \"Executable %s not found\".
+ERROR-MESSAGE defaults to \"Executable %s not found\".
 FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
   (unless (executable-find executable)
     (apply #'user-error (concat (format "Executable \"%s\" not found.  Do you need (add-to-list 'exec-path \"another/path/to/consider/\")?" executable)
