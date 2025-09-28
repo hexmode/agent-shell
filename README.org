@@ -37,6 +37,10 @@ For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sur
 
 For OpenAI's Codex, install [[https://github.com/cola-io/codex-acp][codex-acp]] and ensure the `codex-acp` executable is in PATH.
 
+*** Goose
+
+For Goose CLI, install [[https://block.github.io/goose/docs/getting-started/installation][goose]] and ensure the `goose` executable is in PATH.
+
 ** Installation
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
@@ -147,6 +151,21 @@ For API key authentication:
        :api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
 #+end_src
 
+*** Goose
+
+For OpenAI API key authentication:
+
+#+begin_src emacs-lisp
+;; With string
+(setq agent-shell-goose-authentication
+      (agent-shell-make-goose-authentication :openai-api-key "your-openai-api-key-here"))
+
+;; With function
+(setq agent-shell-goose-authentication
+      (agent-shell-make-goose-authentication
+       :openai-api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
+#+end_src
+
 ** Usage
 
 Start an agent shell session:
@@ -154,6 +173,7 @@ Start an agent shell session:
 - =M-x agent-shell-anthropic-start-claude-code= - Start a Claude Code agent session
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
+- =M-x agent-shell-goose-start= - Start a Goose agent session
 
 ** Keybindings
 
