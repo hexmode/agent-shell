@@ -48,6 +48,7 @@
 (require 'quick-diff)
 (require 'agent-shell-anthropic)
 (require 'agent-shell-google)
+(require 'agent-shell-goose)
 (require 'agent-shell-openai)
 
 (defcustom agent-shell-permission-icon "⚠" ;; 􀇾
