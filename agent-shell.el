@@ -128,9 +128,9 @@ and AUTHENTICATE-REQUEST-MAKER."
 
 (cl-defun agent-shell--handle (&key command shell)
   "Handle COMMAND using `shell-maker' SHELL."
-  (unless (eq major-mode 'agent-shell-mode)
-    (user-error "Not in a shell"))
   (with-current-buffer (map-elt shell :buffer)
+    (unless (eq major-mode 'agent-shell-mode)
+      (error "Not in a shell"))
     (map-put! agent-shell--state :request-count
               ;; TODO: Make public in shell-maker.
               (shell-maker--current-request-id))
