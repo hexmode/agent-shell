@@ -70,6 +70,14 @@ For API key (function):
   :type 'alist
   :group 'agent-shell)
 
+(defcustom agent-shell-google-gemini-command
+  '("gemini" "--experimental-acp")
+  "Command and parameters for the Gemini client.
+
+The first element is the command name, and the rest are command parameters."
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-google-start-gemini ()
   "Start an interactive Gemini CLI agent shell."
   (interactive)
@@ -98,13 +106,13 @@ Uses `agent-shell-google-authentication' for authentication configuration."
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (cond
    ((map-elt agent-shell-google-authentication :api-key)
-    (acp-make-client :command "gemini"
-                     :command-params '("--experimental-acp")
+    (acp-make-client :command (car agent-shell-google-gemini-command)
+                     :command-params (cdr agent-shell-google-gemini-command)
                      :environment-variables (when-let ((api-key (agent-shell-google-key)))
                                               (list (format "GEMINI_API_KEY=%s" api-key)))))
    ((map-elt agent-shell-google-authentication :login)
-    (acp-make-client :command "gemini"
-                     :command-params '("--experimental-acp")))
+    (acp-make-client :command (car agent-shell-google-gemini-command)
+                     :command-params (cdr agent-shell-google-gemini-command)))
    (t
     (error "Invalid authentication configuration"))))
 

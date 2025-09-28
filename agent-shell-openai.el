@@ -55,11 +55,22 @@ For API key (function):
   :type 'alist
   :group 'agent-shell)
 
+(defcustom agent-shell-openai-codex-command
+  '("codex-acp")
+  "Command and parameters for the OpenAI Codex client.
+
+The first element is the command name, and the rest are command parameters."
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-openai-start-codex ()
   "Start an interactive Codex agent shell."
   (interactive)
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
+  (unless (executable-find (car agent-shell-openai-codex-command))
+    (user-error "Executable %s not found.  See https://github.com/cola-io/codex-acp"
+                (car agent-shell-openai-codex-command)))
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-openai-authentication'"))
@@ -72,7 +83,9 @@ For API key (function):
      :welcome-function #'agent-shell-openai--codex-welcome-message
      :icon-name "openai.png"
      :client-maker (lambda ()
-                     (acp-make-codex-client :api-key api-key)))))
+                     (acp-make-client :command (car agent-shell-openai-codex-command)
+                                      :command-params (cdr agent-shell-openai-codex-command)
+                                      :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))))
 
 (defun agent-shell-openai-key ()
   "Get the OpenAI API key."

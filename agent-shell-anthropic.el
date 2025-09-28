@@ -68,6 +68,14 @@ For api key:
   :type 'alist
   :group 'agent-shell)
 
+(defcustom agent-shell-anthropic-claude-command
+  '("claude-code-acp")
+  "Command and parameters for the Anthropic Claude client.
+
+The first element is the command name, and the rest are command parameters."
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."
   (interactive)
@@ -90,11 +98,13 @@ Uses `agent-shell-anthropic-authentication' for authentication configuration."
     (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (setq agent-shell-anthropic-key nil)"))
   (cond
    ((map-elt agent-shell-anthropic-authentication :api-key)
-    (acp-make-client :command "claude-code-acp"
+    (acp-make-client :command (car agent-shell-anthropic-claude-command)
+                     :command-params (cdr agent-shell-anthropic-claude-command)
                      :environment-variables (list (format "ANTHROPIC_API_KEY=%s"
                                                           (agent-shell-anthropic-key)))))
    ((map-elt agent-shell-anthropic-authentication :login)
-    (acp-make-client :command "claude-code-acp"
+    (acp-make-client :command (car agent-shell-anthropic-claude-command)
+                     :command-params (cdr agent-shell-anthropic-claude-command)
                      :environment-variables (list "ANTHROPIC_API_KEY=")))
    (t
     (error "Invalid authentication configuration"))))

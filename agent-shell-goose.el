@@ -55,6 +55,14 @@ For API key (function):
   :type 'alist
   :group 'agent-shell)
 
+(defcustom agent-shell-goose-command
+  '("goose" "acp")
+  "Command and parameters for the Goose client.
+
+The first element is the command name, and the rest are command parameters."
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-goose-start ()
   "Start an interactive Goose agent shell."
   (interactive)
@@ -79,8 +87,8 @@ Uses `agent-shell-goose-authentication' for authentication configuration."
   (let ((api-key (agent-shell-goose-key)))
     (unless api-key
       (error "Goose OpenAI API key not configured"))
-    (acp-make-client :command "goose"
-                     :command-params '("acp")
+    (acp-make-client :command (car agent-shell-goose-command)
+                     :command-params (cdr agent-shell-goose-command)
                      :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))
 
 (defun agent-shell-goose-key ()
