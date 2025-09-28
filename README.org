@@ -64,6 +64,26 @@ Finally, install =agent-shell= with:
     :vc (:url "https://github.com/xenodium/agent-shell"))
 #+end_src
 
+*** Doom Emacs
+
+If you are using Doom Emacs and would like to use the =package!= macro:
+
+#+begin_src emacs-lisp
+(package! shell-maker)
+(package! acp :recipe (:host github :repo "xenodium/acp.el"))
+(package! agent-shell :recipe (:host github :repo "xenodium/agent-shell"))
+#+end_src
+
+Run =doom sync= and restart.
+
+Include =require= before configuration:
+
+#+begin_src emacs-lisp
+(require 'acp)
+(require 'agent-shell)
+;; rest of config...
+#+end_src
+
 ** Configuration
 
 Configure authentication for the agent providers you want to use.
