@@ -95,7 +95,10 @@ Arguments:
               (add-hook 'kill-buffer-hook
                         (lambda ()
                           (with-current-buffer calling-buffer
-                            (funcall on-exit (y-or-n-p "Accept changes?"))))
+                            (funcall on-exit (y-or-n-p "Accept changes?"))
+                            ;; Make sure give focus back to calling buffer on exit.
+                            (when-let ((calling-window (get-buffer-window calling-buffer)))
+                              (select-window calling-window))))
                         nil t))
             (setq buffer-read-only t)
             (let ((map (make-sparse-keymap)))
@@ -104,8 +107,8 @@ Arguments:
               (define-key map "p" #'diff-hunk-prev)
               (define-key map "q" #'kill-current-buffer)
               (use-local-map map))))
-      (display-buffer diff-buffer '(display-buffer-use-some-window
-                                    display-buffer-same-window)))))
+      (pop-to-buffer diff-buffer '(display-buffer-use-some-window
+                                   display-buffer-same-window)))))
 
 (defun quick-diff--make-diff (old new)
   (let ((old-file (make-temp-file "old"))
