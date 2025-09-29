@@ -64,7 +64,7 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
-(defun agent-shell-goose-start ()
+(defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."
   (interactive)
   (agent-shell--ensure-executable (car agent-shell-goose-command)

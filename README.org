@@ -180,7 +180,7 @@ Start an agent shell session:
 - =M-x agent-shell-anthropic-start-claude-code= - Start a Claude Code agent session
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
-- =M-x agent-shell-goose-start= - Start a Goose agent session
+- =M-x agent-shell-goose-start-agent= - Start a Goose agent session
 
 ** Keybindings
 
