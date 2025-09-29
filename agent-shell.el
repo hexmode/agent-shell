@@ -636,6 +636,8 @@ Returns in the form:
    (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
    (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
 
+;; TODO: Now that we have a better idea what permission experience
+;; to pursue, clean up / simplify handling.
 (cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
   "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
   (let-alist request
