@@ -1368,7 +1368,7 @@ Icon names starting with https:// are downloaded directly from that location."
          (b (round (+ (* b1 (- 1 ratio)) (* b2 ratio)))))
     (format "#%02x%02x%02x" r g b)))
 
-(defun agent-shell-ensure-executable (executable &optional error-message &rest format-args)
+(defun agent-shell--ensure-executable (executable &optional error-message &rest format-args)
   "Ensure EXECUTABLE exists in PATH or signal error.
 ERROR-MESSAGE defaults to \"Executable %s not found\".
 FORMAT-ARGS are passed to `format' with ERROR-FORMAT."

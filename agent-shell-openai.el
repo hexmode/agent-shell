@@ -32,6 +32,7 @@
 
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--ensure-executable "agent-shell")
 
 (cl-defun agent-shell-openai-make-authentication (&key api-key)
   "Create OpenAI authentication configuration.
@@ -68,8 +69,8 @@ The first element is the command name, and the rest are command parameters."
   (interactive)
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
-  (agent-shell-ensure-executable (car agent-shell-openai-codex-command)
-                                 "See https://github.com/cola-io/codex-acp for installation.")
+  (agent-shell--ensure-executable (car agent-shell-openai-codex-command)
+                                  "See https://github.com/cola-io/codex-acp for installation.")
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-openai-authentication'"))

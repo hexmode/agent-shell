@@ -32,6 +32,7 @@
 
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--ensure-executable "agent-shell")
 
 (cl-defun agent-shell-make-goose-authentication (&key openai-api-key)
   "Create Goose authentication configuration.
@@ -66,8 +67,8 @@ The first element is the command name, and the rest are command parameters."
 (defun agent-shell-goose-start ()
   "Start an interactive Goose agent shell."
   (interactive)
-  (agent-shell-ensure-executable (car agent-shell-goose-command)
-                                 "See https://block.github.io/goose/docs/getting-started/installation.")
+  (agent-shell--ensure-executable (car agent-shell-goose-command)
+                                  "See https://block.github.io/goose/docs/getting-started/installation.")
   (let ((api-key (agent-shell-goose-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-goose-authentication'"))
