@@ -17,7 +17,7 @@ Thank you!
 
 A native Emacs shell to interact with LLM agents powered by ACP ([[https://agentclientprotocol.com][Agent Client Protocol]]).
 
-With agent-shell, you can chat with the likes of Gemin CLI, Claude Code, or any other ACP-driven agent.
+With agent-shell, you can chat with the likes of Gemini CLI, Claude Code, or any other ACP-driven agent.
 
 *Note:* This package is in the very early stages and is likely incomplete or may have some rough edges.
 
@@ -45,7 +45,7 @@ For Goose CLI, install [[https://block.github.io/goose/docs/getting-started/inst
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
 
-You can =shell-maker= install via:
+You can install =shell-maker= via:
 
 #+begin_src emacs-lisp
   (use-package shell-maker
@@ -185,4 +185,4 @@ Start an agent shell session:
 ** Keybindings
 
 - =C-c C-c= - Interrupt current agent operation
-- =TAB and Shift-TAB= - To navigate items
+- =TAB and Shift-TAB= - Navigate interactive elements
