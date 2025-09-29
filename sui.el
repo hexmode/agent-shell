@@ -51,6 +51,8 @@ For existing blocks, the current expansion state is preserved unless overridden.
            (new-label-right (map-elt model :label-right))
            (new-body (map-elt model :body))
            (block-start nil)
+           (padding-start nil)
+           (padding-end nil)
            (match (save-mark-and-excursion
                     (goto-char (point-max))
                     (text-property-search-backward
@@ -83,20 +85,26 @@ For existing blocks, the current expansion state is preserved unless overridden.
 
               ;; Safely replace existing block using narrow-to-region
               (save-excursion
-                (save-restriction
-                  (narrow-to-region block-start block-end)
-                  (delete-region (point-min) (point-max))
-                  (goto-char (point-min))
-                  (sui--insert-dialog-block final-model qualified-id
-                                            (not (map-elt state :collapsed))
-                                            navigation))))
+                (goto-char block-start)
+                (skip-chars-backward "\n")
+                (setq padding-start (point)))
+
+              ;; Replace block
+              (delete-region block-start block-end)
+              (goto-char block-start)
+              (sui--insert-dialog-block final-model qualified-id
+                                        (not (map-elt state :collapsed))
+                                        navigation)
+              (setq padding-end (point)))
 
           ;; Not found or create-new - insert new block
           (goto-char (point-max))
+          (setq padding-start (point))
           (insert (sui--required-newlines 2))
           (setq block-start (point))
           (sui--insert-dialog-block model qualified-id expanded navigation)
-          (insert "\n\n")))
+          (insert "\n\n")
+          (setq padding-end (point))))
       (when on-post-process
         (funcall on-post-process))
       (when-let ((block-range (sui--block-range :position block-start)))
@@ -104,7 +112,10 @@ For existing blocks, the current expansion state is preserved unless overridden.
               (cons :body (sui--nearest-range-matching-property
                            :property 'sui-section :value 'body
                            :from (map-elt block-range :start)
-                           :to (map-elt block-range :end))))))))
+                           :to (map-elt block-range :end)))
+              (cons :padding (when (and padding-start padding-end)
+                               (list (cons :start padding-start)
+                                     (cons :end padding-end)))))))))
 
 
 (defun sui--read-dialog-block-at (position qualified-id)

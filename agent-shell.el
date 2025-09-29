@@ -1103,20 +1103,33 @@ by default."
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
     (shell-maker-with-auto-scroll-edit
-     (when-let ((range (sui-update-dialog-block
-                        (sui-make-dialog-block-model
-                         :namespace-id (map-elt state :request-count)
-                         :block-id block-id
-                         :label-left label-left
-                         :label-right label-right
-                         :body body)
-                        :navigation navigation
-                        :append append
-                        :create-new create-new
-                        :expanded expanded))
-                (body-start (map-nested-elt range '(:body :start)))
-                (body-end (map-nested-elt range '(:body :end))))
+     (when-let* ((range (sui-update-dialog-block
+                         (sui-make-dialog-block-model
+                          :namespace-id (map-elt state :request-count)
+                          :block-id block-id
+                          :label-left label-left
+                          :label-right label-right
+                          :body body)
+                         :navigation navigation
+                         :append append
+                         :create-new create-new
+                         :expanded expanded))
+                 (padding-start (map-nested-elt range '(:padding :start)))
+                 (padding-end (map-nested-elt range '(:padding :end)))
+                 (block-start (map-nested-elt range '(:block :start)))
+                 (block-end (map-nested-elt range '(:block :end)))
+                 (body-start (map-nested-elt range '(:body :start)))
+                 (body-end (map-nested-elt range '(:body :end))))
        (save-restriction
+         ;; TODO: Move this to shell-maker?
+         (let ((inhibit-read-only t))
+           ;; comint relies on field property to
+           ;; derive `comint-next-prompt'.
+           ;; Marking as field to avoid false positives in
+           ;; `agent-shell-next-item' and `agent-shell-previous-item'.
+           (add-text-properties (or padding-start block-start)
+                                (or padding-end block-end) '(field output)))
+         ;; Apply markdown overlay to body only.
          (narrow-to-region body-start body-end)
          (markdown-overlays-put))))))
 
