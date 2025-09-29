@@ -95,7 +95,12 @@ Arguments:
               (add-hook 'kill-buffer-hook
                         (lambda ()
                           (with-current-buffer calling-buffer
-                            (funcall on-exit (y-or-n-p "Accept changes?"))
+                            (funcall on-exit
+                                     (condition-case nil
+                                         (if (y-or-n-p "Accept changes?")
+                                             'accept
+                                           'reject)
+                                       (quit 'ignore)))
                             ;; Make sure give focus back to calling buffer on exit.
                             (when-let ((calling-window (get-buffer-window calling-buffer)))
                               (select-window calling-window))))

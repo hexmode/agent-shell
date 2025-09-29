@@ -668,7 +668,32 @@ Returns in the form:
                                      (interactive)
                                      (quick-diff
                                       :old (map-elt diff :old)
-                                      :new (map-elt diff :new)))))
+                                      :new (map-elt diff :new)
+                                      :on-exit (lambda (choice)
+                                                 (if-let ((action (cond
+                                                                   ((equal choice 'accept)
+                                                                    (seq-find (lambda (action)
+                                                                                (string= (map-elt action :kind) "allow_once"))
+                                                                              actions))
+                                                                   ((equal choice 'reject)
+                                                                    (seq-find (lambda (action)
+                                                                                (string= (map-elt action :kind) "reject_once"))
+                                                                              actions))
+                                                                   (t nil))))
+                                                     (progn
+                                                       (acp-send-response
+                                                        :client client
+                                                        :response (acp-make-session-request-permission-response
+                                                                   :request-id request-id
+                                                                   :option-id (map-elt action :option-id)))
+                                                       ;; Hide permission after sending response.
+                                                       ;; block-id must be the same as the one used as
+                                                       ;; agent-shell--update-dialog-block param by "session/request_permission".
+                                                       (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
+                                                       (message "%s" (map-elt action :option))
+                                                       (goto-char (point-max)))
+                                                   (message "Ignored")))
+                                      ))))
                      map))
            (diff-button (when-let ((_ diff)
                                    (button (agent-shell--make-button
@@ -681,18 +706,18 @@ Returns in the form:
                                                       (quick-diff
                                                        :old (map-elt diff :old)
                                                        :new (map-elt diff :new)
-                                                       :on-exit (lambda (accept)
-                                                                  (if-let ((action (if accept
-                                                                                       (seq-find (lambda (action)
-                                                                                                   (string= (map-elt action :kind) "allow_once"))
-                                                                                                 actions)
+                                                       :on-exit (lambda (choice)
+                                                                  (if-let ((action (cond
+                                                                                    ((equal choice 'accept)
+                                                                                     (seq-find (lambda (action)
+                                                                                                 (string= (map-elt action :kind) "allow_once"))
+                                                                                               actions))
+                                                                                    ((equal choice 'reject)
                                                                                      (seq-find (lambda (action)
                                                                                                  (string= (map-elt action :kind) "reject_once"))
-                                                                                               actions))))
+                                                                                               actions))
+                                                                                    (t nil))))
                                                                       (progn
-                                                                        (message "ACTION: %s" action)
-                                                                        (message "CLIENT: %s" client)  ; ← Add this debug
-                                                                        (message "REQUEST-ID: %s" request-id)  ; ← Add this debug
                                                                         (acp-send-response
                                                                          :client client
                                                                          :response (acp-make-session-request-permission-response
@@ -702,10 +727,9 @@ Returns in the form:
                                                                         ;; block-id must be the same as the one used as
                                                                         ;; agent-shell--update-dialog-block param by "session/request_permission".
                                                                         (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                                                        (message "Selected: %s" (map-elt action :option))
+                                                                        (message "%s" (map-elt action :option))
                                                                         (goto-char (point-max)))
-                                                                    (message "NO ACTION")
-                                                                    (error "No permission-granting options available"))))))))
+                                                                    (message "Ignored"))))))))
                           ;; Make the button character navigatable (the "v" in "View (v)")
                           (put-text-property (- (length button) 3) (- (length button) 1)
                                              'agent-shell-permission-button t button)
