@@ -136,6 +136,13 @@ For API key authentication:
        :api-key (lambda () (auth-source-pass-get "secret" "google-api-key"))))
 #+end_src
 
+For Vertex AI authentication:
+
+#+begin_src emacs-lisp
+(setq agent-shell-google-authentication
+      (agent-shell-google-make-authentication :vertex-ai t))
+#+end_src
+
 *** OpenAI Codex
 
 For API key authentication:

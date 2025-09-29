@@ -35,20 +35,22 @@
 (declare-function agent-shell--interpolate-gradient "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
 
-(cl-defun agent-shell-google-make-authentication (&key api-key login)
+(cl-defun agent-shell-google-make-authentication (&key api-key login vertex-ai)
   "Create Google authentication configuration.
 
 API-KEY is the Google API key string or function that returns it.
 LOGIN when non-nil indicates to use login-based authentication.
+VERTEX-AI when non-nil indicates to use Vertex AI authentication.
 
-Only one of API-KEY or LOGIN should be provided, never both."
-  (when (and api-key login)
-    (error "Cannot specify both :api-key and :login - choose one"))
-  (unless (or api-key login)
-    (error "Must specify either :api-key or :login"))
+Only one of API-KEY, LOGIN, or VERTEX-AI should be provided."
+  (when (> (seq-count #'identity (list api-key login vertex-ai)) 1)
+    (error "Cannot specify multiple authentication methods - choose one"))
+  (unless (> (seq-count #'identity (list api-key login vertex-ai)) 0)
+    (error "Must specify one of :api-key, :login, or :vertex-ai"))
   (cond
    (api-key `((:api-key . ,api-key)))
-   (login `((:login . t)))))
+   (login `((:login . t)))
+   (vertex-ai `((:vertex-ai . t)))))
 
 (defcustom agent-shell-google-authentication
   (agent-shell-google-make-authentication :login t)
@@ -67,7 +69,12 @@ For API key (string):
 For API key (function):
 
   (setq agent-shell-google-authentication
-        (agent-shell-google-make-authentication :api-key (lambda () ...)))"
+        (agent-shell-google-make-authentication :api-key (lambda () ...)))
+
+For Vertex AI authentication:
+
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :vertex-ai t))"
   :type 'alist
   :group 'agent-shell)
 
@@ -96,9 +103,12 @@ The first element is the command name, and the rest are command parameters."
    :welcome-function #'agent-shell-google--gemini-welcome-message
    :needs-authentication t
    :authenticate-request-maker (lambda ()
-                                 (if (map-elt agent-shell-google-authentication :api-key)
-                                     (acp-make-authenticate-request :method-id "gemini-api-key")
-                                   (acp-make-authenticate-request :method-id "oauth-personal")))
+                                 (cond ((map-elt agent-shell-google-authentication :api-key)
+                                        (acp-make-authenticate-request :method-id "gemini-api-key"))
+                                       ((map-elt agent-shell-google-authentication :vertex-ai)
+                                        (acp-make-authenticate-request :method-id "vertex-ai"))
+                                       (t
+                                        (acp-make-authenticate-request :method-id "oauth-personal"))))
    :client-maker #'agent-shell-google-make-gemini-client))
 
 (defun agent-shell-google-make-gemini-client ()
@@ -114,6 +124,9 @@ Uses `agent-shell-google-authentication' for authentication configuration."
                      :environment-variables (when-let ((api-key (agent-shell-google-key)))
                                               (list (format "GEMINI_API_KEY=%s" api-key)))))
    ((map-elt agent-shell-google-authentication :login)
+    (acp-make-client :command (car agent-shell-google-gemini-command)
+                     :command-params (cdr agent-shell-google-gemini-command)))
+   ((map-elt agent-shell-google-authentication :vertex-ai)
     (acp-make-client :command (car agent-shell-google-gemini-command)
                      :command-params (cdr agent-shell-google-gemini-command)))
    (t
