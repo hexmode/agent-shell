@@ -88,7 +88,15 @@ Arguments:
                                  (propertize "│ changes │\n╰─────────╯\n\n" 'face face))
                     (overlay-put overlay 'evaporate t)))))
             (diff-mode)
-            (setq header-line-format " n: next hunk p: previous hunk q: exit")
+            (setq header-line-format
+                  (concat
+                   "  "
+                   (propertize "n" 'face 'help-key-binding)
+                   " next hunk "
+                   (propertize "p" 'face 'help-key-binding)
+                   " previous hunk "
+                   (propertize "q" 'face 'help-key-binding)
+                   " exit"))
             (goto-char (point-min))
             (ignore-errors (smerge-next))
             (when on-exit
