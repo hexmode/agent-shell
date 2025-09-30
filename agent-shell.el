@@ -736,7 +736,7 @@ Returns in the form:
                           (put-text-property (- (length button) 3) (- (length button) 1)
                                              'agent-shell-permission-button t button)
                           button)))
-      (let ((text (format "╭───
+      (let ((text (format "╭─
 
     %s %s %s%s
 
@@ -744,7 +744,7 @@ Returns in the form:
     %s%s
 
 
-╰───"
+╰─"
                           (propertize agent-shell-permission-icon
                                       'font-lock-face 'warning)
                           (propertize "Tool Permission" 'font-lock-face 'bold)
