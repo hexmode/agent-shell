@@ -1269,6 +1269,30 @@ Could be a prompt or an expandable item."
     (when-let ((window (get-buffer-window (current-buffer))))
       (set-window-point window (point)))))
 
+(cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env &allow-other-keys)
+  "Return VARS in the form expected by `process-environment'.
+
+With `:inherit-env' t, also inherit system environment (as per `setenv')
+
+For example:
+
+  (agent-shell-make-environment-variables
+    \"PATH\" \"/usr/bin\"
+    \"HOME\" \"/home/user\")
+
+Returns:
+
+   (\"PATH=/usr/bin\"
+    \"HOME=/home/user\")."
+  (unless (zerop (mod (length vars) 2))
+    (error "`agent-shell-make-environment' must receive complete pairs"))
+  (append (mapcan (lambda (pair)
+                    (unless (keywordp (car pair))
+                      (list (format "%s=%s" (car pair) (cadr pair)))))
+                  (seq-partition vars 2))
+          (when inherit-env
+            process-environment)))
+
 (defun agent-shell-cwd ()
   "Return the CWD for this shell.
 

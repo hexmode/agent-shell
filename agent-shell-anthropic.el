@@ -77,6 +77,22 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-anthropic-claude-environment
+  nil
+  "Environment variables for the Anthropic Claude client.
+
+This should be a list of environment variables to be used when
+starting the Claude client process.
+
+Example usage to set a custom Anthropic API base URL:
+
+  (setq agent-shell-anthropic-claude-environment
+        (`agent-shell-make-environment-variables'
+         \"ANTHROPIC_BASE_URL\" \"https://api.moonshot.cn/anthropic/\"
+         \"ANTHROPIC_MODEL\" \"moonshot-v1-auto\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."
   (interactive)
@@ -94,23 +110,25 @@ The first element is the command name, and the rest are command parameters."
                    (agent-shell-anthropic-make-claude-client))))
 
 (defun agent-shell-anthropic-make-claude-client ()
-  "Create a Claude Code ACP client using configured authentication.
+  "Create a Claude Code ACP client.
 
-Uses `agent-shell-anthropic-authentication' for authentication configuration."
+See `agent-shell-anthropic-authentication' for authentication
+and optionally `agent-shell-anthropic-claude-environment' for
+additional environment variables."
   (when (and (boundp 'agent-shell-anthropic-key) agent-shell-anthropic-key)
     (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (setq agent-shell-anthropic-key nil)"))
-  (cond
-   ((map-elt agent-shell-anthropic-authentication :api-key)
+  (let ((env-vars-overrides (cond
+                             ((map-elt agent-shell-anthropic-authentication :api-key)
+                              (list (format "ANTHROPIC_API_KEY=%s"
+                                            (agent-shell-anthropic-key))))
+                             ((map-elt agent-shell-anthropic-authentication :login)
+                              (list "ANTHROPIC_API_KEY="))
+                             (t
+                              (error "Invalid authentication configuration")))))
     (acp-make-client :command (car agent-shell-anthropic-claude-command)
                      :command-params (cdr agent-shell-anthropic-claude-command)
-                     :environment-variables (list (format "ANTHROPIC_API_KEY=%s"
-                                                          (agent-shell-anthropic-key)))))
-   ((map-elt agent-shell-anthropic-authentication :login)
-    (acp-make-client :command (car agent-shell-anthropic-claude-command)
-                     :command-params (cdr agent-shell-anthropic-claude-command)
-                     :environment-variables (list "ANTHROPIC_API_KEY=")))
-   (t
-    (error "Invalid authentication configuration"))))
+                     :environment-variables (append env-vars-overrides
+                                                    agent-shell-anthropic-claude-environment))))
 
 (defun agent-shell-anthropic-key ()
   "Get the Anthropic API key."
