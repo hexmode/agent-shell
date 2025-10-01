@@ -69,6 +69,11 @@ returns the resolved path. Set to nil to disable mapping."
   :type 'function
   :group 'agent-shell)
 
+(defcustom agent-shell-text-file-capabilities t
+  "Whether agents are initialized with read/write text file capabilities."
+  :type 'boolean
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
   "Construct shell agent state with BUFFER.
 
@@ -187,8 +192,8 @@ and AUTHENTICATE-REQUEST-MAKER."
             :client (map-elt agent-shell--state :client)
             :request (acp-make-initialize-request
                       :protocol-version 1
-                      :read-text-file-capability t
-                      :write-text-file-capability t)
+                      :read-text-file-capability agent-shell-text-file-capabilities
+                      :write-text-file-capability agent-shell-text-file-capabilities)
             :on-success (lambda (_response)
                           ;; TODO: More to be handled?
                           (with-current-buffer (map-elt shell :buffer)
@@ -560,12 +565,14 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
          (devcontainer-path (agent-shell--get-devcontainer-workspace-path cwd)))
     (if (string-prefix-p cwd path)
         (string-replace cwd devcontainer-path path)
-      (if (string-prefix-p devcontainer-path path)
-          (let ((local-path (expand-file-name (string-replace devcontainer-path cwd path))))
-            (or
-             (and (file-in-directory-p local-path cwd) local-path)
-             (error "Resolves to path outside of working directory: %s" path)))
-        (error "Unexpected path outside of workspace folder: %s" path)))))
+      (if agent-shell-text-file-capabilities
+          (if (string-prefix-p devcontainer-path path)
+              (let ((local-path (expand-file-name (string-replace devcontainer-path cwd path))))
+                (or
+                 (and (file-in-directory-p local-path cwd) local-path)
+                 (error "Resolves to path outside of working directory: %s" path)))
+            (error "Unexpected path outside of workspace folder: %s" path))
+        (error "Refuse to resolve to local filesystem with text file capabilities disabled: %s" path)))))
 
 (defun agent-shell--stop-reason-description (stop-reason)
   "Return a human-readable text description for STOP-REASON.
