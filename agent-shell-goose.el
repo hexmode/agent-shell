@@ -69,19 +69,16 @@ The first element is the command name, and the rest are command parameters."
   (interactive)
   (agent-shell--ensure-executable (car agent-shell-goose-command)
                                   "See https://block.github.io/goose/docs/getting-started/installation.")
-  (let ((api-key (agent-shell-goose-key)))
-    (unless api-key
-      (user-error "Please set your `agent-shell-goose-authentication'"))
-    (agent-shell--start
-     :new-session t
-     :mode-line-name "Goose"
-     :buffer-name "Goose"
-     :shell-prompt "Goose> "
-     :shell-prompt-regexp "Goose> "
-     :welcome-function #'agent-shell-goose--welcome-message
-     :icon-name "goose.png"
-     :client-maker (lambda ()
-                     (agent-shell-goose-make-client)))))
+  (agent-shell--start
+    :new-session t
+    :mode-line-name "Goose"
+    :buffer-name "Goose"
+    :shell-prompt "Goose> "
+    :shell-prompt-regexp "Goose> "
+    :welcome-function #'agent-shell-goose--welcome-message
+    :icon-name "goose.png"
+    :client-maker (lambda ()
+                    (agent-shell-goose-make-client))))
 
 (defun agent-shell-goose-make-client ()
   "Create a Goose client using configured authentication.
