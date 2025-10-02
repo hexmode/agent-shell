@@ -43,6 +43,50 @@
                      "EXISTING_VAR=existing_value"
                      "ANOTHER_VAR=another_value")))))
 
+(ert-deftest agent-shell--resolve-devcontainer-path-test ()
+  "Test `agent-shell--resolve-devcontainer-path' function."
+  ;; Mock agent-shell--get-devcontainer-workspace-path
+  (cl-letf (((symbol-function 'agent-shell--get-devcontainer-workspace-path)
+             (lambda (_) "/workspace")))
+
+    ;; Need to run in an existing directory (requirement of `file-in-directory-p')
+    (let ((default-directory "/tmp"))
+      ;; With text file capabilities enabled
+      (let ((agent-shell-text-file-capabilities t))
+
+        ;; Resolves container paths to local filesystem paths
+        (should (equal (agent-shell--resolve-devcontainer-path "/workspace/d/f.el") "/tmp/d/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/workspace/f.el") "/tmp/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/workspace") "/tmp"))
+
+        ;; Prevents attempts to leave local working directory
+        (should-error (agent-shell--resolve-devcontainer-path "/workspace/..") :type 'error)
+
+        ;; Resolves local filesystem paths to container paths
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp/d/f.el") "/workspace/d/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp/f.el") "/workspace/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp") "/workspace"))
+
+        ;; Does not resolve unexpected paths
+        (should-error (agent-shell--resolve-devcontainer-path "/unexpected") :type 'error))
+
+      ;; With text file capabilities disabled (ie. never resolve to local filesystem)
+      (let ((agent-shell-text-file-capabilities nil))
+
+        ;; Does not resolve container paths to local filesystem paths
+        (should-error (agent-shell--resolve-devcontainer-path "/workspace/d/f.el") :type 'error)
+        (should-error (agent-shell--resolve-devcontainer-path "/workspace/f.el.") :type 'error)
+        (should-error (agent-shell--resolve-devcontainer-path "/workspace") :type 'error)
+        (should-error (agent-shell--resolve-devcontainer-path "/workspace/..") :type 'error)
+
+        ;; Resolves local filesystem paths to container paths
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp/d/f.el") "/workspace/d/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp/f.el") "/workspace/f.el"))
+        (should (equal (agent-shell--resolve-devcontainer-path "/tmp") "/workspace"))
+
+        ;; Does not resolve unexpected paths
+        (should-error (agent-shell--resolve-devcontainer-path "/unexpected") :type 'error)))))
+
 (defun agent-shell--prompt-for-permission--test-display ()
   "Visually inspect and test minibuffer permission prompt."
   (interactive)
