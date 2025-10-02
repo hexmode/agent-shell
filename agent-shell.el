@@ -70,7 +70,9 @@ returns the resolved path. Set to nil to disable mapping."
   :group 'agent-shell)
 
 (defcustom agent-shell-text-file-capabilities t
-  "Whether agents are initialized with read/write text file capabilities."
+  "Whether agents are initialized with read/write text file capabilities.
+
+See `acp-make-initialize-request' for details."
   :type 'boolean
   :group 'agent-shell)
 
@@ -549,7 +551,9 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
   (funcall (or agent-shell-path-resolver-function #'identity) path))
 
 (defun agent-shell--get-devcontainer-workspace-path (cwd)
-  "Return devcontainer workspaceFolder for CWD; signal error if none found."
+  "Return devcontainer workspaceFolder for CWD; signal error if none found.
+
+See https://containers.dev for more information on devcontainers."
   (let ((devcontainer-config-file-name (expand-file-name ".devcontainer/devcontainer.json" cwd)))
     (condition-case _err
         (or
@@ -560,7 +564,12 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
       (json-string-format (error "No valid JSON: %s" devcontainer-config-file-name)))))
 
 (defun agent-shell--resolve-devcontainer-path (path)
-  "Resolve PATH from a devcontainer in the local filesystem, and vice versa."
+  "Resolve PATH from a devcontainer in the local filesystem, and vice versa.
+
+For example:
+
+- /workspace/README.md => /home/xenodium/projects/kitchen-sink/README.md
+- /home/xenodium/projects/kitchen-sink/README.md => /workspace/README.md"
   (let* ((cwd (agent-shell-cwd))
          (devcontainer-path (agent-shell--get-devcontainer-workspace-path cwd)))
     (if (string-prefix-p cwd path)
