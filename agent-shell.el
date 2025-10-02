@@ -661,7 +661,7 @@ Returns in the form:
                                        ;; block-id must be the same as the one used as
                                        ;; agent-shell--update-dialog-block param by "session/request_permission".
                                        (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                       (message "Selected: %s" (map-elt action :option))
+                                       (message "%s" (map-elt action :option))
                                        (goto-char (point-max))))))
                      ;; Add diff keybinding if diff info is available
                      (when diff
