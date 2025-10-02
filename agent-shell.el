@@ -575,11 +575,11 @@ For example:
     (if (string-prefix-p cwd path)
         (string-replace cwd devcontainer-path path)
       (if agent-shell-text-file-capabilities
-          (if (string-prefix-p devcontainer-path path)
-              (let ((local-path (expand-file-name (string-replace devcontainer-path cwd path))))
-                (or
-                 (and (file-in-directory-p local-path cwd) local-path)
-                 (error "Resolves to path outside of working directory: %s" path)))
+          (if-let* ((is-dev-container (string-prefix-p devcontainer-path path))
+                    (local-path (expand-file-name (string-replace devcontainer-path cwd path))))
+              (or
+               (and (file-in-directory-p local-path cwd) local-path)
+               (error "Resolves to path outside of working directory: %s" path))
             (error "Unexpected path outside of workspace folder: %s" path))
         (error "Refuse to resolve to local filesystem with text file capabilities disabled: %s" path)))))
 
