@@ -182,7 +182,7 @@ Start an agent shell session:
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
 - =M-x agent-shell-goose-start-agent= - Start a Goose agent session
 
-** Running agents in Devcontainers / Docker containers
+** Running agents in Devcontainers / Docker containers (Experimental)
 
 =agent-shell= provides rudimentary support for running agents in containers.
 
