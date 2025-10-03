@@ -129,7 +129,7 @@ Arguments:
     (with-temp-file old-file (insert old))
     (with-temp-file new-file (insert new))
     (with-temp-buffer
-      (call-process "diff" nil t nil "-U0" old-file new-file)
+      (call-process "diff" nil t nil "-U3" old-file new-file)
       (buffer-string))))
 
 (provide 'quick-diff)
