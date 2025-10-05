@@ -114,6 +114,16 @@ For API key authentication:
        :api-key (lambda () (auth-source-pass-get "secret" "anthropic-api-key"))))
 #+end_src
 
+For alternative Anthropic-compatible API endpoints, configure via environment variables:
+
+#+begin_src emacs-lisp
+  (setq agent-shell-anthropic-claude-environment
+        (agent-shell-make-environment-variables
+         "ANTHROPIC_BASE_URL" "https://api.moonshot.cn/anthropic"
+         "ANTHROPIC_MODEL" "kimi-k2-turbo-preview"
+         "ANTHROPIC_SMALL_FAST_MODEL" "kimi-k2-turbo-preview"))
+#+end_src
+
 *** Google Gemini
 
 For login-based authentication (default):
