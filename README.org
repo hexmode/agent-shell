@@ -92,6 +92,30 @@ Include =require= before configuration:
 
 Configure authentication for the agent providers you want to use.
 
+*** Environment variables
+
+Pass environment variables to the spawned agent process by customizing the `agent-shell-*-environment` variable with `agent-shell-make-environment-variables`. The helper accepts key/value pairs and exports them when the agent starts.
+
+#+begin_src emacs-lisp
+(setq agent-shell-anthropic-claude-environment
+      (agent-shell-make-environment-variables
+       "ANTHROPIC_API_KEY" (auth-source-pass-get "secret" "anthropic-api-key")
+       "HTTPS_PROXY" "http://proxy.example.com:8080"))
+#+end_src
+
+**** Inheriting environment variables
+
+By default, the agent process starts with a minimal environment. To inherit environment variables from the parent Emacs process, use the `:inherit-env t` parameter in `agent-shell-make-environment-variables`:
+
+#+begin_src emacs-lisp
+  (setenv "ANTHROPIC_API_KEY" (auth-source-pass-get "secret" "anthropic-api-key"))
+
+  (setq agent-shell-anthropic-claude-environment
+        (agent-shell-make-environment-variables :inherit-env t))
+#+end_src
+
+This ensures that environment variables like `PATH`, `HOME`, and others from your Emacs session are available to the agent process, while still allowing you to override or add specific variables.
+
 *** Anthropic Claude
 
 For login-based authentication (default):
