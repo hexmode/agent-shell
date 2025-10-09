@@ -4,9 +4,9 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.2.3
+;; Version: 0.2.4
 
-(defconst agent-shell--version "0.2.3")
+(defconst agent-shell--version "0.2.4")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
