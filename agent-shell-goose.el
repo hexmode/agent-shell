@@ -30,9 +30,11 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--start "agent-shell")
-(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
+(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell-make-agent-config "agent-shell")
 
 (cl-defun agent-shell-make-goose-authentication (&key openai-api-key)
   "Create Goose authentication configuration.
@@ -64,12 +66,13 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
-(defun agent-shell-goose-start-agent ()
-  "Start an interactive Goose agent shell."
-  (interactive)
+(defun agent-shell-goose-make-agent-config ()
+  "Create a Goose agent configuration.
+
+Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell--ensure-executable (car agent-shell-goose-command)
                                   "See https://block.github.io/goose/docs/getting-started/installation.")
-  (agent-shell--start
+  (agent-shell-make-agent-config
     :new-session t
     :mode-line-name "Goose"
     :buffer-name "Goose"
@@ -79,6 +82,13 @@ The first element is the command name, and the rest are command parameters."
     :icon-name "goose.png"
     :client-maker (lambda ()
                     (agent-shell-goose-make-client))))
+
+(defun agent-shell-goose-start-agent ()
+  "Start an interactive Goose agent shell."
+  (interactive)
+  (agent-shell--apply
+   :function #'agent-shell--start
+   :alist (agent-shell-goose-make-agent-config)))
 
 (defun agent-shell-goose-make-client ()
   "Create a Goose client using configured authentication.

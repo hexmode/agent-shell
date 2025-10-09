@@ -30,9 +30,11 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--start "agent-shell")
-(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
+(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell-make-agent-config "agent-shell")
 
 (cl-defun agent-shell-openai-make-authentication (&key api-key)
   "Create OpenAI authentication configuration.
@@ -64,28 +66,42 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
-(defun agent-shell-openai-start-codex ()
-  "Start an interactive Codex agent shell."
-  (interactive)
+(defun agent-shell-openai-make-codex-config ()
+  "Create a Codex agent configuration.
+
+Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
   (agent-shell--ensure-executable (car agent-shell-openai-codex-command)
                                   "See https://github.com/cola-io/codex-acp for installation.")
+  (agent-shell-make-agent-config
+   :new-session t
+   :mode-line-name "Codex"
+   :buffer-name "Codex"
+   :shell-prompt "Codex> "
+   :shell-prompt-regexp "Codex> "
+   :welcome-function #'agent-shell-openai--codex-welcome-message
+   :icon-name "openai.png"
+   :client-maker (lambda ()
+                   (agent-shell-openai-make-codex-client))))
+
+(defun agent-shell-openai-start-codex ()
+  "Start an interactive Codex agent shell."
+  (interactive)
+  (agent-shell--apply
+   :function #'agent-shell--start
+   :alist (agent-shell-openai-make-codex-config)))
+
+(defun agent-shell-openai-make-codex-client ()
+  "Create a Codex client using configured authentication.
+
+Uses `agent-shell-openai-authentication' for authentication configuration."
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-openai-authentication'"))
-    (agent-shell--start
-     :new-session t
-     :mode-line-name "Codex"
-     :buffer-name "Codex"
-     :shell-prompt "Codex> "
-     :shell-prompt-regexp "Codex> "
-     :welcome-function #'agent-shell-openai--codex-welcome-message
-     :icon-name "openai.png"
-     :client-maker (lambda ()
-                     (acp-make-client :command (car agent-shell-openai-codex-command)
-                                      :command-params (cdr agent-shell-openai-codex-command)
-                                      :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))))
+    (acp-make-client :command (car agent-shell-openai-codex-command)
+                     :command-params (cdr agent-shell-openai-codex-command)
+                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))
 
 (defun agent-shell-openai-key ()
   "Get the OpenAI API key."

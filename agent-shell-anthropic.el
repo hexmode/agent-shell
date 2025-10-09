@@ -30,9 +30,10 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--start "agent-shell")
-(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
+(declare-function agent-shell--indent-string "agent-shell")
+(declare-function agent-shell--start "agent-shell")
 
 (cl-defun agent-shell-anthropic-make-authentication (&key api-key login)
   "Create anthropic authentication configuration.
@@ -93,12 +94,13 @@ Example usage to set a custom Anthropic API base URL:
   :type '(repeat string)
   :group 'agent-shell)
 
-(defun agent-shell-anthropic-start-claude-code ()
-  "Start an interactive Claude Code agent shell."
-  (interactive)
+(defun agent-shell-anthropic-make-claude-code-config ()
+  "Create a Claude Code agent configuration.
+
+Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell--ensure-executable (car agent-shell-anthropic-claude-command)
                                   "See https://github.com/zed-industries/claude-code-acp for installation.")
-  (agent-shell--start
+  (agent-shell-make-agent-config
    :new-session t
    :mode-line-name "Claude Code"
    :buffer-name "Claude Code"
@@ -108,6 +110,13 @@ Example usage to set a custom Anthropic API base URL:
    :welcome-function #'agent-shell-anthropic--claude-code-welcome-message
    :client-maker (lambda ()
                    (agent-shell-anthropic-make-claude-client))))
+
+(defun agent-shell-anthropic-start-claude-code ()
+  "Start an interactive Claude Code agent shell."
+  (interactive)
+  (agent-shell--apply
+   :function #'agent-shell--start
+   :alist (agent-shell-anthropic-make-claude-code-config)))
 
 (defun agent-shell-anthropic-make-claude-client ()
   "Create a Claude Code ACP client.

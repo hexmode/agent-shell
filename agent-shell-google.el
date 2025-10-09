@@ -30,10 +30,12 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell--apply "agent-shell")
+(declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--interpolate-gradient "agent-shell")
-(declare-function agent-shell--ensure-executable "agent-shell")
+(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell-make-agent-config "agent-shell")
 
 (cl-defun agent-shell-google-make-authentication (&key api-key login vertex-ai)
   "Create Google authentication configuration.
@@ -86,14 +88,15 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
-(defun agent-shell-google-start-gemini ()
-  "Start an interactive Gemini CLI agent shell."
-  (interactive)
+(defun agent-shell-google-make-gemini-config ()
+  "Create a Gemini CLI agent configuration.
+
+Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (agent-shell--ensure-executable (car agent-shell-google-gemini-command)
                                   "See https://github.com/google-gemini/gemini-cli for installation.")
-  (agent-shell--start
+  (agent-shell-make-agent-config
    :new-session t
    :mode-line-name "Gemini"
    :buffer-name "Gemini"
@@ -110,6 +113,13 @@ The first element is the command name, and the rest are command parameters."
                                        (t
                                         (acp-make-authenticate-request :method-id "oauth-personal"))))
    :client-maker #'agent-shell-google-make-gemini-client))
+
+(defun agent-shell-google-start-gemini ()
+  "Start an interactive Gemini CLI agent shell."
+  (interactive)
+  (agent-shell--apply
+   :function #'agent-shell--start
+   :alist (agent-shell-google-make-gemini-config)))
 
 (defun agent-shell-google-make-gemini-client ()
   "Create a Gemini client using configured authentication.

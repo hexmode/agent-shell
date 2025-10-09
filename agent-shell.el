@@ -1099,6 +1099,54 @@ PROPERTIES should be a plist of property-value pairs."
         (setq properties (cddr properties))))
     str))
 
+(cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
+                                              buffer-name shell-prompt shell-prompt-regexp
+                                              client-maker
+                                              needs-authentication
+                                              authenticate-request-maker
+                                              icon-name)
+  "Create an agent configuration alist.
+
+Keyword arguments:
+- NO-FOCUS: Non-nil to avoid focusing the agent buffer
+- NEW-SESSION: Non-nil to start a new session
+- MODE-LINE-NAME: Name to display in the mode line
+- WELCOME-FUNCTION: Function to call for welcome message
+- BUFFER-NAME: Name of the agent buffer
+- SHELL-PROMPT: The shell prompt string
+- SHELL-PROMPT-REGEXP: Regexp to match the shell prompt
+- CLIENT-MAKER: Function to create the client
+- NEEDS-AUTHENTICATION: Non-nil authentication is required
+- AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
+- ICON-NAME: Name of the icon to use
+
+Returns an alist with all specified values."
+  `((:no-focus . ,no-focus)
+    (:new-session . ,new-session)
+    (:mode-line-name . ,mode-line-name)
+    (:welcome-function . ,welcome-function)
+    (:buffer-name . ,buffer-name)
+    (:shell-prompt . ,shell-prompt)
+    (:shell-prompt-regexp . ,shell-prompt-regexp)
+    (:client-maker . ,client-maker)
+    (:needs-authentication . ,needs-authentication)
+    (:authenticate-request-maker . ,authenticate-request-maker)
+    (:icon-name . ,icon-name)))
+
+(cl-defun agent-shell--apply (&key function alist)
+  "Apply keyword ALIST to FUNCTION.
+
+ALIST should be a list of keyword-value pairs like (:foo 1 :bar 2).
+FUNCTION should be a function accepting keyword arguments (&key ...)."
+  (unless function
+    (error "Missing required argument: :function"))
+  (unless alist
+    (error "Missing required argument: :alist"))
+  (apply function
+         (mapcan (lambda (pair)
+                   (list (car pair) (cdr pair)))
+                 alist)))
+
 (cl-defun agent-shell--start (&key no-focus new-session mode-line-name welcome-function
                                    buffer-name shell-prompt shell-prompt-regexp
                                    client-maker
