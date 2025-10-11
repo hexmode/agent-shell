@@ -227,9 +227,21 @@ For OpenAI API key authentication:
        :openai-api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
 #+end_src
 
+*** Customizing Available Agents
+
+By default, =agent-shell= includes configurations for all supported agents (Claude Code, Gemini CLI, Codex, and Goose). You can customize which agents are available through the =agent-shell-agent-configs= variable.
+
 ** Usage
 
-Start an agent shell session:
+*** Quick Start
+
+=M-x agent-shell= - Start or reuse any of the known agents.
+
+You can select and start any of the known agent shells (see =agent-shell-agent-configs=) via the =agent-shell= interactive command and enables reusing existing shells when available. With a prefix argument (=C-u M-x agent-shell=), it forces starting a new shell session, thus instantiating multiple agent shells.
+
+*** Specific Agent Commands
+
+Start a specific agent shell session directly:
 
 - =M-x agent-shell-anthropic-start-claude-code= - Start a Claude Code agent session
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
