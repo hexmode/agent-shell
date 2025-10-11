@@ -116,6 +116,26 @@ By default, the agent process starts with a minimal environment. To inherit envi
 
 This ensures that environment variables like `PATH`, `HOME`, and others from your Emacs session are available to the agent process, while still allowing you to override or add specific variables.
 
+**** Loading environment variables from files
+
+You can load environment variables from .env files using the `:load-env` parameter. This supports both single and multiple files:
+
+#+begin_src emacs-lisp
+  ;; Load from a single .env file
+  (setq agent-shell-anthropic-claude-environment
+        (agent-shell-make-environment-variables
+         :load-env "~/.env"
+         "CUSTOM_VAR" "custom_value"))
+
+  ;; Load from multiple .env files
+  (setq agent-shell-anthropic-claude-environment
+        (agent-shell-make-environment-variables
+         :load-env '("~/.env" ".env.local")
+         :inherit-env t))
+#+end_src
+
+The .env files should contain variables in the format `KEY=value`, with one variable per line. Comments (lines starting with `#`) and empty lines are ignored.
+
 *** Anthropic Claude
 
 For login-based authentication (default):

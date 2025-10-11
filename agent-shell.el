@@ -1369,16 +1369,18 @@ Could be a prompt or an expandable item."
     (when-let ((window (get-buffer-window (current-buffer))))
       (set-window-point window (point)))))
 
-(cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env &allow-other-keys)
+(cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env load-env &allow-other-keys)
   "Return VARS in the form expected by `process-environment'.
 
 With `:inherit-env' t, also inherit system environment (as per `setenv')
+With `:load-env' PATH-OR-PATHS, load .env files from given path(s).
 
 For example:
 
   (agent-shell-make-environment-variables
     \"PATH\" \"/usr/bin\"
-    \"HOME\" \"/home/user\")
+    \"HOME\" \"/home/user\"
+    :load-env \"~/.env\")
 
 Returns:
 
@@ -1390,6 +1392,22 @@ Returns:
                     (unless (keywordp (car pair))
                       (list (format "%s=%s" (car pair) (cadr pair)))))
                   (seq-partition vars 2))
+          (when load-env
+            (let ((paths (if (listp load-env) load-env (list load-env))))
+              (mapcan (lambda (path)
+                        (unless (file-exists-p path)
+                          (error "File not found: %s" path))
+                        (with-temp-buffer
+                          (insert-file-contents path)
+                          (let (result)
+                            (dolist (line (mapcar #'string-trim (split-string (buffer-string) "\n" t)))
+                              (unless (or (string-empty-p line)
+                                          (string-prefix-p "#" line))
+                                (if (string-match "^\\([^=]+\\)=\\(.*\\)$" line)
+                                    (push line result)
+                                  (error "Malformed line in %s: %s" path line))))
+                            (nreverse result))))
+                      paths)))
           (when inherit-env
             process-environment)))
 

@@ -41,7 +41,69 @@
                     :inherit-env t)
                    '("NEW_VAR=new_value"
                      "EXISTING_VAR=existing_value"
-                     "ANOTHER_VAR=another_value")))))
+                     "ANOTHER_VAR=another_value"))))
+
+  ;; Test :load-env with single file
+  (let ((env-file (let ((file (make-temp-file "test-env" nil ".env")))
+                    (with-temp-file file
+                      (insert "TEST_VAR=test_value\n")
+                      (insert "# This is a comment\n")
+                      (insert "ANOTHER_TEST=another_value\n")
+                      (insert "\n")  ; empty line
+                      (insert "THIRD_VAR=third_value\n"))
+                    file)))
+    (unwind-protect
+        (should (equal (agent-shell-make-environment-variables
+                        "MANUAL_VAR" "manual_value"
+                        :load-env env-file)
+                       '("MANUAL_VAR=manual_value"
+                         "TEST_VAR=test_value"
+                         "ANOTHER_TEST=another_value"
+                         "THIRD_VAR=third_value")))
+      (delete-file env-file)))
+
+  ;; Test :load-env with multiple files
+  (let ((env-file1 (let ((file (make-temp-file "test-env1" nil ".env")))
+                     (with-temp-file file
+                       (insert "FILE1_VAR=file1_value\n")
+                       (insert "SHARED_VAR=from_file1\n"))
+                     file))
+        (env-file2 (let ((file (make-temp-file "test-env2" nil ".env")))
+                     (with-temp-file file
+                       (insert "FILE2_VAR=file2_value\n")
+                       (insert "SHARED_VAR=from_file2\n"))
+                     file)))
+    (unwind-protect
+        (should (equal (agent-shell-make-environment-variables
+                        :load-env (list env-file1 env-file2))
+                       '("FILE1_VAR=file1_value"
+                         "SHARED_VAR=from_file1"
+                         "FILE2_VAR=file2_value"
+                         "SHARED_VAR=from_file2")))
+      (delete-file env-file1)
+      (delete-file env-file2)))
+
+  ;; Test :load-env with non-existent file (should error)
+  (should-error (agent-shell-make-environment-variables
+                 "TEST_VAR" "test_value"
+                 :load-env "/non/existent/file")
+                :type 'error)
+
+  ;; Test :load-env combined with :inherit-env
+  (let ((env-file (let ((file (make-temp-file "test-env" nil ".env")))
+                    (with-temp-file file
+                      (insert "ENV_FILE_VAR=env_file_value\n"))
+                    file))
+        (process-environment '("EXISTING_VAR=existing_value")))
+    (unwind-protect
+        (should (equal (agent-shell-make-environment-variables
+                        "MANUAL_VAR" "manual_value"
+                        :load-env env-file
+                        :inherit-env t)
+                       '("MANUAL_VAR=manual_value"
+                         "ENV_FILE_VAR=env_file_value"
+                         "EXISTING_VAR=existing_value")))
+      (delete-file env-file))))
 
 (ert-deftest agent-shell--resolve-devcontainer-path-test ()
   "Test `agent-shell--resolve-devcontainer-path' function."
