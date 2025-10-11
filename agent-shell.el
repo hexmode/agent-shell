@@ -732,7 +732,8 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
 Returns in the form:
 
  `((:old . old-text)
-   (:new . new-text))."
+   (:new . new-text)
+   (:file . file-path))."
   (when-let* ((diff-item (cond
                           ;; Single diff object
                           ((and content (equal (map-elt content 'type) "diff"))
@@ -748,9 +749,12 @@ Returns in the form:
                                        (equal (map-elt item 'type) "diff"))
                                      content))))
               (old-text (map-elt diff-item 'oldText))
-              (new-text (map-elt diff-item 'newText)))
-    (list (cons :old old-text)
-          (cons :new new-text))))
+              (new-text (map-elt diff-item 'newText))
+              (file-path (map-elt diff-item 'path)))
+    (append (list (cons :old old-text)
+                  (cons :new new-text))
+            (when file-path
+              (list (cons :file file-path))))))
 
 (cl-defun agent-shell--make-error-handler (&key state shell)
   "Create ACP error handler with SHELL STATE."
@@ -835,6 +839,7 @@ Returns in the form:
                                      (quick-diff
                                       :old (map-elt diff :old)
                                       :new (map-elt diff :new)
+                                      :title (file-name-nondirectory (map-elt diff :file))
                                       :on-exit (lambda (choice)
                                                  (if-let ((action (cond
                                                                    ((equal choice 'accept)
@@ -872,6 +877,7 @@ Returns in the form:
                                                       (quick-diff
                                                        :old (map-elt diff :old)
                                                        :new (map-elt diff :new)
+                                                       :title (file-name-nondirectory (map-elt diff :file))
                                                        :on-exit (lambda (choice)
                                                                   (if-let ((action (cond
                                                                                     ((equal choice 'accept)

@@ -33,7 +33,7 @@
   (require 'cl-lib))
 (require 'diff-mode)
 
-(cl-defun quick-diff (&key old new on-exit)
+(cl-defun quick-diff (&key old new on-exit title)
   "Display a diff between OLD and NEW strings in a buffer with conflict markers.
 
 Creates a new buffer showing the differences between OLD and NEW
@@ -50,6 +50,7 @@ Arguments:
   :OLD       - Original string content
   :NEW       - Modified string content
   :ON-EXIT   - Function called with (t/nil) when buffer is killed
+  :TITLE     - Optional title to display in header line
   :OLD-LABEL - Label for old content (default: \"before\")
   :NEW-LABEL - Label for new content (default: \"after\")"
   (let* ((diff-buffer (generate-new-buffer "*quick-diff*"))
@@ -91,6 +92,8 @@ Arguments:
             (setq header-line-format
                   (concat
                    "  "
+                   (when title
+                     (concat (propertize title 'face 'mode-line-emphasis) " "))
                    (propertize "n" 'face 'help-key-binding)
                    " next hunk "
                    (propertize "p" 'face 'help-key-binding)
