@@ -76,6 +76,50 @@ See `acp-make-initialize-request' for details."
   :type 'boolean
   :group 'agent-shell)
 
+(defcustom agent-shell-display-action
+  '(display-buffer-same-window)
+  "Display action for agent shell buffers.
+See `display-buffer' for the format of display actions."
+  :type '(cons (repeat function) alist)
+  :group 'agent-shell)
+
+(cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
+                                              buffer-name shell-prompt shell-prompt-regexp
+                                              client-maker
+                                              needs-authentication
+                                              authenticate-request-maker
+                                              icon-name
+                                              install-instructions)
+  "Create an agent configuration alist.
+
+Keyword arguments:
+- NO-FOCUS: Non-nil to avoid focusing the agent buffer
+- NEW-SESSION: Non-nil to start a new session
+- MODE-LINE-NAME: Name to display in the mode line
+- WELCOME-FUNCTION: Function to call for welcome message
+- BUFFER-NAME: Name of the agent buffer
+- SHELL-PROMPT: The shell prompt string
+- SHELL-PROMPT-REGEXP: Regexp to match the shell prompt
+- CLIENT-MAKER: Function to create the client
+- NEEDS-AUTHENTICATION: Non-nil authentication is required
+- AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
+- ICON-NAME: Name of the icon to use
+- INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
+
+Returns an alist with all specified values."
+  `((:no-focus . ,no-focus)
+    (:new-session . ,new-session)
+    (:mode-line-name . ,mode-line-name)
+    (:welcome-function . ,welcome-function)
+    (:buffer-name . ,buffer-name)
+    (:shell-prompt . ,shell-prompt)
+    (:shell-prompt-regexp . ,shell-prompt-regexp)
+    (:client-maker . ,client-maker)
+    (:needs-authentication . ,needs-authentication)
+    (:authenticate-request-maker . ,authenticate-request-maker)
+    (:icon-name . ,icon-name)
+    (:install-instructions . ,install-instructions)))
+
 (defun agent-shell--make-default-agent-configs ()
   "Create a list of default agent configs.
 
@@ -118,6 +162,54 @@ and AUTHENTICATE-REQUEST-MAKER."
     (agent-shell--make-state))
 
 (defvar agent-shell--config nil)
+
+;;;###autoload
+(defun agent-shell (&optional new-shell)
+  "Start or reuse an existing agent shell.
+With prefix argument NEW-SHELL, force start a new shell."
+  (interactive "P")
+  (if (and (not new-shell)
+           (seq-first (agent-shell-buffers)))
+      (agent-shell--display-buffer (seq-first (agent-shell-buffers)))
+    (agent-shell-start :config (or (agent-shell-select)
+                                   (error "No agent config found")))))
+
+(cl-defun agent-shell-start (&key config)
+  "Programmatically start shell with CONFIG.
+
+See `agent-shell-make-agent-config' for config format."
+  (agent-shell--apply
+   :function #'agent-shell--start
+   :alist config))
+
+(defun agent-shell-select ()
+  "Select an agent config from `agent-shell-agent-configs'."
+  (let* ((configs agent-shell-agent-configs)
+         (choices (mapcar (lambda (config)
+                            (cons (or (map-elt config :mode-line-name)
+                                      (map-elt config :buffer-name)
+                                      "Unknown Agent")
+                                  config))
+                          configs))
+         (selected-name (completing-read "Select agent: " choices nil t)))
+    (map-elt choices selected-name)))
+
+(defun agent-shell-project-buffers ()
+  "Return all shell buffers in the same project as current buffer."
+  (let ((project-root (agent-shell-cwd)))
+    (seq-filter (lambda (buffer)
+                  (with-current-buffer buffer
+                    (string-prefix-p project-root
+                                     (expand-file-name default-directory))))
+                (agent-shell-buffers))))
+
+(defun agent-shell-buffers ()
+  "Return all shell buffers."
+  (seq-map #'buffer-name
+           (seq-filter (lambda (buffer)
+                         (with-current-buffer buffer
+                           (derived-mode-p 'agent-shell-mode)))
+                       (buffer-list))))
 
 (defun agent-shell-version ()
   "Show `agent-shell' mode version."
@@ -1119,43 +1211,6 @@ PROPERTIES should be a plist of property-value pairs."
         (setq properties (cddr properties))))
     str))
 
-(cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
-                                              buffer-name shell-prompt shell-prompt-regexp
-                                              client-maker
-                                              needs-authentication
-                                              authenticate-request-maker
-                                              icon-name
-                                              install-instructions)
-  "Create an agent configuration alist.
-
-Keyword arguments:
-- NO-FOCUS: Non-nil to avoid focusing the agent buffer
-- NEW-SESSION: Non-nil to start a new session
-- MODE-LINE-NAME: Name to display in the mode line
-- WELCOME-FUNCTION: Function to call for welcome message
-- BUFFER-NAME: Name of the agent buffer
-- SHELL-PROMPT: The shell prompt string
-- SHELL-PROMPT-REGEXP: Regexp to match the shell prompt
-- CLIENT-MAKER: Function to create the client
-- NEEDS-AUTHENTICATION: Non-nil authentication is required
-- AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
-- ICON-NAME: Name of the icon to use
-- INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
-
-Returns an alist with all specified values."
-  `((:no-focus . ,no-focus)
-    (:new-session . ,new-session)
-    (:mode-line-name . ,mode-line-name)
-    (:welcome-function . ,welcome-function)
-    (:buffer-name . ,buffer-name)
-    (:shell-prompt . ,shell-prompt)
-    (:shell-prompt-regexp . ,shell-prompt-regexp)
-    (:client-maker . ,client-maker)
-    (:needs-authentication . ,needs-authentication)
-    (:authenticate-request-maker . ,authenticate-request-maker)
-    (:icon-name . ,icon-name)
-    (:install-instructions . ,install-instructions)))
-
 (cl-defun agent-shell--apply (&key function alist)
   "Apply keyword ALIST to FUNCTION.
 
@@ -1572,6 +1627,11 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
                                 (when error-message
                                   "  ")
                                 error-message) format-args)))
+
+(defun agent-shell--display-buffer (shell-buffer)
+  "Toggle agent shell display."
+  (interactive)
+  (select-window (display-buffer shell-buffer agent-shell-display-action)))
 
 (provide 'agent-shell)
 
