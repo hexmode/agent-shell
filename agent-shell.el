@@ -171,7 +171,7 @@ With prefix argument NEW-SHELL, force start a new shell."
   (if (and (not new-shell)
            (seq-first (agent-shell-buffers)))
       (agent-shell--display-buffer (seq-first (agent-shell-buffers)))
-    (agent-shell-start :config (or (agent-shell-select)
+    (agent-shell-start :config (or (agent-shell-select-config)
                                    (error "No agent config found")))))
 
 (cl-defun agent-shell-start (&key config)
@@ -182,7 +182,7 @@ See `agent-shell-make-agent-config' for config format."
    :function #'agent-shell--start
    :alist config))
 
-(defun agent-shell-select ()
+(defun agent-shell-select-config ()
   "Select an agent config from `agent-shell-agent-configs'."
   (let* ((configs agent-shell-agent-configs)
          (choices (mapcar (lambda (config)
