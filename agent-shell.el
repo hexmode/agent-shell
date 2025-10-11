@@ -1630,9 +1630,9 @@ ERROR-MESSAGE defaults to \"Executable %s not found\".
 FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
   (unless (executable-find executable)
     (apply #'error (concat (format "Executable \"%s\" not found.  Do you need (add-to-list 'exec-path \"another/path/to/consider/\")?" executable)
-                                (when error-message
-                                  "  ")
-                                error-message) format-args)))
+                           (when error-message
+                             "  ")
+                           error-message) format-args)))
 
 (defun agent-shell--display-buffer (shell-buffer)
   "Toggle agent shell display."
