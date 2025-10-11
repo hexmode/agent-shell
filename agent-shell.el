@@ -76,6 +76,26 @@ See `acp-make-initialize-request' for details."
   :type 'boolean
   :group 'agent-shell)
 
+(defun agent-shell--make-default-agent-configs ()
+  "Create a list of default agent configs.
+
+This function aggregates agents from OpenAI, Anthropic, Google, and Goose."
+  (list (agent-shell-anthropic-make-claude-code-config)
+        (agent-shell-google-make-gemini-config)
+        (agent-shell-goose-make-agent-config)
+        (agent-shell-openai-make-codex-config)))
+
+(defcustom agent-shell-agent-configs
+  (agent-shell--make-default-agent-configs)
+  "The list of known agent configurations.
+
+See `agent-shell-anthropic-make-claude-code-config',
+    `agent-shell-google-make-gemini-config',
+    `agent-shell-openai-make-codex-config',
+    `agent-shell-goose-make-agent-config' for details."
+  :type '(repeat (alist :key-type symbol :value-type sexp))
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
   "Construct shell agent state with BUFFER.
 
@@ -1104,7 +1124,8 @@ PROPERTIES should be a plist of property-value pairs."
                                               client-maker
                                               needs-authentication
                                               authenticate-request-maker
-                                              icon-name)
+                                              icon-name
+                                              install-instructions)
   "Create an agent configuration alist.
 
 Keyword arguments:
@@ -1119,6 +1140,7 @@ Keyword arguments:
 - NEEDS-AUTHENTICATION: Non-nil authentication is required
 - AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
 - ICON-NAME: Name of the icon to use
+- INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
 
 Returns an alist with all specified values."
   `((:no-focus . ,no-focus)
@@ -1131,7 +1153,8 @@ Returns an alist with all specified values."
     (:client-maker . ,client-maker)
     (:needs-authentication . ,needs-authentication)
     (:authenticate-request-maker . ,authenticate-request-maker)
-    (:icon-name . ,icon-name)))
+    (:icon-name . ,icon-name)
+    (:install-instructions . ,install-instructions)))
 
 (cl-defun agent-shell--apply (&key function alist)
   "Apply keyword ALIST to FUNCTION.
@@ -1152,7 +1175,8 @@ FUNCTION should be a function accepting keyword arguments (&key ...)."
                                    client-maker
                                    needs-authentication
                                    authenticate-request-maker
-                                   icon-name)
+                                   icon-name
+                                   install-instructions)
   "Start an agent shell programmatically.
 
 Set NO-FOCUS to start in background.
@@ -1163,6 +1187,7 @@ Set CLIENT-MAKER function to create the ACP client.
 Set NEEDS-AUTHENTICATION if ACP agent requires client authentication.
 Set AUTHENTICATE-REQUEST-MAKER to create authentication requests.
 Set WELCOME-FUNCTION for custom welcome message.
+Set INSTALL-INSTRUCTIONS for executable installation instructions.
 
 Returns the shell buffer."
   (unless (and client-maker (funcall client-maker))
@@ -1171,6 +1196,8 @@ Returns the shell buffer."
     (error "Please update shell-maker to version 0.82.2 or newer"))
   (unless (fboundp #'acp-make-session-cancel-notification)
     (error "Please update acp.el to version 0.1.4 or newer"))
+  (agent-shell--ensure-executable
+   (map-elt (funcall client-maker) :command) install-instructions)
   (let* ((config (agent-shell--make-config
                   :prompt shell-prompt
                   :prompt-regexp shell-prompt-regexp))

@@ -94,8 +94,6 @@ The first element is the command name, and the rest are command parameters."
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
-  (agent-shell--ensure-executable (car agent-shell-google-gemini-command)
-                                  "See https://github.com/google-gemini/gemini-cli for installation.")
   (agent-shell-make-agent-config
    :new-session t
    :mode-line-name "Gemini"
@@ -112,7 +110,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                                         (acp-make-authenticate-request :method-id "vertex-ai"))
                                        (t
                                         (acp-make-authenticate-request :method-id "oauth-personal"))))
-   :client-maker #'agent-shell-google-make-gemini-client))
+   :client-maker #'agent-shell-google-make-gemini-client
+   :install-instructions "See https://github.com/google-gemini/gemini-cli for installation."))
 
 (defun agent-shell-google-start-gemini ()
   "Start an interactive Gemini CLI agent shell."

@@ -70,8 +70,6 @@ The first element is the command name, and the rest are command parameters."
   "Create a Goose agent configuration.
 
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
-  (agent-shell--ensure-executable (car agent-shell-goose-command)
-                                  "See https://block.github.io/goose/docs/getting-started/installation.")
   (agent-shell-make-agent-config
     :new-session t
     :mode-line-name "Goose"
@@ -81,7 +79,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
     :welcome-function #'agent-shell-goose--welcome-message
     :icon-name "goose.png"
     :client-maker (lambda ()
-                    (agent-shell-goose-make-client))))
+                    (agent-shell-goose-make-client))
+    :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
 
 (defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."

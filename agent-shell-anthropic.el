@@ -98,8 +98,6 @@ Example usage to set a custom Anthropic API base URL:
   "Create a Claude Code agent configuration.
 
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
-  (agent-shell--ensure-executable (car agent-shell-anthropic-claude-command)
-                                  "See https://github.com/zed-industries/claude-code-acp for installation.")
   (agent-shell-make-agent-config
    :new-session t
    :mode-line-name "Claude Code"
@@ -109,7 +107,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :icon-name "anthropic.png"
    :welcome-function #'agent-shell-anthropic--claude-code-welcome-message
    :client-maker (lambda ()
-                   (agent-shell-anthropic-make-claude-client))))
+                   (agent-shell-anthropic-make-claude-client))
+   :install-instructions "See https://github.com/zed-industries/claude-code-acp for installation."))
 
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."

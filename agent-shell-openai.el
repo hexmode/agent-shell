@@ -72,8 +72,6 @@ The first element is the command name, and the rest are command parameters."
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
-  (agent-shell--ensure-executable (car agent-shell-openai-codex-command)
-                                  "See https://github.com/cola-io/codex-acp for installation.")
   (agent-shell-make-agent-config
    :new-session t
    :mode-line-name "Codex"
@@ -83,7 +81,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :welcome-function #'agent-shell-openai--codex-welcome-message
    :icon-name "openai.png"
    :client-maker (lambda ()
-                   (agent-shell-openai-make-codex-client))))
+                   (agent-shell-openai-make-codex-client))
+   :install-instructions "See https://github.com/cola-io/codex-acp for installation."))
 
 (defun agent-shell-openai-start-codex ()
   "Start an interactive Codex agent shell."
