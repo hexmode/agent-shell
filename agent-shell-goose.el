@@ -30,11 +30,11 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell-start "agent-shell")
 
 (cl-defun agent-shell-make-goose-authentication (&key openai-api-key)
   "Create Goose authentication configuration.
@@ -85,9 +85,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."
   (interactive)
-  (agent-shell--apply
-   :function #'agent-shell--start
-   :alist (agent-shell-goose-make-agent-config)))
+  (agent-shell-start
+   :config (agent-shell-goose-make-agent-config)))
 
 (defun agent-shell-goose-make-client ()
   "Create a Goose client using configured authentication.

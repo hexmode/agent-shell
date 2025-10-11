@@ -30,10 +30,11 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell-start "agent-shell")
 
 (cl-defun agent-shell-anthropic-make-authentication (&key api-key login)
   "Create anthropic authentication configuration.
@@ -113,9 +114,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."
   (interactive)
-  (agent-shell--apply
-   :function #'agent-shell--start
-   :alist (agent-shell-anthropic-make-claude-code-config)))
+  (agent-shell-start
+   :config (agent-shell-anthropic-make-claude-code-config)))
 
 (defun agent-shell-anthropic-make-claude-client ()
   "Create a Claude Code ACP client.

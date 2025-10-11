@@ -30,12 +30,12 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--interpolate-gradient "agent-shell")
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell-start "agent-shell")
 
 (cl-defun agent-shell-google-make-authentication (&key api-key login vertex-ai)
   "Create Google authentication configuration.
@@ -116,9 +116,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-google-start-gemini ()
   "Start an interactive Gemini CLI agent shell."
   (interactive)
-  (agent-shell--apply
-   :function #'agent-shell--start
-   :alist (agent-shell-google-make-gemini-config)))
+  (agent-shell-start
+   :config (agent-shell-google-make-gemini-config)))
 
 (defun agent-shell-google-make-gemini-client ()
   "Create a Gemini client using configured authentication.

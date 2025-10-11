@@ -30,11 +30,11 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--apply "agent-shell")
 (declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell-start "agent-shell")
 
 (cl-defun agent-shell-openai-make-authentication (&key api-key)
   "Create OpenAI authentication configuration.
@@ -87,9 +87,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-openai-start-codex ()
   "Start an interactive Codex agent shell."
   (interactive)
-  (agent-shell--apply
-   :function #'agent-shell--start
-   :alist (agent-shell-openai-make-codex-config)))
+  (agent-shell-start
+   :config (agent-shell-openai-make-codex-config)))
 
 (defun agent-shell-openai-make-codex-client ()
   "Create a Codex client using configured authentication.
