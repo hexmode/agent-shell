@@ -61,6 +61,11 @@
   :type 'string
   :group 'agent-shell)
 
+(defcustom agent-shell-show-config-icons t
+  "Whether to show icons in agent config selection."
+  :type 'boolean
+  :group 'agent-shell)
+
 (defcustom agent-shell-path-resolver-function nil
   "Function for resolving remote paths on the local file-system, and vice versa.
 
@@ -182,14 +187,30 @@ See `agent-shell-make-agent-config' for config format."
    :function #'agent-shell--start
    :alist config))
 
+(cl-defun agent-shell--config-icon (&key config)
+  "Create icon string for CONFIG if available and icons are enabled.
+Returns an empty string if no icon should be displayed."
+  (if-let* ((graphics-capable (display-graphic-p))
+            (icon-name (map-elt config :icon-name))
+            (icon-filename (agent-shell--fetch-agent-icon icon-name)))
+      (with-temp-buffer
+        (insert-image (create-image icon-filename nil nil
+                                    :ascent 'center
+                                    :height (frame-char-height)))
+        (buffer-string))
+    ""))
+
 (defun agent-shell-select-config ()
   "Select an agent config from `agent-shell-agent-configs'."
   (let* ((configs agent-shell-agent-configs)
          (choices (mapcar (lambda (config)
-                            (cons (or (map-elt config :mode-line-name)
-                                      (map-elt config :buffer-name)
-                                      "Unknown Agent")
-                                  config))
+                            (let ((display-name (or (map-elt config :mode-line-name)
+                                                    (map-elt config :buffer-name)
+                                                    "Unknown Agent"))
+                                  (icon (when agent-shell-show-config-icons
+                                          (agent-shell--config-icon :config config))))
+                              (cons (format "%s%s%s" icon (when icon " ") display-name)
+                                    config)))
                           configs))
          (selected-name (completing-read "Select agent: " choices nil t)))
     (map-elt choices selected-name)))
