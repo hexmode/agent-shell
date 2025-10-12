@@ -180,6 +180,19 @@ With prefix argument NEW-SHELL, force start a new shell."
                                     :prompt "Start new agent: ")
                                    (error "No agent config found")))))
 
+;;;###autoload
+(defun agent-shell-toggle ()
+  "Toggle agent shell display."
+  (interactive)
+  (let ((shell-buffer (seq-first (agent-shell-project-buffers))))
+    (unless shell-buffer
+      (user-error "No agent shell buffers available for current project"))
+    (if-let ((window (get-buffer-window shell-buffer)))
+        (if (> (count-windows) 1)
+            (delete-window window)
+          (switch-to-prev-buffer))
+      (agent-shell--display-buffer shell-buffer))))
+
 (cl-defun agent-shell-start (&key config)
   "Programmatically start shell with CONFIG.
 
