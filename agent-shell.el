@@ -176,7 +176,8 @@ With prefix argument NEW-SHELL, force start a new shell."
   (if (and (not new-shell)
            (seq-first (agent-shell-buffers)))
       (agent-shell--display-buffer (seq-first (agent-shell-buffers)))
-    (agent-shell-start :config (or (agent-shell-select-config)
+    (agent-shell-start :config (or (agent-shell-select-config
+                                    :prompt "Start new agent: ")
                                    (error "No agent config found")))))
 
 (cl-defun agent-shell-start (&key config)
@@ -200,7 +201,7 @@ Returns an empty string if no icon should be displayed."
         (buffer-string))
     ""))
 
-(defun agent-shell-select-config ()
+(cl-defun agent-shell-select-config (&key prompt)
   "Select an agent config from `agent-shell-agent-configs'."
   (let* ((configs agent-shell-agent-configs)
          (choices (mapcar (lambda (config)
@@ -212,7 +213,7 @@ Returns an empty string if no icon should be displayed."
                               (cons (format "%s%s%s" icon (when icon " ") display-name)
                                     config)))
                           configs))
-         (selected-name (completing-read "Select agent: " choices nil t)))
+         (selected-name (completing-read (or prompt "Select agent: ") choices nil t)))
     (map-elt choices selected-name)))
 
 (defun agent-shell-project-buffers ()
