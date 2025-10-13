@@ -88,6 +88,11 @@ See `display-buffer' for the format of display actions."
   :type '(cons (repeat function) alist)
   :group 'agent-shell)
 
+(defcustom agent-shell-file-completion-enabled t
+  "Non-nil automatically enables file completion when starting shells."
+  :type 'boolean
+  :group 'agent-shell)
+
 (cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
                                               buffer-name shell-prompt shell-prompt-regexp
                                               client-maker
@@ -1314,7 +1319,9 @@ Returns the shell buffer."
                                 :title (concat buffer-name " Agent")
                                 :location (string-remove-suffix "/" (abbreviate-file-name default-directory))))
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
-      (sui-mode +1))
+      (sui-mode +1)
+      (when agent-shell-file-completion-enabled
+        (agent-shell-completion-mode +1)))
     shell-buffer))
 
 (cl-defun agent-shell--delete-dialog-block (&key state block-id)
@@ -1675,6 +1682,58 @@ If in a project, use project root."
            (project-root proj)))
        default-directory
        (error "No CWD available"))))
+
+;;; Completion
+
+(defun agent-shell--project-files ()
+  "Get project files using projectile or project.el."
+  (cond
+   ((and (boundp 'projectile-mode)
+         projectile-mode
+         (projectile-project-p))
+    (mapcar (lambda (f)
+              (file-relative-name f (projectile-project-root)))
+            (projectile-current-project-files)))
+   ((fboundp 'project-current)
+    (when-let ((proj (project-current)))
+      (mapcar (lambda (f) (file-relative-name f (project-root proj)))
+              (project-files proj))))
+   (t nil)))
+
+(defun agent-shell--file-completion-at-point ()
+  "Complete project files after @."
+  (when-let* ((triggered (eq (char-before) ?@))
+              (start (point))
+              (end (save-excursion
+                     (skip-chars-forward "[:alnum:]/_.-")
+                     (point)))
+              (prefix (buffer-substring start end))
+              (files (agent-shell--project-files)))
+    (list start end
+          (completion-table-dynamic
+           (lambda (_)
+             (seq-filter
+              (lambda (f) (string-prefix-p prefix (file-name-nondirectory f)))
+              files)))
+          :exclusive 'no
+          :exit-function
+          (lambda (_status _string)
+            (insert " ")))))
+
+(defun agent-shell--trigger-completion-at-point ()
+  "Trigger completion when @ is typed."
+  (when (eq (char-before) ?@)
+    (completion-at-point)))
+
+(define-minor-mode agent-shell-completion-mode
+  "Toggle project file completion with @ prefix."
+  :lighter " @Compl"
+  (if agent-shell-completion-mode
+      (progn
+        (add-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point nil t)
+        (add-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point nil t))
+    (remove-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point t)
+    (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)))
 
 (provide 'agent-shell)
 
