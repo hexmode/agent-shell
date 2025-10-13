@@ -70,7 +70,7 @@
   "Function for resolving remote paths on the local file-system, and vice versa.
 
 Expects a function that takes the path as its single argument, and
-returns the resolved path. Set to nil to disable mapping."
+returns the resolved path.  Set to nil to disable mapping."
   :type 'function
   :group 'agent-shell)
 
@@ -215,7 +215,7 @@ Returns an empty string if no icon should be displayed."
     ""))
 
 (cl-defun agent-shell-select-config (&key prompt)
-  "Select an agent config from `agent-shell-agent-configs'."
+  "Display PROMPT to select an agent config from `agent-shell-agent-configs'."
   (let* ((configs agent-shell-agent-configs)
          (choices (mapcar (lambda (config)
                             (let ((display-name (or (map-elt config :mode-line-name)
@@ -1486,8 +1486,8 @@ Could be a prompt or an expandable item."
 (cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env load-env &allow-other-keys)
   "Return VARS in the form expected by `process-environment'.
 
-With `:inherit-env' t, also inherit system environment (as per `setenv')
-With `:load-env' PATH-OR-PATHS, load .env files from given path(s).
+With `:INHERIT-ENV' t, also inherit system environment (as per `setenv')
+With `:LOAD-ENV' PATH-OR-PATHS, load .env files from given path(s).
 
 For example:
 
@@ -1648,7 +1648,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
                            error-message) format-args)))
 
 (defun agent-shell--display-buffer (shell-buffer)
-  "Toggle agent shell display."
+  "Toggle agent SHELL-BUFFER display."
   (interactive)
   (select-window (display-buffer shell-buffer agent-shell-display-action)))
 
