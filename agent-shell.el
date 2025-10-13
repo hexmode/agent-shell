@@ -166,7 +166,8 @@ and AUTHENTICATE-REQUEST-MAKER."
         (cons :last-entry-type nil)
         (cons :chunked-group-count 0)
         (cons :request-count 0)
-        (cons :tool-calls nil)))
+        (cons :tool-calls nil)
+        (cons :available-commands nil)))
 
 (defvar-local agent-shell--state
     (agent-shell--make-state))
@@ -544,6 +545,7 @@ Returns an empty string if no icon should be displayed."
                (map-put! state :last-entry-type "tool_call_update"))
               ((equal (map-elt update 'sessionUpdate) "available_commands_update")
                (let-alist update
+                 (map-put! state :available-commands (map-elt update 'availableCommands))
                  (agent-shell--update-dialog-block
                   :state state
                   :block-id "available_commands_update"
@@ -1720,19 +1722,45 @@ If in a project, use project root."
           (lambda (_status _string)
             (insert " ")))))
 
+(defun agent-shell--command-completion-at-point ()
+  "Complete available commands after /."
+  (when (eq (char-before) ?/)
+    (let* ((start (point))
+           (end (save-excursion
+                  (skip-chars-forward "[:alnum:]_-")
+                  (point)))
+           (prefix (buffer-substring start end))
+           (commands (map-elt agent-shell--state :available-commands)))
+      (list start end
+            (completion-table-dynamic
+             (lambda (_)
+               (mapcar (lambda (command)
+                         (map-elt command 'name))
+                       (seq-filter
+                        (lambda (command)
+                          (string-prefix-p prefix (map-elt command 'name)))
+                        commands))))
+            :exclusive t ; prevent / file completion fallback (already covered by @).
+            :exit-function
+            (lambda (_status _string)
+              (insert " "))))))
+
 (defun agent-shell--trigger-completion-at-point ()
-  "Trigger completion when @ is typed."
-  (when (eq (char-before) ?@)
+  "Trigger completion when @ or / is typed."
+  (when (or (eq (char-before) ?@)
+            (eq (char-before) ?/))
     (completion-at-point)))
 
 (define-minor-mode agent-shell-completion-mode
-  "Toggle project file completion with @ prefix."
-  :lighter " @Compl"
+  "Toggle agent shell completion with @ or / prefix."
+  :lighter " @/Compl"
   (if agent-shell-completion-mode
       (progn
         (add-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point nil t)
+        (add-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point nil t)
         (add-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point nil t))
     (remove-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point t)
+    (remove-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point t)
     (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)))
 
 (provide 'agent-shell)
