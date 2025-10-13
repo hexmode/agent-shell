@@ -32,7 +32,13 @@ With agent-shell, you can chat with the likes of Gemini CLI, Claude Code, or any
 
 *** ACP adapter for Claude Code
 
-For Anthropic's Claude Code, install [[https://github.com/zed-industries/claude-code-acp][Zed's claude-code-acp]].
+For Anthropic's Claude Code, follow [[https://github.com/zed-industries/claude-code-acp][Zed's claude-code-acp instructions]], typically something like:
+
+#+begin_src bash
+npm install -g @zed-industries/claude-code-acp
+#+end_src
+
+*Note:* The =-g= flag is required to install the binary globally so it's available in your PATH. After installation, verify it's available by running =which claude-code-acp= in your terminal.
 
 *** Gemini CLI
 
