@@ -1712,11 +1712,9 @@ If in a project, use project root."
               (prefix (buffer-substring start end))
               (files (agent-shell--project-files)))
     (list start end
-          (completion-table-dynamic
-           (lambda (_)
-             (seq-filter
-              (lambda (f) (string-prefix-p prefix (file-name-nondirectory f)))
-              files)))
+          (seq-filter
+           (lambda (f) (string-prefix-p prefix (file-name-nondirectory f)))
+           files)
           :exclusive 'no
           :exit-function
           (lambda (_status _string)
@@ -1732,14 +1730,12 @@ If in a project, use project root."
            (prefix (buffer-substring start end))
            (commands (map-elt agent-shell--state :available-commands)))
       (list start end
-            (completion-table-dynamic
-             (lambda (_)
-               (mapcar (lambda (command)
-                         (map-elt command 'name))
-                       (seq-filter
-                        (lambda (command)
-                          (string-prefix-p prefix (map-elt command 'name)))
-                        commands))))
+            (mapcar (lambda (command)
+                      (map-elt command 'name))
+                    (seq-filter
+                     (lambda (command)
+                       (string-prefix-p prefix (map-elt command 'name)))
+                     commands))
             :exclusive t ; prevent / file completion fallback (already covered by @).
             :exit-function
             (lambda (_status _string)
