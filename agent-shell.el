@@ -88,7 +88,7 @@ See `display-buffer' for the format of display actions."
   :type '(cons (repeat function) alist)
   :group 'agent-shell)
 
-(defcustom agent-shell-file-completion-enabled t
+(defcustom agent-shell-file-completion-enabled nil
   "Non-nil automatically enables file completion when starting shells."
   :type 'boolean
   :group 'agent-shell)
