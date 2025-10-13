@@ -229,15 +229,6 @@ Returns an empty string if no icon should be displayed."
          (selected-name (completing-read (or prompt "Select agent: ") choices nil t)))
     (map-elt choices selected-name)))
 
-(defun agent-shell-project-buffers ()
-  "Return all shell buffers in the same project as current buffer."
-  (let ((project-root (agent-shell-cwd)))
-    (seq-filter (lambda (buffer)
-                  (with-current-buffer buffer
-                    (string-prefix-p project-root
-                                     (expand-file-name default-directory))))
-                (agent-shell-buffers))))
-
 (defun agent-shell-buffers ()
   "Return all shell buffers."
   (seq-map #'buffer-name
@@ -1534,19 +1525,6 @@ Returns:
           (when inherit-env
             process-environment)))
 
-(defun agent-shell-cwd ()
-  "Return the CWD for this shell.
-
-If in a project, use project root."
-  (expand-file-name
-   (or (when (fboundp 'projectile-project-root)
-         (projectile-project-root))
-       (when (fboundp 'project-root)
-         (when-let ((proj (project-current)))
-           (project-root proj)))
-       default-directory
-       (error "No CWD available"))))
-
 (cl-defun agent-shell--make-header (&key icon-name title location)
   "Return header text.
 ICON-NAME is the name of the icon to display (gemini.png).
@@ -1673,6 +1651,30 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
   "Toggle agent shell display."
   (interactive)
   (select-window (display-buffer shell-buffer agent-shell-display-action)))
+
+;;; Projects
+
+(defun agent-shell-project-buffers ()
+  "Return all shell buffers in the same project as current buffer."
+  (let ((project-root (agent-shell-cwd)))
+    (seq-filter (lambda (buffer)
+                  (with-current-buffer buffer
+                    (string-prefix-p project-root
+                                     (expand-file-name default-directory))))
+                (agent-shell-buffers))))
+
+(defun agent-shell-cwd ()
+  "Return the CWD for this shell.
+
+If in a project, use project root."
+  (expand-file-name
+   (or (when (fboundp 'projectile-project-root)
+         (projectile-project-root))
+       (when (fboundp 'project-root)
+         (when-let ((proj (project-current)))
+           (project-root proj)))
+       default-directory
+       (error "No CWD available"))))
 
 (provide 'agent-shell)
 
