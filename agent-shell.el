@@ -742,12 +742,12 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
   "Format COMMANDS for shell rendering."
   (let ((max-name-length (cl-reduce #'max commands
                                     :key (lambda (cmd)
-                                           (length (alist-get 'name cmd)))
+                                           (length (map-elt cmd 'name)))
                                     :initial-value 0)))
     (mapconcat
      (lambda (cmd)
-       (let ((name (alist-get 'name cmd))
-             (desc (alist-get 'description cmd)))
+       (let ((name (map-elt cmd 'name))
+             (desc (map-elt cmd 'description)))
          (concat
           ;; For commands to be executable, they start with /
           (propertize (format (format "/%%-%ds" max-name-length) name)
@@ -817,7 +817,7 @@ Returns in the form:
                    (length (map-elt b :label))))
               (seq-map (lambda (opt)
                          (let* ((kind (map-elt opt 'kind))
-                                (char (alist-get kind char-map nil nil #'string=))
+                                (char (map-elt char-map kind))
                                 (name (map-elt opt 'name)))
                            (when char
                              (map-into `((:label . ,(format "%s (%c)" name char))
@@ -1005,7 +1005,7 @@ Returns in the form:
          (tool-call-overrides (seq-filter (lambda (pair)
                                             (cdr pair))
                                           tool-call)))
-    (setf (alist-get tool-call-id updated-tools nil nil #'equal)
+    (setf (map-elt updated-tools tool-call-id)
           (if old-tool-call
               (map-merge 'alist old-tool-call tool-call-overrides)
             tool-call-overrides))
@@ -1192,7 +1192,7 @@ For example, shut down ACP client."
   (let* ((max-label-width
           (apply #'max (cons 0 (mapcar (lambda (entry)
                                          (length (agent-shell--status-label
-                                                  (alist-get 'status entry))))
+                                                  (map-elt entry 'status))))
                                        entries)))))
     (mapconcat
      (lambda (entry)
