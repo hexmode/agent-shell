@@ -1167,6 +1167,15 @@ For example, shut down ACP client."
      'font-lock-face
      `(:foreground ,color :box (:color ,color)))))
 
+(defun agent-shell--shorten-paths (text)
+  "Shorten file paths in TEXT relative to project root.
+
+\"/path/to/project/file.txt\" -> \"project/file.txt\""
+  (when text
+    (replace-regexp-in-string (regexp-quote (string-remove-suffix "/" (agent-shell-cwd)))
+                              (file-name-base (string-remove-suffix "/" (agent-shell-cwd)))
+                              (or text ""))))
+
 (defun agent-shell-make-tool-call-label (state tool-call-id)
   "Create tool call label from STATE using TOOL-CALL-ID."
   (when-let ((tool-call (map-nested-elt state `(:tool-calls ,tool-call-id))))
@@ -1179,8 +1188,10 @@ For example, shut down ACP client."
                           (propertize (format " %s " kind) 'font-lock-face 'default)
                           'font-lock-face
                           `(:box t))))
-           (title (map-elt tool-call :title))
-           (description (map-elt tool-call :description)))
+           (title (when (map-elt tool-call :title)
+                    (agent-shell--shorten-paths (map-elt tool-call :title))))
+           (description (when (map-elt tool-call :description)
+                          (agent-shell--shorten-paths (map-elt tool-call :description)))))
       (concat
        (when status-label
          status-label)

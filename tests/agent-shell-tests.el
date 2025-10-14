@@ -149,6 +149,43 @@
         ;; Does not resolve unexpected paths
         (should-error (agent-shell--resolve-devcontainer-path "/unexpected") :type 'error)))))
 
+(ert-deftest agent-shell--shorten-paths-test ()
+  "Test `agent-shell--shorten-paths' function."
+  ;; Mock agent-shell-cwd to return a predictable value
+  (cl-letf (((symbol-function 'agent-shell-cwd)
+             (lambda () "/path/to/agent-shell/")))
+
+    ;; Test shortening full paths to project-relative format
+    (should (equal (agent-shell--shorten-paths
+                    "/path/to/agent-shell/README.org")
+                   "agent-shell/README.org"))
+
+    ;; Test with subdirectories
+    (should (equal (agent-shell--shorten-paths
+                    "/path/to/agent-shell/tests/agent-shell-tests.el")
+                   "agent-shell/tests/agent-shell-tests.el"))
+
+    ;; Test text that doesn't contain project path (should remain unchanged)
+    (should (equal (agent-shell--shorten-paths
+                    "Some random text without paths")
+                   "Some random text without paths"))
+
+    ;; Test text with different paths (should remain unchanged)
+    (should (equal (agent-shell--shorten-paths
+                    "/some/other/path/file.txt")
+                   "/some/other/path/file.txt"))
+
+    ;; Test nil input
+    (should (equal (agent-shell--shorten-paths nil) nil))
+
+    ;; Test empty string
+    (should (equal (agent-shell--shorten-paths "") ""))
+
+    ;; Test mixed text with project path
+    (should (equal (agent-shell--shorten-paths
+                    "Read /path/to/agent-shell/agent-shell.el (4 - 6)")
+                   "Read agent-shell/agent-shell.el (4 - 6)"))))
+
 (defun agent-shell--prompt-for-permission--test-display ()
   "Visually inspect and test minibuffer permission prompt."
   (interactive)
