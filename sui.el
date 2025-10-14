@@ -489,9 +489,10 @@ INDENT-STRING defaults to two spaces."
     (define-key map [remap self-insert-command] 'ignore)
     map))
 
-(defun sui-add-action-to-text (text action &optional on-entered)
+(defun sui-add-action-to-text (text action &optional on-entered face)
   "Add ACTION lambda to propertized TEXT and return modified text.
-ON-ENTERED is a function to call when the cursor enters the text."
+ON-ENTERED is a function to call when the cursor enters the text.
+FACE when non-nil applies the specified face to the text."
   (add-text-properties 0 (length text)
                        `(keymap ,(sui-make-action-keymap action))
                        text)
@@ -501,6 +502,13 @@ ON-ENTERED is a function to call when the cursor enters the text."
                                (list (lambda (_window _old-pos sensor-action)
                                        (when (eq sensor-action 'entered)
                                          (funcall on-entered)))))
+                         text))
+  (when face
+    (add-text-properties 0 (length text)
+                         `(font-lock-face ,face)
+                         text)
+    (add-text-properties 0 (length text)
+                         `(face ,face)
                          text))
   text)
 

@@ -1787,7 +1787,7 @@ If in a project, use project root."
   (interactive)
   (let* ((shell-buffer (or (seq-first (agent-shell-project-buffers))
                            (user-error "No agent shell buffers available for current project")))
-         (region (or (agent-shell--get-decorated-region :deactivate t)
+         (region (or (agent-shell--get-region :deactivate t)
                      (user-error "No region selected")))
          (inhibit-read-only t)
          (insert-start (progn
@@ -1803,7 +1803,34 @@ If in a project, use project root."
         (save-restriction
           (goto-char insert-start)
           (insert "\n\n")
-          (insert region)
+          (insert (if (map-elt region :file)
+                      (sui-add-action-to-text
+                       (format "%s (character position from %d to %d)"
+                               (file-relative-name (map-elt region :file)
+                                                   (agent-shell-cwd))
+                               (map-elt region :start)
+                               (map-elt region :end))
+                       (lambda ()
+                         (interactive)
+                         (let ((file (map-elt region :file))
+                               (start (map-elt region :start))
+                               (end (map-elt region :end)))
+                           (if (file-exists-p file)
+                               (if-let ((window (when (get-file-buffer file)
+                                                  (get-buffer-window (get-file-buffer file)))))
+                                   (progn
+                                     (select-window window)
+                                     (goto-char start)
+                                     (push-mark end t t))
+                                 (find-file file)
+                                 (goto-char start)
+                                 (push-mark end t t))
+                             (message "File not found"))))
+                       (lambda ()
+                         (message "Press RET to open file"))
+                       'link)
+                    (or (map-elt region :content)
+                        "???")))
           (narrow-to-region insert-start (point))
           (markdown-overlays-put))))))
 
@@ -1820,11 +1847,11 @@ Available values:
           (end (region-end))
           (content (buffer-substring-no-properties (region-beginning) (region-end)))
           (language (cond ((listp mode-name)
-                          (downcase (car mode-name)))
-                         ((stringp mode-name)
-                          (downcase mode-name))
-                         (t
-                          "")))
+                           (downcase (car mode-name)))
+                          ((stringp mode-name)
+                           (downcase mode-name))
+                          (t
+                           "")))
           (file (when-let ((buffer-file-name (buffer-file-name)))
                   (file-relative-name buffer-file-name (agent-shell-cwd)))))
       (when deactivate
