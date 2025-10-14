@@ -1286,8 +1286,8 @@ Set INSTALL-INSTRUCTIONS for executable installation instructions.
 Returns the shell buffer."
   (unless (and client-maker (funcall client-maker))
     (error "No way to create a new client"))
-  (unless (version<= "0.82.2" shell-maker-version)
-    (error "Please update shell-maker to version 0.82.2 or newer"))
+  (unless (version<= "0.83.1" shell-maker-version)
+    (error "Please update shell-maker to version 0.83.1 or newer"))
   (unless (fboundp #'acp-make-session-cancel-notification)
     (error "Please update acp.el to version 0.1.4 or newer"))
   (agent-shell--ensure-executable
@@ -1659,7 +1659,9 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 (defun agent-shell--display-buffer (shell-buffer)
   "Toggle agent SHELL-BUFFER display."
   (interactive)
-  (select-window (display-buffer shell-buffer agent-shell-display-action)))
+  (if (get-buffer-window shell-buffer)
+      (select-window (get-buffer-window shell-buffer))
+    (select-window (display-buffer shell-buffer agent-shell-display-action))))
 
 ;;; Projects
 
@@ -1758,6 +1760,62 @@ If in a project, use project root."
     (remove-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point t)
     (remove-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point t)
     (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)))
+
+;;; Region
+
+(cl-defun agent-shell-add-region ()
+  "Add region to last accessed shell buffer in project."
+  (interactive)
+  (let* ((shell-buffer (or (seq-first (agent-shell-project-buffers))
+                           (user-error "No agent shell buffers available for current project")))
+         (region (or (agent-shell--get-decorated-region :deactivate t)
+                     (user-error "No region selected")))
+         (inhibit-read-only t)
+         (insert-start (progn
+                         ;; Displaying before with-current-buffer below
+                         ;; ensures window is selected, thus window-point
+                         ;; is also updated after insertion.
+                         (agent-shell--display-buffer shell-buffer)
+                         (point-max))))
+    (with-current-buffer shell-buffer
+      (when (shell-maker-busy)
+        (user-error "Busy, try later"))
+      (save-excursion
+        (save-restriction
+          (goto-char insert-start)
+          (insert "\n\n")
+          (insert region)
+          (narrow-to-region insert-start (point))
+          (markdown-overlays-put))))))
+
+(cl-defun agent-shell--get-decorated-region (&key deactivate)
+  "Get the active region decorated with file path and Markdown code block.
+
+When DEACTIVATE is non-nil, deactivate region/selection."
+  (when-let ((region-active (region-active-p))
+             (start (region-beginning))
+             (end (region-end))
+             (region (buffer-substring-no-properties start end)))
+    (when deactivate
+      (deactivate-mark))
+    (concat (if-let ((buffer-file-name (buffer-file-name))
+                     (filename (file-relative-name buffer-file-name (agent-shell-cwd))))
+                (format "%s#C%d-C%d\n\n"
+                        filename
+                        start
+                        end)
+              "")
+            "```"
+            (cond ((listp mode-name)
+                   (downcase (car mode-name)))
+                  ((stringp mode-name)
+                   (downcase mode-name))
+                  (t
+                   ""))
+            "\n"
+            region
+            "\n"
+            "```")))
 
 (provide 'agent-shell)
 
