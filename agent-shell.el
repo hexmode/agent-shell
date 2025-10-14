@@ -1805,27 +1805,38 @@ If in a project, use project root."
           (insert "\n\n")
           (insert (if (map-elt region :file)
                       (sui-add-action-to-text
-                       (format "%s (character position from %d to %d)"
+                       (format "%s:%d-%d"
                                (file-relative-name (map-elt region :file)
                                                    (agent-shell-cwd))
-                               (map-elt region :start)
-                               (map-elt region :end))
+                               (map-elt region :line-start)
+                               (map-elt region :line-end))
                        (lambda ()
                          (interactive)
-                         (let ((file (map-elt region :file))
-                               (start (map-elt region :start))
-                               (end (map-elt region :end)))
-                           (if (file-exists-p file)
-                               (if-let ((window (when (get-file-buffer file)
-                                                  (get-buffer-window (get-file-buffer file)))))
-                                   (progn
-                                     (select-window window)
-                                     (goto-char start)
-                                     (push-mark end t t))
-                                 (find-file file)
-                                 (goto-char start)
-                                 (push-mark end t t))
-                             (message "File not found"))))
+                         (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
+                             (if-let ((window (when (get-file-buffer (map-elt region :file))
+                                                (get-buffer-window (get-file-buffer (map-elt region :file))))))
+                                 (progn
+                                   (select-window window)
+                                   (goto-char (point-min))
+                                   (forward-line (1- (map-elt region :line-start)))
+                                   (beginning-of-line)
+                                   (push-mark (save-excursion
+                                                (goto-char (point-min))
+                                                (forward-line (1- (map-elt region :line-end)))
+                                                (end-of-line)
+                                                (point))
+                                              t t))
+                               (find-file (map-elt region :file))
+                               (goto-char (point-min))
+                               (forward-line (1- (map-elt region :line-start)))
+                               (beginning-of-line)
+                               (push-mark (save-excursion
+                                            (goto-char (point-min))
+                                            (forward-line (1- (map-elt region :line-end)))
+                                            (end-of-line)
+                                            (point))
+                                          t t))
+                           (message "File not found")))
                        (lambda ()
                          (message "Press RET to open file"))
                        'link)
@@ -1841,7 +1852,7 @@ When DEACTIVATE is non-nil, deactivate region/selection.
 
 Available values:
 
- :file :language :start :end and :content."
+ :file :language :char-start :char-end :line-start :line-end and :content."
   (when (region-active-p)
     (let ((start (region-beginning))
           (end (region-end))
@@ -1858,8 +1869,10 @@ Available values:
         (deactivate-mark))
       `((:file . ,file)
         (:language . ,language)
-        (:start . ,start)
-        (:end . ,end)
+        (:char-start . ,start)
+        (:char-end . ,end)
+        (:line-start . ,(save-excursion (goto-char start) (line-number-at-pos)))
+        (:line-end . ,(save-excursion (goto-char end) (line-number-at-pos)))
         (:content . ,content)))))
 
 (cl-defun agent-shell--get-decorated-region (&key deactivate)
@@ -1868,8 +1881,8 @@ Available values:
 When DEACTIVATE is non-nil, deactivate region/selection."
   (when-let ((region-data (agent-shell--get-region :deactivate deactivate)))
     (let ((file (map-elt region-data :file))
-          (start (map-elt region-data :start))
-          (end (map-elt region-data :end))
+          (start (map-elt region-data :char-start))
+          (end (map-elt region-data :char-end))
           (language (map-elt region-data :language))
           (content (map-elt region-data :content)))
       (concat (if file
