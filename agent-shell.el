@@ -93,6 +93,19 @@ See `display-buffer' for the format of display actions."
   :type 'boolean
   :group 'agent-shell)
 
+(defcustom agent-shell-header-style (if (display-graphic-p) 'graphical 'text)
+  "Style for agent shell buffer headers.
+
+Can be one of:
+
+ \='graphical: Display header with icon and styled text.
+ \='text: Display simple text-only header.
+ nil: Display no header."
+  :type '(choice (const :tag "Graphical" graphical)
+                 (const :tag "Text only" text)
+                 (const :tag "No header" nil))
+  :group 'agent-shell)
+
 (cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
                                               buffer-name shell-prompt shell-prompt-regexp
                                               client-maker
@@ -1545,34 +1558,40 @@ LOCATION is the location information to include."
     (error ":title is required"))
   (unless location
     (error ":location is required"))
-  (if (display-graphic-p)
-      (let* ((image-height (* 3 (default-font-height)))
-             (image-width image-height)
-             (text-height 25)
-             (svg (svg-create (frame-pixel-width) (+ image-height 10)))
-             (icon-filename (agent-shell--fetch-agent-icon icon-name))
-             (image-type (let ((ext (file-name-extension icon-name)))
-                           (cond
-                            ((member ext '("png" "PNG")) "image/png")
-                            ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
-                            ((member ext '("gif" "GIF")) "image/gif")
-                            ((member ext '("webp" "WEBP")) "image/webp")
-                            ((member ext '("svg" "SVG")) "image/svg+xml")
-                            (t "image/png")))))
-        (when (and icon-filename image-type)
-          (svg-embed svg icon-filename
-                     image-type nil
-                     :x 0 :y 0 :width image-width :height image-height))
-        (svg-text svg title
-                  :x (+ image-width 10) :y text-height
-                  :fill (face-attribute 'font-lock-variable-name-face :foreground))
-        (svg-text svg location
-                  :x (+ image-width 10) :y (* 2 text-height)
-                  :fill (face-attribute 'font-lock-string-face :foreground))
-        (format " %s" (with-temp-buffer
-                        (svg-insert-image svg)
-                        (buffer-string))))
-    (format " %s @ %s" title location)))
+  (let ((text-header (format " %s @ %s" title location)))
+    (pcase agent-shell-header-style
+      ((or 'none (pred null)) "")
+      ('text text-header)
+      ('graphical
+       (if (display-graphic-p)
+           (let* ((image-height (* 3 (default-font-height)))
+                  (image-width image-height)
+                  (text-height 25)
+                  (svg (svg-create (frame-pixel-width) (+ image-height 10)))
+                  (icon-filename (agent-shell--fetch-agent-icon icon-name))
+                  (image-type (let ((ext (file-name-extension icon-name)))
+                                (cond
+                                 ((member ext '("png" "PNG")) "image/png")
+                                 ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
+                                 ((member ext '("gif" "GIF")) "image/gif")
+                                 ((member ext '("webp" "WEBP")) "image/webp")
+                                 ((member ext '("svg" "SVG")) "image/svg+xml")
+                                 (t "image/png")))))
+             (when (and icon-filename image-type)
+               (svg-embed svg icon-filename
+                          image-type nil
+                          :x 0 :y 0 :width image-width :height image-height))
+             (svg-text svg title
+                       :x (+ image-width 10) :y text-height
+                       :fill (face-attribute 'font-lock-variable-name-face :foreground))
+             (svg-text svg location
+                       :x (+ image-width 10) :y (* 2 text-height)
+                       :fill (face-attribute 'font-lock-string-face :foreground))
+             (format " %s" (with-temp-buffer
+                             (svg-insert-image svg)
+                             (buffer-string))))
+         text-header))
+      (_ text-header))))
 
 (defun agent-shell--fetch-agent-icon (icon-name)
   "Download icon with ICON-NAME from GitHub, only if it exists, and save as binary.
