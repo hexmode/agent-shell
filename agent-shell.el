@@ -1807,34 +1807,53 @@ If in a project, use project root."
           (narrow-to-region insert-start (point))
           (markdown-overlays-put))))))
 
+(cl-defun agent-shell--get-region (&key deactivate)
+  "Get the active region as an alist.
+
+When DEACTIVATE is non-nil, deactivate region/selection.
+
+Available values:
+
+ :file :language :start :end and :content."
+  (when (region-active-p)
+    (let ((start (region-beginning))
+          (end (region-end))
+          (content (buffer-substring-no-properties (region-beginning) (region-end)))
+          (language (cond ((listp mode-name)
+                          (downcase (car mode-name)))
+                         ((stringp mode-name)
+                          (downcase mode-name))
+                         (t
+                          "")))
+          (file (when-let ((buffer-file-name (buffer-file-name)))
+                  (file-relative-name buffer-file-name (agent-shell-cwd)))))
+      (when deactivate
+        (deactivate-mark))
+      `((:file . ,file)
+        (:language . ,language)
+        (:start . ,start)
+        (:end . ,end)
+        (:content . ,content)))))
+
 (cl-defun agent-shell--get-decorated-region (&key deactivate)
   "Get the active region decorated with file path and Markdown code block.
 
 When DEACTIVATE is non-nil, deactivate region/selection."
-  (when-let ((region-active (region-active-p))
-             (start (region-beginning))
-             (end (region-end))
-             (region (buffer-substring-no-properties start end)))
-    (when deactivate
-      (deactivate-mark))
-    (concat (if-let ((buffer-file-name (buffer-file-name))
-                     (filename (file-relative-name buffer-file-name (agent-shell-cwd))))
-                (format "%s#C%d-C%d\n\n"
-                        filename
-                        start
-                        end)
-              "")
-            "```"
-            (cond ((listp mode-name)
-                   (downcase (car mode-name)))
-                  ((stringp mode-name)
-                   (downcase mode-name))
-                  (t
-                   ""))
-            "\n"
-            region
-            "\n"
-            "```")))
+  (when-let ((region-data (agent-shell--get-region :deactivate deactivate)))
+    (let ((file (map-elt region-data :file))
+          (start (map-elt region-data :start))
+          (end (map-elt region-data :end))
+          (language (map-elt region-data :language))
+          (content (map-elt region-data :content)))
+      (concat (if file
+                  (format "%s#C%d-C%d\n\n" file start end)
+                "")
+              "```"
+              language
+              "\n"
+              content
+              "\n"
+              "```"))))
 
 (provide 'agent-shell)
 
