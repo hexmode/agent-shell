@@ -1494,51 +1494,48 @@ For example:
 
 
    ╰─"
-  (let-alist request
-    (let* ((request-id .id)
-           (tool-call-id .params.toolCall.toolCallId)
-           (tool-call (map-nested-elt state `(:tool-calls ,tool-call-id)))
-           (diff (map-elt tool-call :diff))
-           (actions (agent-shell--prepare-permission-actions .params.options))
-           (keymap (let ((map (make-sparse-keymap)))
-                     (dolist (action actions)
-                       (when-let ((char (map-elt action :char)))
-                         (define-key map (vector char)
-                                     (lambda ()
-                                       (interactive)
-                                       (agent-shell--send-permission-response
-                                        :client client
-                                        :request-id request-id
-                                        :option-id (map-elt action :option-id)
-                                        :state state
-                                        :tool-call-id tool-call-id
-                                        :message-text (map-elt action :option))))))
-                     ;; Add diff keybinding if diff info is available
-                     (when diff
-                       (define-key map "v" (agent-shell--make-diff-viewing-function
-                                            :diff diff
-                                            :actions actions
-                                            :client client
-                                            :request-id request-id
-                                            :state state
-                                            :tool-call-id tool-call-id)))
-                     map))
-           (diff-button (when diff
-                          (agent-shell--make-permission-button
-                           :text "View (v)"
-                           :help "Press v to view diff"
-                           :action (agent-shell--make-diff-viewing-function
-                                    :diff diff
-                                    :actions actions
-                                    :client client
-                                    :request-id request-id
-                                    :state state
-                                    :tool-call-id tool-call-id)
-                           :keymap keymap
-                           :navigatable t
-                           :char ?v
-                           :option "view diff")))
-           (text (format "╭─
+  (let* ((tool-call-id (map-nested-elt request '(params toolCall toolCallId)))
+         (diff (map-nested-elt state `(:tool-calls ,tool-call-id :diff)))
+         (actions (agent-shell--prepare-permission-actions (map-nested-elt request '(params options))))
+         (keymap (let ((map (make-sparse-keymap)))
+                   (dolist (action actions)
+                     (when-let ((char (map-elt action :char)))
+                       (define-key map (vector char)
+                                   (lambda ()
+                                     (interactive)
+                                     (agent-shell--send-permission-response
+                                      :client client
+                                      :request-id (map-elt request 'id)
+                                      :option-id (map-elt action :option-id)
+                                      :state state
+                                      :tool-call-id tool-call-id
+                                      :message-text (map-elt action :option))))))
+                   ;; Add diff keybinding if diff info is available
+                   (when diff
+                     (define-key map "v" (agent-shell--make-diff-viewing-function
+                                          :diff diff
+                                          :actions actions
+                                          :client client
+                                          :request-id (map-elt request 'id)
+                                          :state state
+                                          :tool-call-id tool-call-id)))
+                   map))
+         (diff-button (when diff
+                        (agent-shell--make-permission-button
+                         :text "View (v)"
+                         :help "Press v to view diff"
+                         :action (agent-shell--make-diff-viewing-function
+                                  :diff diff
+                                  :actions actions
+                                  :client client
+                                  :request-id (map-elt request 'id)
+                                  :state state
+                                  :tool-call-id tool-call-id)
+                         :keymap keymap
+                         :navigatable t
+                         :char ?v
+                         :option "view diff"))))
+    (format "╭─
 
     %s %s %s%s
 
@@ -1547,39 +1544,38 @@ For example:
 
 
 ╰─"
-                         (propertize agent-shell-permission-icon
-                                     'font-lock-face 'warning)
-                         (propertize "Tool Permission" 'font-lock-face 'bold)
-                         (propertize agent-shell-permission-icon
-                                     'font-lock-face 'warning)
-                         (if .params.toolCall.title
-                             (propertize
-                              (format "\n\n\n    %s" .params.toolCall.title)
-                              'font-lock-face 'comint-highlight-input)
-                           "")
-                         (if diff-button
-                             (concat diff-button " ")
-                           "")
-                         (mapconcat (lambda (action)
-                                      (agent-shell--make-permission-button
-                                       :text (map-elt action :label)
-                                       :help (map-elt action :label)
-                                       :action (lambda ()
-                                                 (interactive)
-                                                 (agent-shell--send-permission-response
-                                                  :client client
-                                                  :request-id request-id
-                                                  :option-id (map-elt action :option-id)
-                                                  :state state
-                                                  :tool-call-id tool-call-id
-                                                  :message-text (format "Selected: %s" (map-elt action :option))))
-                                       :keymap keymap
-                                       :char (map-elt action :char)
-                                       :option (map-elt action :option)
-                                       :navigatable t))
-                                    actions
-                                    " "))))
-      text)))
+            (propertize agent-shell-permission-icon
+                        'font-lock-face 'warning)
+            (propertize "Tool Permission" 'font-lock-face 'bold)
+            (propertize agent-shell-permission-icon
+                        'font-lock-face 'warning)
+            (if (map-nested-elt request '(params toolCall title))
+                (propertize
+                 (format "\n\n\n    %s" (map-nested-elt request '(params toolCall title)))
+                 'font-lock-face 'comint-highlight-input)
+              "")
+            (if diff-button
+                (concat diff-button " ")
+              "")
+            (mapconcat (lambda (action)
+                         (agent-shell--make-permission-button
+                          :text (map-elt action :label)
+                          :help (map-elt action :label)
+                          :action (lambda ()
+                                    (interactive)
+                                    (agent-shell--send-permission-response
+                                     :client client
+                                     :request-id (map-elt request 'id)
+                                     :option-id (map-elt action :option-id)
+                                     :state state
+                                     :tool-call-id tool-call-id
+                                     :message-text (format "Selected: %s" (map-elt action :option))))
+                          :keymap keymap
+                          :char (map-elt action :char)
+                          :option (map-elt action :option)
+                          :navigatable t))
+                       actions
+                       " "))))
 
 (cl-defun agent-shell--send-permission-response (&key client request-id option-id state tool-call-id message-text)
   "Send permission response and cleanup dialog.
