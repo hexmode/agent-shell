@@ -50,6 +50,7 @@
 (require 'agent-shell-google)
 (require 'agent-shell-goose)
 (require 'agent-shell-openai)
+(require 'agent-shell-qwen)
 
 (defcustom agent-shell-permission-icon "⚠" ;; 􀇾
   "Icon displayed when shell commands require permission to execute."
@@ -150,16 +151,14 @@ This function aggregates agents from OpenAI, Anthropic, Google, and Goose."
   (list (agent-shell-anthropic-make-claude-code-config)
         (agent-shell-google-make-gemini-config)
         (agent-shell-goose-make-agent-config)
-        (agent-shell-openai-make-codex-config)))
+        (agent-shell-openai-make-codex-config)
+        (agent-shell-qwen-make-agent-config)))
 
 (defcustom agent-shell-agent-configs
   (agent-shell--make-default-agent-configs)
   "The list of known agent configurations.
 
-See `agent-shell-anthropic-make-claude-code-config',
-    `agent-shell-google-make-gemini-config',
-    `agent-shell-openai-make-codex-config',
-    `agent-shell-goose-make-agent-config' for details."
+See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 

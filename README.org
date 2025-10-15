@@ -52,6 +52,16 @@ For OpenAI's Codex, install [[https://github.com/cola-io/codex-acp][codex-acp]] 
 
 For Goose CLI, install [[https://block.github.io/goose/docs/getting-started/installation][goose]] and ensure the `goose` executable is in PATH.
 
+*** Qwen Code
+
+For Qwen Code, install with:
+
+#+begin_src bash
+npm install -g @qwen-code/qwen-code@latest
+#+end_src
+
+See https://github.com/QwenLM/qwen-code for details.
+
 ** Installation
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
@@ -238,9 +248,18 @@ For OpenAI API key authentication:
        :openai-api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
 #+end_src
 
+*** Qwen Code
+
+For OAuth login-based authentication:
+
+#+begin_src emacs-lisp
+(setq agent-shell-qwen-authentication
+      (agent-shell-qwen-make-authentication :login t))
+#+end_src
+
 *** Customizing Available Agents
 
-By default, =agent-shell= includes configurations for all supported agents (Claude Code, Gemini CLI, Codex, and Goose). You can customize which agents are available through the =agent-shell-agent-configs= variable.
+By default, =agent-shell= includes configurations for all supported agents (Claude Code, Gemini CLI, Codex, Goose, and Qwen Code). You can customize which agents are available through the =agent-shell-agent-configs= variable.
 
 ** Usage
 
@@ -258,6 +277,7 @@ Start a specific agent shell session directly:
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
 - =M-x agent-shell-goose-start-agent= - Start a Goose agent session
+- =M-x agent-shell-qwen-start= - Start a Qwen Code agent session
 
 ** Running agents in Devcontainers / Docker containers (Experimental)
 
