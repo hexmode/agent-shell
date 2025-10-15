@@ -1481,7 +1481,19 @@ If in a project, use project root."
 ;;; Permissions
 
 (cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
-  "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
+  "Create text to render permission dialog using REQUEST, CLIENT, and STATE.
+
+For example:
+
+   ╭─
+
+       ⚠ Tool Permission ⚠
+
+
+       [ View (v) ] [ Allow (y) ] [ Reject (n) ] [ Always Allow (!) ]
+
+
+   ╰─"
   (let-alist request
     (let* ((request-id .id)
            (tool-call-id .params.toolCall.toolCallId)
