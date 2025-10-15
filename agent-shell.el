@@ -1523,7 +1523,9 @@ If in a project, use project root."
                                     :state state
                                     :tool-call-id tool-call-id)
                            :keymap keymap
-                           :navigatable t)))
+                           :navigatable t
+                           :char ?v
+                           :option "view diff")))
            (text (format "╭─
 
     %s %s %s%s
