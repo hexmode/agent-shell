@@ -849,168 +849,6 @@ Returns in the form:
    (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
    (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
 
-;; TODO: Now that we have a better idea what permission experience
-;; to pursue, clean up / simplify handling.
-(cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
-  "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
-  (let-alist request
-    (let* ((request-id .id)
-           (tool-call-id .params.toolCall.toolCallId)
-           (tool-call (map-nested-elt state `(:tool-calls ,tool-call-id)))
-           (diff (map-elt tool-call :diff))
-           (actions (agent-shell--prepare-permission-actions .params.options))
-           (keymap (let ((map (make-sparse-keymap)))
-                     (dolist (action actions)
-                       (when-let ((char (map-elt action :char)))
-                         (define-key map (vector char)
-                                     (lambda ()
-                                       (interactive)
-                                       (acp-send-response
-                                        :client client
-                                        :response (acp-make-session-request-permission-response
-                                                   :request-id request-id
-                                                   :option-id (map-elt action :option-id)))
-                                       ;; Hide permission after sending response.
-                                       ;; block-id must be the same as the one used as
-                                       ;; agent-shell--update-dialog-block param by "session/request_permission".
-                                       (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                       (message "%s" (map-elt action :option))
-                                       (goto-char (point-max))))))
-                     ;; Add diff keybinding if diff info is available
-                     (when diff
-                       (define-key map "v"
-                                   (lambda ()
-                                     (interactive)
-                                     (quick-diff
-                                      :old (map-elt diff :old)
-                                      :new (map-elt diff :new)
-                                      :title (file-name-nondirectory (map-elt diff :file))
-                                      :on-exit (lambda (choice)
-                                                 (if-let ((action (cond
-                                                                   ((equal choice 'accept)
-                                                                    (seq-find (lambda (action)
-                                                                                (string= (map-elt action :kind) "allow_once"))
-                                                                              actions))
-                                                                   ((equal choice 'reject)
-                                                                    (seq-find (lambda (action)
-                                                                                (string= (map-elt action :kind) "reject_once"))
-                                                                              actions))
-                                                                   (t nil))))
-                                                     (progn
-                                                       (acp-send-response
-                                                        :client client
-                                                        :response (acp-make-session-request-permission-response
-                                                                   :request-id request-id
-                                                                   :option-id (map-elt action :option-id)))
-                                                       ;; Hide permission after sending response.
-                                                       ;; block-id must be the same as the one used as
-                                                       ;; agent-shell--update-dialog-block param by "session/request_permission".
-                                                       (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                                       (message "%s" (map-elt action :option))
-                                                       (goto-char (point-max)))
-                                                   (message "Ignored")))
-                                      ))))
-                     map))
-           (diff-button (when-let ((_ diff)
-                                   (button (agent-shell--make-button
-                                            :text "View (v)"
-                                            :help "Press v to view diff"
-                                            :kind 'permission
-                                            :keymap keymap
-                                            :action (lambda ()
-                                                      (interactive)
-                                                      (quick-diff
-                                                       :old (map-elt diff :old)
-                                                       :new (map-elt diff :new)
-                                                       :title (file-name-nondirectory (map-elt diff :file))
-                                                       :on-exit (lambda (choice)
-                                                                  (if-let ((action (cond
-                                                                                    ((equal choice 'accept)
-                                                                                     (seq-find (lambda (action)
-                                                                                                 (string= (map-elt action :kind) "allow_once"))
-                                                                                               actions))
-                                                                                    ((equal choice 'reject)
-                                                                                     (seq-find (lambda (action)
-                                                                                                 (string= (map-elt action :kind) "reject_once"))
-                                                                                               actions))
-                                                                                    (t nil))))
-                                                                      (progn
-                                                                        (acp-send-response
-                                                                         :client client
-                                                                         :response (acp-make-session-request-permission-response
-                                                                                    :request-id request-id
-                                                                                    :option-id (map-elt action :option-id)))
-                                                                        ;; Hide permission after sending response.
-                                                                        ;; block-id must be the same as the one used as
-                                                                        ;; agent-shell--update-dialog-block param by "session/request_permission".
-                                                                        (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                                                        (message "%s" (map-elt action :option))
-                                                                        (goto-char (point-max)))
-                                                                    (message "Ignored"))))))))
-                          ;; Make the button character navigatable (the "v" in "View (v)")
-                          (put-text-property (- (length button) 3) (- (length button) 1)
-                                             'agent-shell-permission-button t button)
-                          button)))
-      (let ((text (format "╭─
-
-    %s %s %s%s
-
-
-    %s%s
-
-
-╰─"
-                          (propertize agent-shell-permission-icon
-                                      'font-lock-face 'warning)
-                          (propertize "Tool Permission" 'font-lock-face 'bold)
-                          (propertize agent-shell-permission-icon
-                                      'font-lock-face 'warning)
-                          (if .params.toolCall.title
-                              (propertize
-                               (format "\n\n\n    %s" .params.toolCall.title)
-                               'font-lock-face 'comint-highlight-input)
-                            "")
-                          (if diff-button
-                              (concat diff-button " ")
-                            "")
-                          (mapconcat (lambda (action)
-                                       (let ((button (agent-shell--make-button
-                                                      :text (map-elt action :label)
-                                                      :help (map-elt action :label)
-                                                      :kind 'permission
-                                                      :keymap keymap
-                                                      :action (lambda ()
-                                                                (interactive)
-                                                                (acp-send-response
-                                                                 :client client
-                                                                 :response (acp-make-session-request-permission-response
-                                                                            :request-id request-id
-                                                                            :option-id (map-elt action :option-id)))
-                                                                ;; Hide permission after sending response.
-                                                                ;; block-id must be the same as the one used as
-                                                                ;; agent-shell--update-dialog-block param by "session/request_permission".
-                                                                (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .params.toolCall.toolCallId))
-                                                                (message "Selected: %s" (map-elt action :option))
-                                                                (goto-char (point-max))))))
-                                         ;; Make the button character navigatable.
-                                         ;;
-                                         ;; For example, the "y" in:
-                                         ;;
-                                         ;; [ Allow (y) ]
-                                         (put-text-property (- (length button) 3) (- (length button) 1)
-                                                            'agent-shell-permission-button t button)
-                                         (put-text-property (- (length button) 3) (- (length button) 1)
-                                                            'cursor-sensor-functions (list (lambda (_window _old-pos sensor-action)
-                                                                                             (when (eq sensor-action 'entered)
-                                                                                               (message "Press RET or %c to %s"
-                                                                                                        (map-elt action :char)
-                                                                                                        (map-elt action :option)))))
-                                                            button)
-                                         button))
-                                     actions
-                                     " "))))
-        text))))
-
 (defun agent-shell--save-tool-call (state tool-call-id tool-call)
   "Store TOOL-CALL with TOOL-CALL-ID in STATE's :tool-calls alist."
   (let* ((tool-calls (map-elt state :tool-calls))
@@ -1789,6 +1627,182 @@ If in a project, use project root."
     (remove-hook 'completion-at-point-functions #'agent-shell--file-completion-at-point t)
     (remove-hook 'completion-at-point-functions #'agent-shell--command-completion-at-point t)
     (remove-hook 'post-self-insert-hook #'agent-shell--trigger-completion-at-point t)))
+
+;;; Permissions
+
+(cl-defun agent-shell--make-tool-call-permission-text (&key request client state)
+  "Create text to render permission dialog using REQUEST, CLIENT, and STATE."
+  (let-alist request
+    (let* ((request-id .id)
+           (tool-call-id .params.toolCall.toolCallId)
+           (tool-call (map-nested-elt state `(:tool-calls ,tool-call-id)))
+           (diff (map-elt tool-call :diff))
+           (actions (agent-shell--prepare-permission-actions .params.options))
+           (keymap (let ((map (make-sparse-keymap)))
+                     (dolist (action actions)
+                       (when-let ((char (map-elt action :char)))
+                         (define-key map (vector char)
+                                     (lambda ()
+                                       (interactive)
+                                       (agent-shell--send-permission-response
+                                        :client client
+                                        :request-id request-id
+                                        :option-id (map-elt action :option-id)
+                                        :state state
+                                        :tool-call-id tool-call-id
+                                        :message-text (map-elt action :option))))))
+                     ;; Add diff keybinding if diff info is available
+                     (when diff
+                       (define-key map "v" (agent-shell--make-diff-viewing-function
+                                            :diff diff
+                                            :actions actions
+                                            :client client
+                                            :request-id request-id
+                                            :state state
+                                            :tool-call-id tool-call-id)))
+                     map))
+           (diff-button (when diff
+                          (agent-shell--make-permission-button
+                           :text "View (v)"
+                           :help "Press v to view diff"
+                           :action (agent-shell--make-diff-viewing-function
+                                    :diff diff
+                                    :actions actions
+                                    :client client
+                                    :request-id request-id
+                                    :state state
+                                    :tool-call-id tool-call-id)
+                           :keymap keymap
+                           :navigatable t)))
+           (text (format "╭─
+
+    %s %s %s%s
+
+
+    %s%s
+
+
+╰─"
+                         (propertize agent-shell-permission-icon
+                                     'font-lock-face 'warning)
+                         (propertize "Tool Permission" 'font-lock-face 'bold)
+                         (propertize agent-shell-permission-icon
+                                     'font-lock-face 'warning)
+                         (if .params.toolCall.title
+                             (propertize
+                              (format "\n\n\n    %s" .params.toolCall.title)
+                              'font-lock-face 'comint-highlight-input)
+                           "")
+                         (if diff-button
+                             (concat diff-button " ")
+                           "")
+                         (mapconcat (lambda (action)
+                                      (agent-shell--make-permission-button
+                                       :text (map-elt action :label)
+                                       :help (map-elt action :label)
+                                       :action (lambda ()
+                                                 (interactive)
+                                                 (agent-shell--send-permission-response
+                                                  :client client
+                                                  :request-id request-id
+                                                  :option-id (map-elt action :option-id)
+                                                  :state state
+                                                  :tool-call-id tool-call-id
+                                                  :message-text (format "Selected: %s" (map-elt action :option))))
+                                       :keymap keymap
+                                       :char (map-elt action :char)
+                                       :option (map-elt action :option)
+                                       :navigatable t))
+                                    actions
+                                    " "))))
+      text)))
+
+(cl-defun agent-shell--send-permission-response (&key client request-id option-id state tool-call-id message-text)
+  "Send permission response and cleanup dialog.
+
+Uses CLIENT to send response with REQUEST-ID and OPTION-ID.
+Cleans up dialog using STATE and TOOL-CALL-ID.
+Displays MESSAGE-TEXT and moves cursor to end."
+  (acp-send-response
+   :client client
+   :response (acp-make-session-request-permission-response
+              :request-id request-id
+              :option-id option-id))
+  ;; Hide permission after sending response.
+  ;; block-id must be the same as the one used as
+  ;; agent-shell--update-dialog-block param by "session/request_permission".
+  (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" tool-call-id))
+  (message "%s" message-text)
+  (goto-char (point-max)))
+
+(cl-defun agent-shell--resolve-permission-choice-to-action (&key choice actions)
+  "Resolve `quick-diff' CHOICE to corresponding permission action from ACTIONS.
+
+CHOICE can be \\='accept or \\='reject.
+Returns the matching action or nil if no match found."
+  (cond
+   ((equal choice 'accept)
+    (seq-find (lambda (action)
+                (string= (map-elt action :kind) "allow_once"))
+              actions))
+   ((equal choice 'reject)
+    (seq-find (lambda (action)
+                (string= (map-elt action :kind) "reject_once"))
+              actions))
+   (t nil)))
+
+(cl-defun agent-shell--make-diff-viewing-function (&key diff actions client request-id state tool-call-id)
+  "Create a `quick-diff' handler function with given parameters."
+  (lambda ()
+    (interactive)
+    (quick-diff
+     :old (map-elt diff :old)
+     :new (map-elt diff :new)
+     :title (file-name-nondirectory (map-elt diff :file))
+     :on-exit (lambda (choice)
+                (if-let ((action (agent-shell--resolve-permission-choice-to-action
+                                  :choice choice
+                                  :actions actions)))
+                    (agent-shell--send-permission-response
+                     :client client
+                     :request-id request-id
+                     :option-id (map-elt action :option-id)
+                     :state state
+                     :tool-call-id tool-call-id
+                     :message-text (map-elt action :option))
+                  (message "Ignored"))))))
+
+(cl-defun agent-shell--make-permission-button (&key text help action keymap navigatable char option)
+  "Create a permission button with TEXT, HELP, ACTION, and KEYMAP.
+
+For example:
+
+  \"[ Allow (y) ]\"
+
+When NAVIGATABLE is non-nil, make button character navigatable.
+CHAR and OPTION are used for cursor sensor messages."
+  (let ((button (agent-shell--make-button
+                 :text text
+                 :help help
+                 :kind 'permission
+                 :keymap keymap
+                 :action action)))
+    (when navigatable
+      ;; Make the button character navigatable.
+      ;;
+      ;; For example, the "y" in:
+      ;;
+      ;; [ Allow (y) ]
+      (put-text-property (- (length button) 3) (- (length button) 1)
+                         'agent-shell-permission-button t button)
+      (put-text-property (- (length button) 3) (- (length button) 1)
+                         'cursor-sensor-functions
+                         (list (lambda (_window _old-pos sensor-action)
+                                 (when (eq sensor-action 'entered)
+                                   (message "Press RET or %c to %s"
+                                            char option))))
+                         button))
+    button))
 
 ;;; Region
 
