@@ -821,34 +821,6 @@ Returns in the form:
     (with-current-buffer (map-elt shell :buffer)
       (funcall (map-elt shell :finish-output) t))))
 
-(defun agent-shell--prepare-permission-actions (options)
-  "Format permission OPTIONS for shell rendering."
-  (let ((char-map '(("allow_always" . ?!)
-                    ("allow_once" . ?y)
-                    ("reject_once" . ?n))))
-    (seq-sort (lambda (a b)
-                (< (length (map-elt a :label))
-                   (length (map-elt b :label))))
-              (seq-map (lambda (opt)
-                         (let* ((kind (map-elt opt 'kind))
-                                (char (map-elt char-map kind))
-                                (name (map-elt opt 'name)))
-                           (when char
-                             (map-into `((:label . ,(format "%s (%c)" name char))
-                                         (:option . ,name)
-                                         (:char . ,char)
-                                         (:kind . ,kind)
-                                         (:option-id . ,(map-elt opt 'optionId)))
-                                       'alist))))
-                       options))))
-
-(defun agent-shell--make-tool-permission-header ()
-  "Create header text for tool permission dialog."
-  (concat
-   (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning) " "
-   (propertize "Tool Permission" 'font-lock-face 'bold 'face 'bold) " "
-   (propertize agent-shell-permission-icon 'font-lock-face 'warning 'face 'warning)))
-
 (defun agent-shell--save-tool-call (state tool-call-id tool-call)
   "Store TOOL-CALL with TOOL-CALL-ID in STATE's :tool-calls alist."
   (let* ((tool-calls (map-elt state :tool-calls))
@@ -862,85 +834,6 @@ Returns in the form:
               (map-merge 'alist old-tool-call tool-call-overrides)
             tool-call-overrides))
     (map-put! state :tool-calls updated-tools)))
-
-(cl-defun agent-shell--prompt-for-permission (&key model on-choice)
-  "Prompt user for permission using MODEL and invoke ON-CHOICE.
-
-MODEL is of the form by `agent-shell--make-prompt-for-permission-model'.
-
-ON-CHOICE is of the form: (lambda (choice))"
-  (let* ((description (if (map-elt model :description)
-                          (concat
-                           "\n"
-                           (agent-shell--make-tool-permission-header) "\n\n"
-                           (propertize
-                            (string-trim (map-elt model :description))
-                            'face 'comint-highlight-input) "\n")
-                        (concat (agent-shell--make-tool-permission-header) "\n")))
-         (actions (map-elt model :actions))
-         (transient-function (intern (format "agent-shell--permission-transient-%s"
-                                             (gensym))))
-         (cleanup-function (intern (format "%s-cleanup" transient-function))))
-    ;; Since transients are defined at runtime, we need to
-    ;; create unique interactive functions per invocation, but
-    ;; also need to remove them after usage. Thus the cleanup
-    ;; hook.
-    (eval
-     `(progn
-        (defun ,cleanup-function ()
-          "Cleanup function for transient."
-          (fmakunbound ',transient-function)
-          (fmakunbound ',cleanup-function)
-          (remove-hook 'transient-exit-hook #',cleanup-function))
-        (transient-define-prefix ,transient-function ()
-          "Permission prompt"
-          [:description
-           (lambda ()
-             ,description)
-           :class transient-row
-           ,@(mapcar (lambda (action)
-                       (let ((option-id (map-elt action :option-id)))
-                         `(,(char-to-string (map-elt action :char))
-                           ,(map-elt action :label)
-                           (lambda ()
-                             (interactive)
-                             (transient-quit-one)
-                             (funcall ',on-choice ',option-id)))))
-                     actions)])))
-
-    (add-hook 'transient-exit-hook cleanup-function)
-
-    (funcall transient-function)))
-
-(cl-defun agent-shell--make-prompt-for-permission-model (&key options tool-call)
-  "Create a permission prompt model from OPTIONS and optional TOOL-CALL.
-
-Model is of the form:
-
-  ((:description . \"The agent wants to run: git log --oneline -n 10\")
-   (:actions . (((:label . \"No (n)\")
-                   (:char . ?n)
-                   (:kind . \"reject_once\")
-                   (:option-id . \"opt-456\"))
-                  ((:label . \"Yes (y)\")
-                   (:char . ?y)
-                   (:kind . \"allow_once\")
-                   (:option-id . \"opt-123\"))
-                  ((:label . \"Always Approve (!)\")
-                   (:char . ?!)
-                   (:kind . \"allow_always\")
-                   (:option-id . \"opt-789\")))))"
-  (let ((description (concat
-                      (when (map-elt tool-call :title)
-                        (map-elt tool-call :title))
-                      (when (and (map-elt tool-call :title)
-                                 (map-elt tool-call :description))
-                        "\n\n")
-                      (when (map-elt tool-call :description)
-                        (map-elt tool-call :description))))
-        (actions (agent-shell--prepare-permission-actions options)))
-    `((:description . ,description)
-      (:actions . ,actions))))
 
 (cl-defun agent-shell--make-error-dialog-text (&key code message raw-message)
   "Create formatted error dialog text with CODE, MESSAGE, and RAW-MESSAGE."
@@ -1309,49 +1202,6 @@ Could be a prompt or an expandable item."
       (goto-char next-pos)
       (when (eq next-pos prompt-pos)
         (comint-skip-prompt)))))
-
-(defun agent-shell-next-permission-button ()
-  "Jump to the next button."
-  (interactive)
-  (when-let* ((found (save-mark-and-excursion
-                       (when (get-text-property (point) 'agent-shell-permission-button)
-                         (when-let ((next-change (next-single-property-change (point) 'agent-shell-permission-button)))
-                           (goto-char next-change)))
-                       (when-let ((next (text-property-search-forward
-                                         'agent-shell-permission-button t t)))
-                         (prop-match-beginning next)))))
-    (deactivate-mark)
-    (goto-char found)
-    found))
-
-(defun agent-shell-previous-permission-button ()
-  "Jump to the previous button."
-  (interactive)
-  (when-let* ((found (save-mark-and-excursion
-                       (when (get-text-property (point) 'agent-shell-permission-button)
-                         (when-let ((prev-change (previous-single-property-change (point) 'agent-shell-permission-button)))
-                           (goto-char prev-change)))
-                       (when-let ((prev (text-property-search-backward
-                                         'agent-shell-permission-button t t)))
-                         (prop-match-beginning prev)))))
-    (deactivate-mark)
-    (goto-char found)
-    found))
-
-(defun agent-shell-jump-to-latest-permission-button-row ()
-  "Jump to the latest permission button row."
-  (interactive)
-  (unless (derived-mode-p 'agent-shell-mode)
-    (error "Not in a shell"))
-  (when-let ((found (save-mark-and-excursion
-                      (goto-char (point-max))
-                      (agent-shell-previous-permission-button))))
-    (deactivate-mark)
-    (goto-char found)
-    (beginning-of-line)
-    (agent-shell-next-permission-button)
-    (when-let ((window (get-buffer-window (current-buffer))))
-      (set-window-point window (point)))))
 
 (cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env load-env &allow-other-keys)
   "Return VARS in the form expected by `process-environment'.
@@ -1803,6 +1653,70 @@ CHAR and OPTION are used for cursor sensor messages."
                                             char option))))
                          button))
     button))
+
+(defun agent-shell--prepare-permission-actions (options)
+  "Format permission OPTIONS for shell rendering."
+  (let ((char-map '(("allow_always" . ?!)
+                    ("allow_once" . ?y)
+                    ("reject_once" . ?n))))
+    (seq-sort (lambda (a b)
+                (< (length (map-elt a :label))
+                   (length (map-elt b :label))))
+              (seq-map (lambda (opt)
+                         (let* ((kind (map-elt opt 'kind))
+                                (char (map-elt char-map kind))
+                                (name (map-elt opt 'name)))
+                           (when char
+                             (map-into `((:label . ,(format "%s (%c)" name char))
+                                         (:option . ,name)
+                                         (:char . ,char)
+                                         (:kind . ,kind)
+                                         (:option-id . ,(map-elt opt 'optionId)))
+                                       'alist))))
+                       options))))
+
+(defun agent-shell-jump-to-latest-permission-button-row ()
+  "Jump to the latest permission button row."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (when-let ((found (save-mark-and-excursion
+                      (goto-char (point-max))
+                      (agent-shell-previous-permission-button))))
+    (deactivate-mark)
+    (goto-char found)
+    (beginning-of-line)
+    (agent-shell-next-permission-button)
+    (when-let ((window (get-buffer-window (current-buffer))))
+      (set-window-point window (point)))))
+
+(defun agent-shell-next-permission-button ()
+  "Jump to the next button."
+  (interactive)
+  (when-let* ((found (save-mark-and-excursion
+                       (when (get-text-property (point) 'agent-shell-permission-button)
+                         (when-let ((next-change (next-single-property-change (point) 'agent-shell-permission-button)))
+                           (goto-char next-change)))
+                       (when-let ((next (text-property-search-forward
+                                         'agent-shell-permission-button t t)))
+                         (prop-match-beginning next)))))
+    (deactivate-mark)
+    (goto-char found)
+    found))
+
+(defun agent-shell-previous-permission-button ()
+  "Jump to the previous button."
+  (interactive)
+  (when-let* ((found (save-mark-and-excursion
+                       (when (get-text-property (point) 'agent-shell-permission-button)
+                         (when-let ((prev-change (previous-single-property-change (point) 'agent-shell-permission-button)))
+                           (goto-char prev-change)))
+                       (when-let ((prev (text-property-search-backward
+                                         'agent-shell-permission-button t t)))
+                         (prop-match-beginning prev)))))
+    (deactivate-mark)
+    (goto-char found)
+    found))
 
 ;;; Region
 

@@ -186,24 +186,5 @@
                     "Read /path/to/agent-shell/agent-shell.el (4 - 6)")
                    "Read agent-shell/agent-shell.el (4 - 6)"))))
 
-(defun agent-shell--prompt-for-permission--test-display ()
-  "Visually inspect and test minibuffer permission prompt."
-  (interactive)
-  (agent-shell--prompt-for-permission
-   :model (agent-shell--make-prompt-for-permission-model
-           :options '[((kind . "allow_once")
-                       (name . "Approve")
-                       (optionId . "opt-approve"))
-                      ((kind . "reject_once")
-                       (name . "Reject")
-                       (optionId . "opt-reject"))
-                      ((kind . "allow_always")
-                       (name . "Always Approve")
-                       (optionId . "opt-always"))]
-           :tool-call '((:title . "The agent wants to run: git log --oneline -n 10")))
-   :on-choice
-   (lambda (option-id)
-     (message "Selected: %s" option-id))))
-
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
