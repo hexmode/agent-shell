@@ -314,3 +314,11 @@ All of the above settings can be applied on a per-project basis using [[https://
 
 - =C-c C-c= - Interrupt current agent operation
 - =TAB and Shift-TAB= - Navigate interactive elements
+
+* Contributors
+
+#+HTML: <a href="https://github.com/xenodium/agent-shell/graphs/contributors">
+#+HTML:   <img src="https://contrib.rocks/image?repo=xenodium/agent-shell" />
+#+HTML: </a>
+
+Made with [[https://contrib.rocks][contrib.rocks]].
