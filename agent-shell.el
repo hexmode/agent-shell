@@ -771,8 +771,12 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
      commands
      "\n")))
 
-(defun agent-shell--make-diff-info (content)
-  "Make diff information from tool_call_update's CONTENT.
+(defun agent-shell--make-diff-info (acp-content)
+  "Make diff information from ACP's tool_call_update's CONTENT.
+
+CONTENT is of the the type ToolCallContent as per ACP spec:
+
+https://agentclientprotocol.com/protocol/schema#toolcallcontent
 
 Returns in the form:
 
@@ -781,18 +785,22 @@ Returns in the form:
    (:file . file-path))."
   (when-let* ((diff-item (cond
                           ;; Single diff object
-                          ((and content (equal (map-elt content 'type) "diff"))
-                           content)
-                          ;; Vector/array content - find diff item
-                          ((vectorp content)
+                          ((and acp-content (equal (map-elt acp-content 'type) "diff"))
+                           acp-content)
+                          ;; TODO: Is this needed?
+                          ;; Isn't acp-content always an alist?
+                          ;; Vector/array acp-content - find diff item
+                          ((vectorp acp-content)
                            (seq-find (lambda (item)
                                        (equal (map-elt item 'type) "diff"))
-                                     content))
-                          ;; List content - find diff item
-                          ((listp content)
+                                     acp-content))
+                          ;; TODO: Is this needed?
+                          ;; Isn't acp-content always an alist?
+                          ;; List acp-content - find diff item
+                          ((listp acp-content)
                            (seq-find (lambda (item)
                                        (equal (map-elt item 'type) "diff"))
-                                     content))))
+                                     acp-content))))
               (old-text (map-elt diff-item 'oldText))
               (new-text (map-elt diff-item 'newText))
               (file-path (map-elt diff-item 'path)))
