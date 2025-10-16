@@ -772,7 +772,7 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
      "\n")))
 
 (defun agent-shell--make-diff-info (acp-content)
-  "Make diff information from ACP's tool_call_update's CONTENT.
+  "Make diff information from ACP's tool_call_update's ACP-CONTENT.
 
 CONTENT is of the the type ToolCallContent as per ACP spec:
 
@@ -1620,7 +1620,10 @@ Returns the matching action or nil if no match found."
    (t nil)))
 
 (cl-defun agent-shell--make-diff-viewing-function (&key diff actions client request-id state tool-call-id)
-  "Create a `quick-diff' handler function with given parameters."
+  "Create a diffing handler for the ACP CLIENT's REQUEST-ID and TOOL-CALL-ID.
+
+DIFF as per `agent-shell--make-diff-info'.
+ACTIONS as per `agent-shell--make-permission-action'."
   (lambda ()
     (interactive)
     (quick-diff
