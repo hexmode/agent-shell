@@ -30,10 +30,8 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--interpolate-gradient "agent-shell")
-(declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
