@@ -1447,6 +1447,10 @@ Must provide ON-SESSION-INIT (lambda ())."
                         (text . ,(substring-no-properties prompt)))])
    :on-success (lambda (response)
                  (with-current-buffer (map-elt shell :buffer)
+                   ;; Tool call details are no longer needed after
+                   ;; a session prompt request is finished.
+                   ;; Avoid accumulating them unnecessarily.
+                   (map-put! agent-shell--state :tool-calls nil)
                    (let ((success (equal (map-elt response 'stopReason)
                                          "end_turn")))
                      (unless success
