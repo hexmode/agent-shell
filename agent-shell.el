@@ -52,13 +52,17 @@
 (require 'agent-shell-openai)
 (require 'agent-shell-qwen)
 
-(defcustom agent-shell-permission-icon "⚠" ;; 􀇾
-  "Icon displayed when shell commands require permission to execute."
+(defcustom agent-shell-permission-icon "⚠"
+  "Icon displayed when shell commands require permission to execute.
+
+You may use \"􀇾\" as an SF Symbol on macOS."
   :type 'string
   :group 'agent-shell)
 
-(defcustom agent-shell-thought-process-icon "💡" ;; 􁷘
-  "Icon displayed during the AI's thought process."
+(defcustom agent-shell-thought-process-icon "💡"
+  "Icon displayed during the AI's thought process.
+
+You may use \"􁷘\" as an SF Symbol on macOS."
   :type 'string
   :group 'agent-shell)
 
