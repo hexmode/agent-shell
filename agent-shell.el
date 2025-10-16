@@ -1665,22 +1665,28 @@ CHAR and OPTION are used for cursor sensor messages."
     button))
 
 (defun agent-shell--make-permission-actions (acp-options)
-  "Format permission OPTIONS for shell rendering.
+  "Make actions from ACP-OPTIONS for shell rendering.
 
-ACP-OPTIONS is a list of PermissionOption per ACP spec:
+See `agent-shell--make-permission-action' for ACP-OPTION and return schema."
+  (seq-sort (lambda (a b)
+              (< (length (map-elt a :label))
+                 (length (map-elt b :label))))
+            (delq nil (mapcar #'agent-shell--make-permission-action acp-options))))
+
+(defun agent-shell--make-permission-action (acp-option)
+  "Convert a single ACP-OPTION to an action alist.
+
+ACP-OPTION should be a PermissionOption per ACP spec:
 
   https://agentclientprotocol.com/protocol/schema#permissionoption
 
-  Each option an alists of the form:
+  An alist of the form:
 
   ((\='kind . \"allow_once\")
-   (\='name . \"Allow\") ;;
+   (\='name . \"Allow\")
    (\='optionId . \"allow\"))
 
-The \='kind value should be one of the ACP PermissionOptionKind values:
-\"allow_once\", \"allow_always\", \"reject_once\", \"reject_always\"
-
-Returns a list of alists, each of the form:
+Returns an alist of the form:
 
   ((:label . \"Allow (y)\")
    (:option . \"Allow\")
@@ -1688,25 +1694,20 @@ Returns a list of alists, each of the form:
    (:kind . \"allow_once\")
    (:option-id . ...))
 
-Only acp-options with recognized \='kind values are included in the output."
-  (let ((char-map '(("allow_always" . ?!)
-                    ("allow_once" . ?y)
-                    ("reject_once" . ?n))))
-    (seq-sort (lambda (a b)
-                (< (length (map-elt a :label))
-                   (length (map-elt b :label))))
-              (seq-map (lambda (acp-option)
-                         (let* ((kind (map-elt acp-option 'kind))
-                                (char (map-elt char-map kind))
-                                (name (map-elt acp-option 'name)))
-                           (when char
-                             (map-into `((:label . ,(format "%s (%c)" name char))
-                                         (:option . ,name)
-                                         (:char . ,char)
-                                         (:kind . ,kind)
-                                         (:option-id . ,(map-elt acp-option 'optionId)))
-                                       'alist))))
-                       acp-options))))
+Returns nil if the ACP-OPTION kind is not recognized."
+  (let* ((char-map '(("allow_always" . ?!)
+                     ("allow_once" . ?y)
+                     ("reject_once" . ?n)))
+         (kind (map-elt acp-option 'kind))
+         (char (map-elt char-map kind))
+         (name (map-elt acp-option 'name)))
+    (when char
+      (map-into `((:label . ,(format "%s (%c)" name char))
+                  (:option . ,name)
+                  (:char . ,char)
+                  (:kind . ,kind)
+                  (:option-id . ,(map-elt acp-option 'optionId)))
+                'alist))))
 
 (defun agent-shell-jump-to-latest-permission-button-row ()
   "Jump to the latest permission button row."
