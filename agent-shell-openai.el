@@ -78,8 +78,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :shell-prompt-regexp "Codex> "
    :welcome-function #'agent-shell-openai--codex-welcome-message
    :icon-name "openai.png"
-   :client-maker (lambda ()
-                   (agent-shell-openai-make-codex-client))
+   :client-maker (lambda (buffer)
+                   (agent-shell-openai-make-codex-client :buffer buffer))
    :install-instructions "See https://github.com/cola-io/codex-acp for installation."))
 
 (defun agent-shell-openai-start-codex ()
@@ -88,16 +88,19 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-openai-make-codex-config)))
 
-(defun agent-shell-openai-make-codex-client ()
-  "Create a Codex client using configured authentication.
+(cl-defun agent-shell-openai-make-codex-client (&key buffer)
+  "Create a Codex client using configured authentication with BUFFER as context.
 
 Uses `agent-shell-openai-authentication' for authentication configuration."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (let ((api-key (agent-shell-openai-key)))
     (unless api-key
       (user-error "Please set your `agent-shell-openai-authentication'"))
     (acp-make-client :command (car agent-shell-openai-codex-command)
                      :command-params (cdr agent-shell-openai-codex-command)
-                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))
+                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key))
+                     :context-buffer buffer)))
 
 (defun agent-shell-openai-key ()
   "Get the OpenAI API key."

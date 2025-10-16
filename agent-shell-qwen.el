@@ -79,7 +79,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                                    (acp-make-authenticate-request :method-id "qwen-oauth"))
                                   (t
                                    (user-error "Unknown authentication: %s" agent-shell-qwen-authentication))))
-   :client-maker #'agent-shell-qwen-make-client
+   :client-maker (lambda (buffer)
+                   (agent-shell-qwen-make-client :buffer buffer))
    :install-instructions "See https://github.com/QwenLM/qwen-code for installation."))
 
 (defun agent-shell-qwen-start ()
@@ -88,10 +89,13 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-qwen-make-agent-config)))
 
-(defun agent-shell-qwen-make-client ()
-  "Create a Qwen Code client using OAuth authentication."
+(cl-defun agent-shell-qwen-make-client (&key buffer)
+  "Create a Qwen Code client using OAuth authentication with BUFFER as context."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (acp-make-client :command (car agent-shell-qwen-command)
-                   :command-params (cdr agent-shell-qwen-command)))
+                   :command-params (cdr agent-shell-qwen-command)
+                   :context-buffer buffer))
 
 (defun agent-shell-qwen--welcome-message (config)
   "Return Qwen Code ASCII art as welcome message using `shell-maker' CONFIG."

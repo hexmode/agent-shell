@@ -269,13 +269,13 @@ Returns an empty string if no icon should be displayed."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
     (error "Not in a shell"))
-  (unless (map-elt agent-shell--state :session-id)
+  (unless (map-elt (agent-shell--state) :session-id)
     (error "No active session"))
   (when (y-or-n-p "Abort?")
     (acp-send-notification
-     :client (map-elt agent-shell--state :client)
+     :client (map-elt (agent-shell--state) :client)
      :notification (acp-make-session-cancel-notification
-                    :session-id (map-elt agent-shell--state :session-id)
+                    :session-id (map-elt (agent-shell--state) :session-id)
                     :reason "User cancelled"))))
 
 (cl-defun agent-shell--make-shell-maker-config (&key prompt prompt-regexp)
@@ -322,38 +322,35 @@ Flow:
   (with-current-buffer (map-elt shell :buffer)
     (unless (eq major-mode 'agent-shell-mode)
       (error "Not in a shell"))
-    (map-put! agent-shell--state :request-count
+    (map-put! (agent-shell--state) :request-count
               ;; TODO: Make public in shell-maker.
               (shell-maker--current-request-id))
-    (cond ((not (map-elt agent-shell--state :client))
+    (cond ((not (map-elt (agent-shell--state) :client))
            (when (agent-shell--initialize-client :shell shell)
              (agent-shell--handle :command command :shell shell)))
-          ((or (not (map-nested-elt agent-shell--state '(:client :request-handlers)))
-               (not (map-nested-elt agent-shell--state '(:client :notification-handlers)))
-               (not (map-nested-elt agent-shell--state '(:client :error-handlers))))
+          ((or (not (map-nested-elt (agent-shell--state) '(:client :request-handlers)))
+               (not (map-nested-elt (agent-shell--state) '(:client :notification-handlers)))
+               (not (map-nested-elt (agent-shell--state) '(:client :error-handlers))))
            (when (agent-shell--initialize-subscriptions :shell shell)
              (agent-shell--handle :command command :shell shell)))
-          ((not (map-elt agent-shell--state :initialized))
+          ((not (map-elt (agent-shell--state) :initialized))
            (agent-shell--initiate-handshake
             :shell shell
             :on-initiated (lambda ()
-                              (with-current-buffer (map-elt shell :buffer)
-                                (map-put! agent-shell--state :initialized t)
-                                (agent-shell--handle :command command :shell shell)))))
-          ((and (map-elt agent-shell--state :needs-authentication)
-                (not (map-elt agent-shell--state :authenticated)))
+                            (map-put! (agent-shell--state) :initialized t)
+                            (agent-shell--handle :command command :shell shell))))
+          ((and (map-elt (agent-shell--state) :needs-authentication)
+                (not (map-elt (agent-shell--state) :authenticated)))
            (agent-shell--authenticate
             :shell shell
             :on-authenticated (lambda ()
-                                (with-current-buffer (map-elt shell :buffer)
-                                  (map-put! agent-shell--state :authenticated t)
-                                  (agent-shell--handle :command command :shell shell)))))
-          ((not (map-elt agent-shell--state :session-id))
+                                (map-put! (agent-shell--state) :authenticated t)
+                                (agent-shell--handle :command command :shell shell))))
+          ((not (map-elt (agent-shell--state) :session-id))
            (agent-shell--initiate-session
             :shell shell
             :on-session-init (lambda ()
-                               (with-current-buffer (map-elt shell :buffer)
-                                 (agent-shell--handle :command command :shell shell)))))
+                               (agent-shell--handle :command command :shell shell))))
           (t
            (agent-shell--send-command :prompt command :shell shell)))))
 
@@ -728,9 +725,9 @@ Returns in the form:
   "Create ACP error handler with SHELL STATE."
   (lambda (error raw-message)
     (let-alist error
-      (with-current-buffer (map-elt shell :buffer)
+      (with-current-buffer (map-elt state :buffer)
         (agent-shell--update-dialog-block
-         :state agent-shell--state
+         :state (agent-shell--state)
          :block-id (format "failed-%s-id:%s-code:%s"
                            (map-elt state :request-count)
                            (or .id "?")
@@ -741,7 +738,7 @@ Returns in the form:
                 :raw-message raw-message)
          :create-new t)))
     ;; TODO: Mark buffer command with shell failure.
-    (with-current-buffer (map-elt shell :buffer)
+    (with-current-buffer (map-elt state :buffer)
       (funcall (map-elt shell :finish-output) t))))
 
 (defun agent-shell--save-tool-call (state tool-call-id tool-call)
@@ -799,10 +796,8 @@ Returns in the form:
 For example, shut down ACP client."
   (unless (eq major-mode 'agent-shell-mode)
     (error "Not in a shell"))
-  (when (map-elt agent-shell--state :client)
-    (acp-shutdown :client (map-elt agent-shell--state :client))))
-
-(map-elt agent-shell--state :client)
+  (when (map-elt (agent-shell--state) :client)
+    (acp-shutdown :client (map-elt (agent-shell--state) :client))))
 
 (defun agent-shell--status-label (status)
   "Convert STATUS codes to user-visible labels."
@@ -961,14 +956,16 @@ Set WELCOME-FUNCTION for custom welcome message.
 Set INSTALL-INSTRUCTIONS for executable installation instructions.
 
 Returns the shell buffer."
-  (unless (and client-maker (funcall client-maker))
-    (error "No way to create a new client"))
   (unless (version<= "0.83.1" shell-maker-version)
     (error "Please update shell-maker to version 0.83.1 or newer"))
-  (unless (fboundp #'acp-make-session-cancel-notification)
-    (error "Please update acp.el to version 0.1.4 or newer"))
-  (agent-shell--ensure-executable
-   (map-elt (funcall client-maker) :command) install-instructions)
+  (unless (version<= "0.3.1" acp-package-version)
+    (error "Please update acp.el to version 0.3.1 or newer"))
+  (with-temp-buffer ;; client-maker needs a buffer (use a temp one)
+    (unless (and client-maker (funcall client-maker (current-buffer)))
+      (error "No way to create a new client"))
+    (agent-shell--ensure-executable
+     (map-elt (funcall client-maker (current-buffer)) :command)
+     install-instructions))
   (let* ((shell-maker-config (agent-shell--make-shell-maker-config
                               :prompt shell-prompt
                               :prompt-regexp shell-prompt-regexp))
@@ -1068,7 +1065,7 @@ by default."
 (defun agent-shell-reset-logs ()
   "Reset all log buffers."
   (interactive)
-  (acp-reset-logs :client (map-elt agent-shell--state :client))
+  (acp-reset-logs :client (map-elt (agent-shell--state) :client))
   (message "Logs reset"))
 
 (defun agent-shell-next-item ()
@@ -1250,7 +1247,7 @@ Icon names starting with https:// are downloaded directly from that location."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
     (error "Not in a shell"))
-  (let ((traffic-buffer (acp-traffic-buffer :client (map-elt agent-shell--state :client))))
+  (let ((traffic-buffer (acp-traffic-buffer :client (map-elt (agent-shell--state) :client))))
     (when (with-current-buffer traffic-buffer
             (= (buffer-size) 0))
       (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
@@ -1303,22 +1300,31 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
       (select-window (get-buffer-window shell-buffer))
     (select-window (display-buffer shell-buffer agent-shell-display-action))))
 
+(defun agent-shell--state ()
+  "Get shell state or fail in an incompatible buffer."
+  (unless (eq major-mode 'agent-shell-mode)
+    (error "Processed outside shell: %s" major-mode))
+  (unless agent-shell--state
+    (error "No shell state available"))
+  agent-shell--state)
+
 ;;; Initialization
 
 (cl-defun agent-shell--initialize-client (&key shell)
   "Initialize ACP client with SHELL."
   (agent-shell--update-dialog-block
-   :state agent-shell--state
+   :state (agent-shell--state)
    :block-id "starting"
    :label-left (format "%s %s"
                        (agent-shell--status-label "in_progress")
                        (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
    :body "Creating client..."
    :create-new t)
-  (if (map-elt agent-shell--state :client-maker)
+  (if (map-elt (agent-shell--state) :client-maker)
       (progn
-        (map-put! agent-shell--state
-                  :client (funcall (map-elt agent-shell--state :client-maker)))
+        (map-put! (agent-shell--state)
+                  :client (funcall (map-elt agent-shell--state :client-maker)
+                                   (map-elt agent-shell--state :buffer)))
         t)
     (funcall (map-elt shell :write-output) "No :client-maker found")
     (funcall (map-elt shell :finish-output) nil)
@@ -1348,7 +1354,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 Must provide ON-INITIATED (lambda ())."
   (unless on-initiated
     (error "Missing required argument: :on-initialized"))
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt agent-shell--state :buffer)
     (agent-shell--update-dialog-block
      :state agent-shell--state
      :block-id "starting"
@@ -1370,21 +1376,21 @@ Must provide ON-INITIATED (lambda ())."
   "Initiate ACP authentication with SHELL.
 
 Must provide ON-AUTHENTICATED (lambda ())."
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt agent-shell--state :buffer)
     (agent-shell--update-dialog-block
-     :state agent-shell--state
+     :state (agent-shell--state)
      :block-id "starting"
      :body "\n\nAuthenticating..."
      :append t))
-  (if (map-elt agent-shell--state :authenticate-request-maker)
+  (if (map-elt (agent-shell--state) :authenticate-request-maker)
       (acp-send-request
-       :client (map-elt agent-shell--state :client)
+       :client (map-elt (agent-shell--state) :client)
        :request (funcall (map-elt agent-shell--state :authenticate-request-maker))
        :on-success (lambda (_response)
                      ;; TODO: More to be handled?
                      (funcall on-authenticated))
        :on-failure (agent-shell--make-error-handler
-                    :state agent-shell--state :shell shell))
+                    :state (agent-shell--state) :shell shell))
     (funcall (map-elt shell :write-output) "No :authenticate-request-maker")
     (funcall (map-elt shell :finish-output) nil)))
 
@@ -1394,27 +1400,26 @@ Must provide ON-AUTHENTICATED (lambda ())."
 Must provide ON-SESSION-INIT (lambda ())."
   (unless on-session-init
     (error "Missing required argument: :on-session-init"))
-  (with-current-buffer (map-elt shell :buffer)
+  (with-current-buffer (map-elt (agent-shell--state) :buffer)
     (agent-shell--update-dialog-block
-     :state agent-shell--state
+     :state (agent-shell--state)
      :block-id "starting"
      :body "\n\nCreating session..."
      :append t))
   (acp-send-request
-   :client (map-elt agent-shell--state :client)
+   :client (map-elt (agent-shell--state) :client)
    :request (acp-make-session-new-request :cwd (agent-shell--resolve-path (agent-shell-cwd)))
    :on-success (lambda (response)
-                 (with-current-buffer (map-elt shell :buffer)
-                   (map-put! agent-shell--state
-                             :session-id (map-elt response 'sessionId))
-                   (agent-shell--update-dialog-block
-                    :state agent-shell--state
-                    :block-id "starting"
-                    :label-left (format "%s %s"
-                                        (agent-shell--status-label "completed")
-                                        (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
-                    :body "\n\nReady"
-                    :append t))
+                 (map-put! agent-shell--state
+                           :session-id (map-elt response 'sessionId))
+                 (agent-shell--update-dialog-block
+                  :state agent-shell--state
+                  :block-id "starting"
+                  :label-left (format "%s %s"
+                                      (agent-shell--status-label "completed")
+                                      (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
+                  :body "\n\nReady"
+                  :append t)
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
@@ -1423,17 +1428,14 @@ Must provide ON-SESSION-INIT (lambda ())."
   "Subscribe SHELL and STATE to ACP events."
   (acp-subscribe-to-errors
    :client (map-elt state :client)
-   :buffer (map-elt state :buffer)
    :on-error (lambda (error)
                (agent-shell--on-error :state state :error error)))
   (acp-subscribe-to-notifications
    :client (map-elt state :client)
-   :buffer (map-elt state :buffer)
    :on-notification (lambda (notification)
                       (agent-shell--on-notification :state state :notification notification)))
   (acp-subscribe-to-requests
    :client (map-elt state :client)
-   :buffer (map-elt state :buffer)
    :on-request (lambda (request)
                  (agent-shell--on-request :state state :request request))))
 
@@ -1446,18 +1448,17 @@ Must provide ON-SESSION-INIT (lambda ())."
              :prompt `[((type . "text")
                         (text . ,(substring-no-properties prompt)))])
    :on-success (lambda (response)
-                 (with-current-buffer (map-elt shell :buffer)
-                   ;; Tool call details are no longer needed after
-                   ;; a session prompt request is finished.
-                   ;; Avoid accumulating them unnecessarily.
-                   (map-put! agent-shell--state :tool-calls nil)
-                   (let ((success (equal (map-elt response 'stopReason)
-                                         "end_turn")))
-                     (unless success
-                       (funcall (map-elt shell :write-output)
-                                (agent-shell--stop-reason-description
-                                 (map-elt response 'stopReason))))
-                     (funcall (map-elt shell :finish-output) t))))
+                 ;; Tool call details are no longer needed after
+                 ;; a session prompt request is finished.
+                 ;; Avoid accumulating them unnecessarily.
+                 (map-put! (agent-shell--state) :tool-calls nil)
+                 (let ((success (equal (map-elt response 'stopReason)
+                                       "end_turn")))
+                   (unless success
+                     (funcall (map-elt shell :write-output)
+                              (agent-shell--stop-reason-description
+                               (map-elt response 'stopReason))))
+                   (funcall (map-elt shell :finish-output) t)))
    :on-failure (lambda (error raw-message)
                  (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
                           error raw-message))))

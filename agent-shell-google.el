@@ -108,7 +108,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                                         (acp-make-authenticate-request :method-id "vertex-ai"))
                                        (t
                                         (acp-make-authenticate-request :method-id "oauth-personal"))))
-   :client-maker #'agent-shell-google-make-gemini-client
+   :client-maker (lambda (buffer)
+                   (agent-shell-google-make-gemini-client :buffer buffer))
    :install-instructions "See https://github.com/google-gemini/gemini-cli for installation."))
 
 (defun agent-shell-google-start-gemini ()
@@ -117,10 +118,12 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-google-make-gemini-config)))
 
-(defun agent-shell-google-make-gemini-client ()
-  "Create a Gemini client using configured authentication.
+(cl-defun agent-shell-google-make-gemini-client (&key buffer)
+  "Create a Gemini client using configured authentication with BUFFER as context.
 
 Uses `agent-shell-google-authentication' for authentication configuration."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (cond
@@ -128,13 +131,16 @@ Uses `agent-shell-google-authentication' for authentication configuration."
     (acp-make-client :command (car agent-shell-google-gemini-command)
                      :command-params (cdr agent-shell-google-gemini-command)
                      :environment-variables (when-let ((api-key (agent-shell-google-key)))
-                                              (list (format "GEMINI_API_KEY=%s" api-key)))))
+                                              (list (format "GEMINI_API_KEY=%s" api-key)))
+                     :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :login)
     (acp-make-client :command (car agent-shell-google-gemini-command)
-                     :command-params (cdr agent-shell-google-gemini-command)))
+                     :command-params (cdr agent-shell-google-gemini-command)
+                     :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :vertex-ai)
     (acp-make-client :command (car agent-shell-google-gemini-command)
-                     :command-params (cdr agent-shell-google-gemini-command)))
+                     :command-params (cdr agent-shell-google-gemini-command)
+                     :context-buffer buffer))
    (t
     (error "Invalid authentication configuration"))))
 

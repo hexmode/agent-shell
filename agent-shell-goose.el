@@ -76,8 +76,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
     :shell-prompt-regexp "Goose> "
     :welcome-function #'agent-shell-goose--welcome-message
     :icon-name "goose.png"
-    :client-maker (lambda ()
-                    (agent-shell-goose-make-client))
+    :client-maker (lambda (buffer)
+                    (agent-shell-goose-make-client :buffer buffer))
     :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
 
 (defun agent-shell-goose-start-agent ()
@@ -86,16 +86,19 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-goose-make-agent-config)))
 
-(defun agent-shell-goose-make-client ()
-  "Create a Goose client using configured authentication.
+(cl-defun agent-shell-goose-make-client (&key buffer)
+  "Create a Goose client using configured authentication with BUFFER as context.
 
 Uses `agent-shell-goose-authentication' for authentication configuration."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (let ((api-key (agent-shell-goose-key)))
     (unless api-key
       (error "Goose OpenAI API key not configured"))
     (acp-make-client :command (car agent-shell-goose-command)
                      :command-params (cdr agent-shell-goose-command)
-                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))
+                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key))
+                     :context-buffer buffer)))
 
 (defun agent-shell-goose-key ()
   "Get the Goose OpenAI API key."
