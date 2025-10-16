@@ -188,7 +188,7 @@ and AUTHENTICATE-REQUEST-MAKER."
 (defvar-local agent-shell--state
     (agent-shell--make-state))
 
-(defvar agent-shell--config nil)
+(defvar agent-shell--shell-maker-config nil)
 
 ;;;###autoload
 (defun agent-shell (&optional new-shell)
@@ -278,7 +278,7 @@ Returns an empty string if no icon should be displayed."
                     :session-id (map-elt agent-shell--state :session-id)
                     :reason "User cancelled"))))
 
-(cl-defun agent-shell--make-config (&key prompt prompt-regexp)
+(cl-defun agent-shell--make-shell-maker-config (&key prompt prompt-regexp)
   "Create `shell-maker' configuration with PROMPT and PROMPT-REGEXP."
   (make-shell-maker-config
    :name "agent"
@@ -299,7 +299,7 @@ Returns an empty string if no icon should be displayed."
   "S-TAB" #'agent-shell-previous-item
   "C-c C-c" #'agent-shell-interrupt)
 
-(shell-maker-define-major-mode (agent-shell--make-config) agent-shell-mode-map)
+(shell-maker-define-major-mode (agent-shell--make-shell-maker-config) agent-shell-mode-map)
 
 (cl-defun agent-shell--handle (&key command shell)
   "Handle COMMAND using `shell-maker' SHELL."
@@ -1058,13 +1058,13 @@ Returns the shell buffer."
     (error "Please update acp.el to version 0.1.4 or newer"))
   (agent-shell--ensure-executable
    (map-elt (funcall client-maker) :command) install-instructions)
-  (let* ((config (agent-shell--make-config
-                  :prompt shell-prompt
-                  :prompt-regexp shell-prompt-regexp))
-         (agent-shell--config config)
+  (let* ((shell-maker-config (agent-shell--make-shell-maker-config
+                              :prompt shell-prompt
+                              :prompt-regexp shell-prompt-regexp))
+         (agent-shell--shell-maker-config shell-maker-config)
          (default-directory (agent-shell-cwd))
          (shell-buffer
-          (shell-maker-start agent-shell--config
+          (shell-maker-start agent-shell--shell-maker-config
                              no-focus
                              (or welcome-function #'shell-maker-welcome-message)
                              new-session
@@ -1080,8 +1080,8 @@ Returns the shell buffer."
                                       :client-maker client-maker
                                       :needs-authentication needs-authentication
                                       :authenticate-request-maker authenticate-request-maker))
-      ;; Initialize buffer-local config
-      (setq-local agent-shell--config config)
+      ;; Initialize buffer-local shell-maker-config
+      (setq-local agent-shell--shell-maker-config shell-maker-config)
       (setq header-line-format (agent-shell--make-header
                                 :icon-name icon-name
                                 :title (concat buffer-name " Agent")
