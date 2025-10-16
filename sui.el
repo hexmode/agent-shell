@@ -257,12 +257,20 @@ NAVIGATION controls navigability:
                                                           (sui-toggle-dialog-block-at-point)))
                                                read-only t
                                                front-sticky (read-only))))
+        (setq collapsable nil)
+        (setq indicator-start (point))
         ;; Reserving the space for expand indicators enables
         ;; aligning columns but also avoids text jumping when
         ;; body arrives later on.
-        (setq collapsable nil)
-        (setq indicator-start (point))
-        (insert "   ")
+        ;;
+        ;; For example:
+        ;;
+        ;; "   [ completed ] [ read ] Read agent-shell/README.org"
+        ;;
+        ;; vs
+        ;;
+        ;; "▼  [ completed ] [ read ] Read agent-shell/README.org"
+        (insert "  ") ;; "▶ "
         (setq indicator-end (point))))
 
     (when label-left
@@ -307,9 +315,8 @@ NAVIGATION controls navigability:
       (when (string-suffix-p "\n\n" body)
         (setq body (concat (string-trim-right body) "\n\n")))
       (setq body-start (point))
-      ;; Remove existing indentation and re-apply.
       (let ((clean-body (string-remove-prefix "  " body)))
-        (insert (sui--indent-text clean-body "   ")))
+        (insert (sui--indent-text clean-body "  ")))
       (setq body-end (point))
       (add-text-properties body-start body-end
                            `(sui-section body
