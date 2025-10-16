@@ -212,5 +212,168 @@
   ;; Test empty entries
   (should (equal (agent-shell--format-plan []) "")))
 
+(ert-deftest agent-shell--parse-file-mentions-test ()
+  "Test agent-shell--parse-file-mentions function."
+  ;; Simple @ mention
+  (let ((mentions (agent-shell--parse-file-mentions "@file.txt")))
+    (should (= (length mentions) 1))
+    (should (equal (map-elt (car mentions) :path) "file.txt")))
+
+  ;; @ mention with quotes
+  (let ((mentions (agent-shell--parse-file-mentions "Compare @\"file with spaces.txt\" to @other.txt")))
+    (should (= (length mentions) 2))
+    (should (equal (map-elt (car mentions) :path) "file with spaces.txt"))
+    (should (equal (map-elt (cadr mentions) :path) "other.txt")))
+
+  ;; @ mention at start of line
+  (let ((mentions (agent-shell--parse-file-mentions "@README.md is the main file")))
+    (should (= (length mentions) 1))
+    (should (equal (map-elt (car mentions) :path) "README.md")))
+
+  ;; Multiple @ mentions
+  (let ((mentions (agent-shell--parse-file-mentions "Compare @file1.txt with @file2.txt")))
+    (should (= (length mentions) 2))
+    (should (equal (map-elt (car mentions) :path) "file1.txt"))
+    (should (equal (map-elt (cadr mentions) :path) "file2.txt")))
+
+  ;; No @ mentions
+  (let ((mentions (agent-shell--parse-file-mentions "No mentions here")))
+    (should (= (length mentions) 0))))
+
+(ert-deftest agent-shell--build-content-blocks-test ()
+  "Test agent-shell--build-content-blocks function."
+  (let* ((temp-file (make-temp-file "agent-shell-test" nil ".txt"))
+         (file-content "Test file content")
+         (default-directory (file-name-directory temp-file))
+         (file-name (file-name-nondirectory temp-file)))
+
+    (unwind-protect
+        (progn
+          (with-temp-file temp-file
+            (insert file-content))
+
+          ;; Mock agent-shell-cwd and agent-shell--state
+          (cl-letf (((symbol-function 'agent-shell-cwd)
+                     (lambda () default-directory)))
+
+            ;; Test with embedded context support and small file
+            (let ((agent-shell--state (list
+                                       (cons :agent-supports-embedded-context t))))
+              (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
+                (should (> (length blocks) 0))
+                ;; Should have a resource block
+                (let ((resource-block (seq-find
+                                       (lambda (block)
+                                         (equal (map-elt block 'type) "resource"))
+                                       blocks)))
+                  (should resource-block)
+                  (should (equal (map-nested-elt resource-block '(resource text))
+                                 file-content)))))
+
+            ;; Test without embedded context support
+            (let ((agent-shell--state (list
+                                       (cons :agent-supports-embedded-context nil))))
+              (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
+                (should (> (length blocks) 0))
+                ;; Should have a resource_link block, not resource
+                (should-not (seq-find
+                             (lambda (block)
+                               (equal (map-elt block 'type) "resource"))
+                             blocks))
+                (should (seq-find
+                         (lambda (block)
+                           (equal (map-elt block 'type) "resource_link"))
+                         blocks))))
+
+            ;; Test with large file (exceeds size limit)
+            (let ((agent-shell--state (list
+                                       (cons :agent-supports-embedded-context t)))
+                  (agent-shell-embed-file-size-limit 5))  ; Very small limit
+              (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
+                ;; Should use resource_link for large file
+                (should (seq-find
+                         (lambda (block)
+                           (equal (map-elt block 'type) "resource_link"))
+                         blocks))))
+
+            ;; Test with no mentions
+            (let ((agent-shell--state (list
+                                       (cons :agent-supports-embedded-context t))))
+              (let ((blocks (agent-shell--build-content-blocks "No mentions here")))
+                (should (= (length blocks) 1))
+                (should (equal (map-elt (car blocks) 'type) "text"))
+                (should (equal (map-elt (car blocks) 'text) "No mentions here"))))))
+
+      (delete-file temp-file))))
+
+(ert-deftest agent-shell--collect-attached-files-test ()
+  "Test agent-shell--collect-attached-files function."
+  ;; Test with empty list
+  (should (equal (agent-shell--collect-attached-files '()) '()))
+
+  ;; Test with resource block
+  (let ((blocks '(((type . "resource")
+                   (resource . ((uri . "file:///path/to/file.txt")
+                                (text . "content"))))
+                  ((type . "text")
+                   (text . "some text")))))
+    (let ((uris (agent-shell--collect-attached-files blocks)))
+      (should (= (length uris) 1))
+      (should (equal (car uris) "file:///path/to/file.txt"))))
+
+  ;; Test with resource_link block
+  (let ((blocks '(((type . "resource_link")
+                   (uri . "file:///path/to/file.txt")
+                   (name . "file.txt"))
+                  ((type . "text")
+                   (text . "some text")))))
+    (let ((uris (agent-shell--collect-attached-files blocks)))
+      (should (= (length uris) 1))
+      (should (equal (car uris) "file:///path/to/file.txt"))))
+
+  ;; Test with multiple files
+  (let ((blocks '(((type . "resource_link")
+                   (uri . "file:///path/to/file1.txt"))
+                  ((type . "text")
+                   (text . " "))
+                  ((type . "resource_link")
+                   (uri . "file:///path/to/file2.txt")))))
+    (let ((uris (agent-shell--collect-attached-files blocks)))
+      (should (= (length uris) 2)))))
+
+(ert-deftest agent-shell--send-command-integration-test ()
+  "Integration test: verify agent-shell--send-command calls ACP correctly."
+  (let ((sent-request nil)
+        (agent-shell--state (list
+                            (cons :client 'test-client)
+                            (cons :session-id "test-session")
+                            (cons :agent-supports-embedded-context t)
+                            (cons :buffer (current-buffer)))))
+
+    ;; Mock acp-send-request to capture what gets sent
+    (cl-letf (((symbol-function 'acp-send-request)
+               (lambda (&rest args)
+                 (setq sent-request args))))
+
+      ;; Send a simple command
+      (agent-shell--send-command
+       :prompt "Hello agent"
+       :shell nil)
+
+      ;; Verify request was sent
+      (should sent-request)
+
+      ;; Verify basic request structure
+      (let* ((request (plist-get sent-request :request))
+             (params (map-elt request 'params))
+             (prompt (map-elt params 'prompt)))
+        ;; Should have session-id
+        (should (equal (map-elt params 'sessionId) "test-session"))
+        ;; Should have prompt as a vector
+        (should (vectorp prompt))
+        ;; Callbacks should be functions
+        (should (functionp (plist-get sent-request :on-success)))
+        (should (functionp (plist-get sent-request :on-failure)))))))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
