@@ -1496,7 +1496,7 @@ For example:
    ╰─"
   (let* ((tool-call-id (map-nested-elt request '(params toolCall toolCallId)))
          (diff (map-nested-elt state `(:tool-calls ,tool-call-id :diff)))
-         (actions (agent-shell--prepare-permission-actions (map-nested-elt request '(params options))))
+         (actions (agent-shell--make-permission-actions (map-nested-elt request '(params options))))
          (keymap (let ((map (make-sparse-keymap)))
                    (dolist (action actions)
                      (when-let ((char (map-elt action :char)))
@@ -1664,26 +1664,49 @@ CHAR and OPTION are used for cursor sensor messages."
                          button))
     button))
 
-(defun agent-shell--prepare-permission-actions (options)
-  "Format permission OPTIONS for shell rendering."
+(defun agent-shell--make-permission-actions (acp-options)
+  "Format permission OPTIONS for shell rendering.
+
+ACP-OPTIONS is a list of PermissionOption per ACP spec:
+
+  https://agentclientprotocol.com/protocol/schema#permissionoption
+
+  Each option an alists of the form:
+
+  ((\='kind . \"allow_once\")
+   (\='name . \"Allow\") ;;
+   (\='optionId . \"allow\"))
+
+The \='kind value should be one of the ACP PermissionOptionKind values:
+\"allow_once\", \"allow_always\", \"reject_once\", \"reject_always\"
+
+Returns a list of alists, each of the form:
+
+  ((:label . \"Allow (y)\")
+   (:option . \"Allow\")
+   (:char . ?y)
+   (:kind . \"allow_once\")
+   (:option-id . ...))
+
+Only acp-options with recognized \='kind values are included in the output."
   (let ((char-map '(("allow_always" . ?!)
                     ("allow_once" . ?y)
                     ("reject_once" . ?n))))
     (seq-sort (lambda (a b)
                 (< (length (map-elt a :label))
                    (length (map-elt b :label))))
-              (seq-map (lambda (opt)
-                         (let* ((kind (map-elt opt 'kind))
+              (seq-map (lambda (acp-option)
+                         (let* ((kind (map-elt acp-option 'kind))
                                 (char (map-elt char-map kind))
-                                (name (map-elt opt 'name)))
+                                (name (map-elt acp-option 'name)))
                            (when char
                              (map-into `((:label . ,(format "%s (%c)" name char))
                                          (:option . ,name)
                                          (:char . ,char)
                                          (:kind . ,kind)
-                                         (:option-id . ,(map-elt opt 'optionId)))
+                                         (:option-id . ,(map-elt acp-option 'optionId)))
                                        'alist))))
-                       options))))
+                       acp-options))))
 
 (defun agent-shell-jump-to-latest-permission-button-row ()
   "Jump to the latest permission button row."
