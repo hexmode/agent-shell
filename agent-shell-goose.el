@@ -34,13 +34,20 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
-(cl-defun agent-shell-make-goose-authentication (&key openai-api-key)
+(cl-defun agent-shell-make-goose-authentication (&key openai-api-key none)
   "Create Goose authentication configuration.
 
-OPENAI-API-KEY is the OpenAI API key string or function that returns it."
-  (unless openai-api-key
-    (error "Must specify :openai-api-key"))
-  `((:openai-api-key . ,openai-api-key)))
+OPENAI-API-KEY is the OpenAI API key string or function that returns it.
+NONE when non-nil disables API key authentication.
+
+Only one of OPENAI-API-KEY or NONE should be provided, never both."
+  (when (and openai-api-key none)
+    (error "Cannot specify both :openai-api-key and :none - choose one"))
+  (unless (or openai-api-key none)
+    (error "Must specify either :openai-api-key or :none"))
+  (cond
+   (openai-api-key `((:openai-api-key . ,openai-api-key)))
+   (none `((:none . t)))))
 
 (defcustom agent-shell-goose-authentication nil
   "Configuration for Goose authentication.
@@ -52,7 +59,12 @@ For API key (string):
 For API key (function):
 
   (setq agent-shell-goose-authentication
-        (agent-shell-make-goose-authentication :openai-api-key (lambda () ...)))"
+        (agent-shell-make-goose-authentication :openai-api-key (lambda () ...)))
+
+For no authentication (when using alternative authentication methods):
+
+  (setq agent-shell-goose-authentication
+        (agent-shell-make-goose-authentication :none t))"
   :type 'alist
   :group 'agent-shell)
 
@@ -109,11 +121,14 @@ Uses `agent-shell-goose-authentication' for authentication configuration."
   (unless buffer
     (error "Missing required argument: :buffer"))
   (let ((api-key (agent-shell-goose-key)))
-    (unless api-key
-      (error "Goose OpenAI API key not configured"))
     (acp-make-client :command (car agent-shell-goose-command)
                      :command-params (cdr agent-shell-goose-command)
-                     :environment-variables (append (list (format "OPENAI_API_KEY=%s" api-key))
+                     :environment-variables (append (cond ((map-elt agent-shell-goose-authentication :none)
+                                                           nil)
+                                                          (api-key
+                                                           (list (format "OPENAI_API_KEY=%s" api-key)))
+                                                          (t
+                                                           (error "Missing Goose authentication (see agent-shell-goose-authentication)")))
                                                     agent-shell-goose-environment)
                      :context-buffer buffer)))
 
