@@ -35,13 +35,13 @@
 
   ;; Test :inherit-env t
   (let ((process-environment '("EXISTING_VAR=existing_value"
-                               "ANOTHER_VAR=another_value")))
+                               "MY_OTHER_VAR=another_value")))
     (should (equal (agent-shell-make-environment-variables
                     "NEW_VAR" "new_value"
                     :inherit-env t)
                    '("NEW_VAR=new_value"
                      "EXISTING_VAR=existing_value"
-                     "ANOTHER_VAR=another_value"))))
+                     "MY_OTHER_VAR=another_value"))))
 
   ;; Test :load-env with single file
   (let ((env-file (let ((file (make-temp-file "test-env" nil ".env")))

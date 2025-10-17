@@ -64,21 +64,37 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-goose-environment
+  nil
+  "Environment variables for the Goose client.
+
+This should be a list of environment variables to be used when
+starting the Goose client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-goose-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-goose-make-agent-config ()
   "Create a Goose agent configuration.
 
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-make-agent-config
-    :new-session t
-    :mode-line-name "Goose"
-    :buffer-name "Goose"
-    :shell-prompt "Goose> "
-    :shell-prompt-regexp "Goose> "
-    :welcome-function #'agent-shell-goose--welcome-message
-    :icon-name "goose.png"
-    :client-maker (lambda (buffer)
-                    (agent-shell-goose-make-client :buffer buffer))
-    :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
+   :new-session t
+   :mode-line-name "Goose"
+   :buffer-name "Goose"
+   :shell-prompt "Goose> "
+   :shell-prompt-regexp "Goose> "
+   :welcome-function #'agent-shell-goose--welcome-message
+   :icon-name "goose.png"
+   :client-maker (lambda (buffer)
+                   (agent-shell-goose-make-client :buffer buffer))
+   :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
 
 (defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."
@@ -97,7 +113,8 @@ Uses `agent-shell-goose-authentication' for authentication configuration."
       (error "Goose OpenAI API key not configured"))
     (acp-make-client :command (car agent-shell-goose-command)
                      :command-params (cdr agent-shell-goose-command)
-                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key))
+                     :environment-variables (append (list (format "OPENAI_API_KEY=%s" api-key))
+                                                    agent-shell-goose-environment)
                      :context-buffer buffer)))
 
 (defun agent-shell-goose-key ()

@@ -60,6 +60,22 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-qwen-environment
+  nil
+  "Environment variables for the Qwen Code client.
+
+This should be a list of environment variables to be used when
+starting the Qwen Code client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-qwen-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-qwen-make-agent-config ()
   "Create a Qwen Code CLI agent configuration.
 
@@ -95,6 +111,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
     (error "Missing required argument: :buffer"))
   (acp-make-client :command (car agent-shell-qwen-command)
                    :command-params (cdr agent-shell-qwen-command)
+                   :environment-variables agent-shell-qwen-environment
                    :context-buffer buffer))
 
 (defun agent-shell-qwen--welcome-message (config)

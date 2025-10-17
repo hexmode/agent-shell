@@ -87,6 +87,22 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-openai-codex-environment
+  nil
+  "Environment variables for the OpenAI Codex client.
+
+This should be a list of environment variables to be used when
+starting the Codex client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-openai-codex-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-openai-make-codex-config ()
   "Create a Codex agent configuration.
 
@@ -129,18 +145,21 @@ Uses `agent-shell-openai-authentication' for authentication configuration."
    ((map-elt agent-shell-openai-authentication :api-key)
     (acp-make-client :command (car agent-shell-openai-codex-command)
                      :command-params (cdr agent-shell-openai-codex-command)
-                     :environment-variables (when-let ((api-key (agent-shell-openai-key)))
-                                              (list (format "OPENAI_API_KEY=%s" api-key)))
+                     :environment-variables (append (when-let ((api-key (agent-shell-openai-key)))
+                                                      (list (format "OPENAI_API_KEY=%s" api-key)))
+                                                    agent-shell-openai-codex-environment)
                      :context-buffer buffer))
    ((map-elt agent-shell-openai-authentication :codex-api-key)
     (acp-make-client :command (car agent-shell-openai-codex-command)
                      :command-params (cdr agent-shell-openai-codex-command)
-                     :environment-variables (when-let ((api-key (agent-shell-openai-key)))
-                                              (list (format "CODEX_API_KEY=%s" api-key)))
+                     :environment-variables (append (when-let ((api-key (agent-shell-openai-key)))
+                                                      (list (format "CODEX_API_KEY=%s" api-key)))
+                                                    agent-shell-openai-codex-environment)
                      :context-buffer buffer))
    ((map-elt agent-shell-openai-authentication :login)
     (acp-make-client :command (car agent-shell-openai-codex-command)
                      :command-params (cdr agent-shell-openai-codex-command)
+                     :environment-variables agent-shell-openai-codex-environment
                      :context-buffer buffer))
    (t
     (error "Invalid authentication configuration"))))

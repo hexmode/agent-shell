@@ -86,6 +86,22 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-google-gemini-environment
+  nil
+  "Environment variables for the Google Gemini client.
+
+This should be a list of environment variables to be used when
+starting the Gemini client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-google-gemini-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-google-make-gemini-config ()
   "Create a Gemini CLI agent configuration.
 
@@ -130,16 +146,19 @@ Uses `agent-shell-google-authentication' for authentication configuration."
    ((map-elt agent-shell-google-authentication :api-key)
     (acp-make-client :command (car agent-shell-google-gemini-command)
                      :command-params (cdr agent-shell-google-gemini-command)
-                     :environment-variables (when-let ((api-key (agent-shell-google-key)))
-                                              (list (format "GEMINI_API_KEY=%s" api-key)))
+                     :environment-variables (append (when-let ((api-key (agent-shell-google-key)))
+                                                      (list (format "GEMINI_API_KEY=%s" api-key)))
+                                                    agent-shell-google-gemini-environment)
                      :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :login)
     (acp-make-client :command (car agent-shell-google-gemini-command)
                      :command-params (cdr agent-shell-google-gemini-command)
+                     :environment-variables agent-shell-google-gemini-environment
                      :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :vertex-ai)
     (acp-make-client :command (car agent-shell-google-gemini-command)
                      :command-params (cdr agent-shell-google-gemini-command)
+                     :environment-variables agent-shell-google-gemini-environment
                      :context-buffer buffer))
    (t
     (error "Invalid authentication configuration"))))

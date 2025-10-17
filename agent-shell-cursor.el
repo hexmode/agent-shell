@@ -67,7 +67,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                    (agent-shell-cursor-make-client :buffer buffer))
    :needs-authentication t
    :authenticate-request-maker (lambda ()
-                                (acp-make-authenticate-request :method-id "cursor-agent-auth"))
+                                 (acp-make-authenticate-request :method-id "cursor-agent-auth"))
    :install-instructions "See https://github.com/konsumer/cursor-agent-acp for installation."))
 
 (defun agent-shell-cursor-start-agent ()
