@@ -67,7 +67,6 @@ For API key (function):
   :type 'alist
   :group 'agent-shell)
 
-
 (defcustom agent-shell-openai-codex-command
   '("codex-acp")
   "Command and parameters for the OpenAI Codex client.
@@ -75,8 +74,6 @@ For API key (function):
 The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
-
-
 
 (defun agent-shell-openai-make-codex-config ()
   "Create a Codex agent configuration.
