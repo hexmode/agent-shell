@@ -95,7 +95,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :needs-authentication t
    :authenticate-request-maker (lambda ()
                                  (cond ((map-elt agent-shell-openai-authentication :api-key)
-                                        (agent-shell-openai-key))
+                                        (acp-make-authenticate-request :method-id "OpenAiApiKey"))
                                        (t
                                         (acp-make-authenticate-request :method-id "ChatGpt"))))
    :client-maker (lambda (buffer)
