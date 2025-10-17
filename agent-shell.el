@@ -1487,6 +1487,65 @@ If in a project, use project root."
        default-directory
        (error "No CWD available"))))
 
+;;; Shell
+
+(defun agent-shell-insert-shell-command-output ()
+  "Execute a shell command and insert output as a code block.
+
+The command executes asynchronously.  When finished, the output is
+inserted into the shell buffer prompt."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (when (shell-maker-busy)
+    (user-error "Busy, try later"))
+  (let* ((command (read-string "insert command output: "))
+         (shell-buffer (current-buffer))
+         (output-buffer (with-current-buffer (generate-new-buffer (format "*%s*" command))
+                          (insert "$ " command "\n\n")
+                          (setq-local buffer-read-only t)
+                          (let ((map (make-sparse-keymap)))
+                            (define-key map (kbd "q") #'quit-window)
+                            (use-local-map map))
+                          (current-buffer)))
+         (window-config (current-window-configuration))
+         (proc (make-process
+                :name command
+                :buffer output-buffer
+                :command (list shell-file-name
+                               shell-command-switch
+                               ;; Merge stderr into stdout output
+                               ;; (all into output buffer)
+                               (format "%s 2>&1" command))
+                :connection-type 'pipe
+                :filter
+                (lambda (proc output)
+                  (when (buffer-live-p (process-buffer proc))
+                    (with-current-buffer (process-buffer proc)
+                      (let ((inhibit-read-only t))
+                        (goto-char (point-max))
+                        (insert output)))))
+                :sentinel
+                (lambda (process _event)
+                  (when (memq (process-status process) '(exit signal))
+                    (message "Done")
+                    (set-window-configuration window-config)
+                    (save-excursion
+                      (goto-char (point-max))
+                      (with-current-buffer shell-buffer
+                        (insert "\n\n" (format "```shell
+%s
+```" (with-current-buffer output-buffer
+       (buffer-string))))))
+                    (markdown-overlays-put)
+                    (when (buffer-live-p output-buffer)
+                      (kill-buffer output-buffer)))))))
+    (set-process-query-on-exit-flag proc nil)
+    (run-at-time "0.2 sec" nil
+                 (lambda ()
+                   (unless (equal (process-status proc) 'exit)
+                     (agent-shell--display-buffer output-buffer))))))
+
 ;;; Completion
 
 (defun agent-shell--project-files ()
