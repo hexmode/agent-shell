@@ -34,17 +34,19 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
-(cl-defun agent-shell-openai-make-authentication (&key api-key login)
+(cl-defun agent-shell-openai-make-authentication (&key api-key codex-api-key login)
   "Create OpenAI authentication configuration.
 
 API-KEY is the OpenAI API key string or function that returns it.
+CODEX-API-KEY is the Codex-specific API key.
 LOGIN when non-nil indicates to use login-based authentication."
-  (when (> (seq-count #'identity (list api-key login)) 1)
+  (when (> (seq-count #'identity (list api-key codex-api-key login)) 1)
     (error "Cannot specify multiple authentication methods - choose one"))
-  (unless (> (seq-count #'identity (list api-key login)) 0)
-    (error "Must specify one of :api-key, :login"))
+  (unless (> (seq-count #'identity (list api-key codex-api-key login)) 0)
+    (error "Must specify one of :api-key, :codex-api-key, :login"))
   (cond
    (api-key `((:api-key . ,api-key)))
+   (codex-api-key `((:codex-api-key . ,codex-api-key)))
    (login `((:login . t)))))
 
 (defcustom agent-shell-openai-authentication
@@ -55,15 +57,25 @@ For login-based authentication (default):
   (setq agent-shell-openai-authentication
         (agent-shell-openai-make-authentication :login t))
 
-For API key (string):
+For OpenAI API key (string):
 
   (setq agent-shell-openai-authentication
         (agent-shell-openai-make-authentication :api-key \"your-key\"))
 
-For API key (function):
+For OpenAI API key (function):
 
   (setq agent-shell-openai-authentication
-        (agent-shell-openai-make-authentication :api-key (lambda () ...)))"
+        (agent-shell-openai-make-authentication :api-key (lambda () ...)))
+
+For Codex API key (string):
+
+  (setq agent-shell-openai-authentication
+        (agent-shell-openai-make-authentication :codex-api-key \"codex-key\"))
+
+For Codex API key (function):
+
+  (setq agent-shell-openai-authentication
+        (agent-shell-openai-make-authentication :codex-api-key (lambda () ...)))"
   :type 'alist
   :group 'agent-shell)
 
@@ -92,12 +104,14 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :needs-authentication t
    :authenticate-request-maker (lambda ()
                                  (cond ((map-elt agent-shell-openai-authentication :api-key)
-                                        (acp-make-authenticate-request :method-id "OpenAiApiKey"))
+                                        (acp-make-authenticate-request :method-id "openai-api-key"))
+                                       ((map-elt agent-shell-openai-authentication :codex-api-key)
+                                        (acp-make-authenticate-request :method-id "codex-api-key"))
                                        (t
-                                        (acp-make-authenticate-request :method-id "ChatGpt"))))
+                                        (acp-make-authenticate-request :method-id "chatgpt"))))
    :client-maker (lambda (buffer)
                    (agent-shell-openai-make-codex-client :buffer buffer))
-   :install-instructions "See https://github.com/cola-io/codex-acp for installation."))
+   :install-instructions "See https://github.com/zed-industries/codex-acp for installation."))
 
 (defun agent-shell-openai-start-codex ()
   "Start an interactive Codex agent shell."
@@ -117,6 +131,12 @@ Uses `agent-shell-openai-authentication' for authentication configuration."
                      :command-params (cdr agent-shell-openai-codex-command)
                      :environment-variables (when-let ((api-key (agent-shell-openai-key)))
                                               (list (format "OPENAI_API_KEY=%s" api-key)))
+                     :context-buffer buffer))
+   ((map-elt agent-shell-openai-authentication :codex-api-key)
+    (acp-make-client :command (car agent-shell-openai-codex-command)
+                     :command-params (cdr agent-shell-openai-codex-command)
+                     :environment-variables (when-let ((api-key (agent-shell-openai-key)))
+                                              (list (format "CODEX_API_KEY=%s" api-key)))
                      :context-buffer buffer))
    ((map-elt agent-shell-openai-authentication :login)
     (acp-make-client :command (car agent-shell-openai-codex-command)
@@ -166,6 +186,13 @@ eoxpe    ceedoeg-xttttttdtt og e
              (funcall (map-elt agent-shell-openai-authentication :api-key))
            (error
             (error "Api key not found.  Check out `agent-shell-openai-authentication'"))))
+        ((stringp (map-elt agent-shell-openai-authentication :codex-api-key))
+         (map-elt agent-shell-openai-authentication :codex-api-key))
+        ((functionp (map-elt agent-shell-openai-authentication :codex-api-key))
+         (condition-case _err
+             (funcall (map-elt agent-shell-openai-authentication :codex-api-key))
+           (error
+            (error "Codex API key not found.  Check out `agent-shell-openai-authentication'"))))
         (t
          nil)))
 

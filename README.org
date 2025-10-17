@@ -46,7 +46,7 @@ For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sur
 
 *** Codex
 
-For OpenAI's Codex, install [[https://github.com/cola-io/codex-acp][cola-io/codex-acp]] or [[https://github.com/zed-industries/codex-acp][zed/codex-acp]] and ensure the `codex-acp` executable is in PATH.
+For OpenAI's Codex, install [[https://github.com/zed-industries/codex-acp][zed/codex-acp]] and ensure the `codex-acp` executable is in PATH.
 
 *** Goose
 
