@@ -158,12 +158,17 @@
     ;; Test shortening full paths to project-relative format
     (should (equal (agent-shell--shorten-paths
                     "/path/to/agent-shell/README.org")
-                   "agent-shell/README.org"))
+                   "README.org"))
 
     ;; Test with subdirectories
     (should (equal (agent-shell--shorten-paths
                     "/path/to/agent-shell/tests/agent-shell-tests.el")
-                   "agent-shell/tests/agent-shell-tests.el"))
+                   "tests/agent-shell-tests.el"))
+
+    ;; Test mixed text with project path
+    (should (equal (agent-shell--shorten-paths
+                    "Read /path/to/agent-shell/agent-shell.el (4 - 6)")
+                   "Read agent-shell.el (4 - 6)"))
 
     ;; Test text that doesn't contain project path (should remain unchanged)
     (should (equal (agent-shell--shorten-paths
@@ -179,12 +184,7 @@
     (should (equal (agent-shell--shorten-paths nil) nil))
 
     ;; Test empty string
-    (should (equal (agent-shell--shorten-paths "") ""))
-
-    ;; Test mixed text with project path
-    (should (equal (agent-shell--shorten-paths
-                    "Read /path/to/agent-shell/agent-shell.el (4 - 6)")
-                   "Read agent-shell/agent-shell.el (4 - 6)"))))
+    (should (equal (agent-shell--shorten-paths "") ""))))
 
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here

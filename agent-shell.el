@@ -818,11 +818,12 @@ For example, shut down ACP client."
 (defun agent-shell--shorten-paths (text)
   "Shorten file paths in TEXT relative to project root.
 
-\"/path/to/project/file.txt\" -> \"project/file.txt\""
+\"/path/to/project/file.txt\" -> \"file.txt\""
   (when text
-    (replace-regexp-in-string (regexp-quote (string-remove-suffix "/" (agent-shell-cwd)))
-                              (file-name-base (string-remove-suffix "/" (agent-shell-cwd)))
-                              (or text ""))))
+    (let ((cwd (string-remove-suffix "/" (agent-shell-cwd))))
+      (replace-regexp-in-string (concat (regexp-quote cwd) "/")
+                                ""
+                                (or text "")))))
 
 (defun agent-shell-make-tool-call-label (state tool-call-id)
   "Create tool call label from STATE using TOOL-CALL-ID."
