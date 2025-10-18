@@ -382,11 +382,13 @@ Flow:
                               (cons :content (map-elt update 'content)))
                         (when-let ((diff (agent-shell--make-diff-info (map-elt update 'content))))
                           (list (cons :diff diff)))))
-               (agent-shell--update-dialog-block
-                :state state
-                :block-id (map-elt update 'toolCallId)
-                :label-left (agent-shell-make-tool-call-label
-                             state (map-elt update 'toolCallId)))
+               (let ((tool-call-labels (agent-shell-make-tool-call-label
+                                        state (map-elt update 'toolCallId))))
+                 (agent-shell--update-dialog-block
+                  :state state
+                  :block-id (map-elt update 'toolCallId)
+                  :label-left (map-elt tool-call-labels :status)
+                  :label-right (map-elt tool-call-labels :title)))
                (map-put! state :last-entry-type "tool_call"))
               ((equal (map-elt update 'sessionUpdate) "agent_thought_chunk")
                (let-alist update
@@ -460,12 +462,14 @@ Flow:
                      ;; block-id must be the same as the one used as
                      ;; agent-shell--update-dialog-block param by "session/request_permission".
                      (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .toolCallId)))
-                   (agent-shell--update-dialog-block
-                    :state state
-                    :block-id .toolCallId
-                    :label-left (agent-shell-make-tool-call-label
-                                 state .toolCallId)
-                    :body (string-trim output))))
+                   (let ((tool-call-labels (agent-shell-make-tool-call-label
+                                            state .toolCallId)))
+                     (agent-shell--update-dialog-block
+                      :state state
+                      :block-id .toolCallId
+                      :label-left (map-elt tool-call-labels :status)
+                      :label-right (map-elt tool-call-labels :title)
+                      :body (string-trim output)))))
                (map-put! state :last-entry-type "tool_call_update"))
               ((equal (map-elt update 'sessionUpdate) "available_commands_update")
                (let-alist update
@@ -826,41 +830,40 @@ For example, shut down ACP client."
                                 (or text "")))))
 
 (defun agent-shell-make-tool-call-label (state tool-call-id)
-  "Create tool call label from STATE using TOOL-CALL-ID."
+  "Create tool call label from STATE using TOOL-CALL-ID.
+
+Returns propertized labels in :status and :title propertized."
   (when-let ((tool-call (map-nested-elt state `(:tool-calls ,tool-call-id))))
-    (let* ((status (map-elt tool-call :status))
-           (status-label (when status
-                           (agent-shell--status-label status)))
-           (kind (map-elt tool-call :kind))
-           (kind-label (when kind
-                         (agent-shell--add-text-properties
-                          (propertize (format " %s " kind) 'font-lock-face 'default)
-                          'font-lock-face
-                          `(:box t))))
-           (title (when (map-elt tool-call :title)
-                    (agent-shell--shorten-paths (map-elt tool-call :title))))
-           (description (when (map-elt tool-call :description)
-                          (agent-shell--shorten-paths (map-elt tool-call :description)))))
-      (concat
-       (when status-label
-         status-label)
-       (when (and status-label kind-label)
-         " ")
-       (when kind-label
-         kind-label)
-       (when (or title description)
-         " ")
-       (cond ((and title description
-                   (not (equal (string-remove-prefix "`" (string-remove-suffix "`" (string-trim title)))
-                               (string-remove-prefix "`" (string-remove-suffix "`" (string-trim description))))))
-              (concat
-               (propertize title 'font-lock-face 'font-lock-doc-markup-face)
-               " "
-               (propertize description 'font-lock-face 'font-lock-doc-face)))
-             (title
-              (propertize title 'font-lock-face 'font-lock-doc-markup-face))
-             (description
-              (propertize description 'font-lock-face 'font-lock-doc-markup-face)))))))
+    `((:status . ,(let ((status (when (map-elt tool-call :status)
+                                  (agent-shell--status-label (map-elt tool-call :status))))
+                        (kind (when (map-elt tool-call :kind)
+                                (agent-shell--add-text-properties
+                                 (propertize (format " %s " (map-elt tool-call :kind))
+                                             'font-lock-face 'default)
+                                 'font-lock-face
+                                 `(:box t)))))
+                    (concat
+                     (when status
+                       status)
+                     (when (and status kind)
+                       " ")
+                     (when kind
+                       kind))))
+      (:title . ,(let* ((title (when (map-elt tool-call :title)
+                                 (agent-shell--shorten-paths (map-elt tool-call :title))))
+                        (description (when (map-elt tool-call :description)
+                                       (agent-shell--shorten-paths (map-elt tool-call :description)))))
+                   (cond ((and title description
+                               (not (equal (string-remove-prefix "`" (string-remove-suffix "`" (string-trim title)))
+                                           (string-remove-prefix "`" (string-remove-suffix "`" (string-trim description))))))
+                          (concat
+                           (propertize title 'font-lock-face 'font-lock-doc-markup-face)
+                           " "
+                           (propertize description 'font-lock-face 'font-lock-doc-face)))
+                         (title
+                          (propertize title 'font-lock-face 'font-lock-doc-markup-face))
+                         (description
+                          (propertize description 'font-lock-face 'font-lock-doc-markup-face))))))))
 
 (defun agent-shell--format-plan (entries)
   "Format plan ENTRIES for shell rendering."
@@ -1041,9 +1044,7 @@ by default."
                  (padding-start (map-nested-elt range '(:padding :start)))
                  (padding-end (map-nested-elt range '(:padding :end)))
                  (block-start (map-nested-elt range '(:block :start)))
-                 (block-end (map-nested-elt range '(:block :end)))
-                 (body-start (map-nested-elt range '(:body :start)))
-                 (body-end (map-nested-elt range '(:body :end))))
+                 (block-end (map-nested-elt range '(:block :end))))
        (save-restriction
          ;; TODO: Move this to shell-maker?
          (let ((inhibit-read-only t))
@@ -1053,9 +1054,23 @@ by default."
            ;; `agent-shell-next-item' and `agent-shell-previous-item'.
            (add-text-properties (or padding-start block-start)
                                 (or padding-end block-end) '(field output)))
-         ;; Apply markdown overlay to body only.
-         (narrow-to-region body-start body-end)
-         (markdown-overlays-put))))))
+         ;; Apply markdown overlay to body.
+         (when-let ((body-start (map-nested-elt range '(:body :start)))
+                    (body-end (map-nested-elt range '(:body :end))))
+           (narrow-to-region body-start body-end)
+           (markdown-overlays-put)
+           (widen))
+         ;;
+         ;; Note: For now, we're skipping applying markdown overlays
+         ;; on left labels as they currently carry propertized text
+         ;; for statuses (ie. boxed).
+         ;;
+         ;; Apply markdown overlay to right label.
+         (when-let ((label-right-start (map-nested-elt range '(:label-right :start)))
+                    (label-right-end (map-nested-elt range '(:label-right :end))))
+           (narrow-to-region label-right-start label-right-end)
+           (markdown-overlays-put)
+           (widen)))))))
 
 (defun agent-shell-toggle-logging ()
   "Toggle logging."

@@ -113,6 +113,14 @@ For existing blocks, the current expansion state is preserved unless overridden.
                            :property 'sui-section :value 'body
                            :from (map-elt block-range :start)
                            :to (map-elt block-range :end)))
+              (cons :label-left (sui--nearest-range-matching-property
+                                 :property 'sui-section :value 'label-left
+                                 :from (map-elt block-range :start)
+                                 :to (map-elt block-range :end)))
+              (cons :label-right (sui--nearest-range-matching-property
+                                  :property 'sui-section :value 'label-right
+                                  :from (map-elt block-range :start)
+                                  :to (map-elt block-range :end)))
               (cons :padding (when (and padding-start padding-end)
                                (list (cons :start padding-start)
                                      (cons :end padding-end)))))))))
