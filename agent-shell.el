@@ -1002,7 +1002,8 @@ Returns the shell buffer."
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1)
       (when agent-shell-file-completion-enabled
-        (agent-shell-completion-mode +1)))
+        (agent-shell-completion-mode +1))
+      (agent-shell--setup-modeline))
     shell-buffer))
 
 (cl-defun agent-shell--delete-dialog-block (&key state block-id)
@@ -1429,6 +1430,15 @@ Must provide ON-SESSION-INIT (lambda ())."
    :on-success (lambda (response)
                  (map-put! agent-shell--state
                            :session-id (map-elt response 'sessionId))
+                 ;; Store available modes and current mode
+                 (when-let ((modes-data (map-elt response 'modes)))
+                   (setf (map-elt agent-shell--state :available-modes)
+                         (map-elt modes-data 'availableModes))
+                   (setf (map-elt agent-shell--state :current-mode-id)
+                         (map-elt modes-data 'currentModeId))
+                   ;; Update modeline to show mode
+                   (with-current-buffer (map-elt agent-shell--state :buffer)
+                     (force-mode-line-update)))
                  (agent-shell--update-dialog-block
                   :state agent-shell--state
                   :block-id "starting"
@@ -2028,6 +2038,71 @@ When DEACTIVATE is non-nil, deactivate region/selection."
               content
               "\n"
               "```"))))
+
+;;; Mode cycling
+
+(defun agent-shell--get-mode-name (mode-id available-modes)
+  "Get the name of the mode with MODE-ID from AVAILABLE-MODES.
+AVAILABLE-MODES is the list of mode objects from the ACP session/new response.
+Each mode has an 'id' and 'name' field. We look up the mode by ID to get its
+display name."
+  (when-let ((mode (cl-find mode-id available-modes
+                            :key (lambda (m) (map-elt m 'id))
+                            :test #'string=)))
+    (map-elt mode 'name)))
+
+(defun agent-shell--mode-line-format ()
+  "Return the mode-line format for displaying the current permission mode."
+  (when (derived-mode-p 'agent-shell-mode)
+    (let* ((state (agent-shell--state))
+           (current-mode-id (map-elt state :current-mode-id))
+           (available-modes (map-elt state :available-modes)))
+      (when-let ((mode-name (and current-mode-id available-modes
+                                 (agent-shell--get-mode-name current-mode-id available-modes))))
+        (propertize (format " [%s]" mode-name)
+                    'face 'font-lock-constant-face
+                    'help-echo (format "ACP Permission Mode: %s" mode-name))))))
+
+(defun agent-shell--setup-modeline ()
+  "Set up the modeline to display permission mode.
+Uses :eval so the mode updates automatically when state changes."
+  (setq-local mode-line-misc-info
+              (append mode-line-misc-info
+                      '((:eval (agent-shell--mode-line-format))))))
+
+(defun agent-shell-cycle-mode ()
+  "Cycle through available permission modes for the current agent-shell session."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (user-error "Not in an agent-shell buffer"))
+  (let* ((state (agent-shell--state))
+         (session-id (map-elt state :session-id))
+         (available-modes (map-elt state :available-modes))
+         (current-mode-id (map-elt state :current-mode-id)))
+    (unless session-id
+      (user-error "No active session"))
+    (unless available-modes
+      (user-error "No modes available"))
+    ;; Find next mode
+    (let* ((mode-ids (mapcar (lambda (mode) (map-elt mode 'id)) available-modes))
+           (current-idx (or (cl-position current-mode-id mode-ids :test #'string=) -1))
+           (next-idx (mod (1+ current-idx) (length mode-ids)))
+           (next-mode-id (nth next-idx mode-ids))
+           (next-mode (cl-find next-mode-id available-modes
+                               :key (lambda (mode) (map-elt mode 'id))
+                               :test #'string=)))
+      ;; Send request to change mode
+      (acp-send-request
+       :client (map-elt state :client)
+       :request (acp-make-session-set-mode-request
+                 :session-id session-id
+                 :mode-id next-mode-id)
+       :on-success (lambda (_response)
+                     (setf (map-elt agent-shell--state :current-mode-id) next-mode-id)
+                     (with-current-buffer (map-elt state :buffer)
+                       (force-mode-line-update)))
+       :on-failure (lambda (error)
+                     (message "Failed to change mode: %s" error))))))
 
 (provide 'agent-shell)
 
