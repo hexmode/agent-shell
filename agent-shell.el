@@ -1444,13 +1444,14 @@ Must provide ON-SESSION-INIT (lambda ())."
                                       (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
                   :body "\n\nReady"
                   :append t)
-                 (agent-shell--update-dialog-block
-                  :state agent-shell--state
-                  :block-id "available_modes"
-                  :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
-                  :body (agent-shell--format-available-modes
-                         (map-nested-elt response '(modes availableModes))
-                         (map-nested-elt response '(modes currentModeId))))
+                 (when (map-nested-elt response '(modes availableModes))
+                   (agent-shell--update-dialog-block
+                    :state agent-shell--state
+                    :block-id "available_modes"
+                    :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
+                    :body (agent-shell--format-available-modes
+                           (map-nested-elt response '(modes availableModes))
+                           (map-nested-elt response '(modes currentModeId)))))
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
