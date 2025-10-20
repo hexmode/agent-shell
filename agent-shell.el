@@ -2116,6 +2116,52 @@ Uses :eval so the mode updates automatically when state changes."
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change session mode: %s" error)))))
 
+(defun agent-shell-set-session-mode ()
+  "Set session mode (if any available)."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (user-error "Not in an agent-shell buffer"))
+  (unless (map-nested-elt (agent-shell--state) '(:session :id))
+    (user-error "No active session"))
+  (unless (map-nested-elt (agent-shell--state) '(:session :modes))
+    (user-error "No session modes available"))
+  (let* ((current-mode-id (map-nested-elt (agent-shell--state) '(:session :mode-id)))
+         (default-mode-name (and current-mode-id
+                                 (agent-shell--resolve-session-mode-name
+                                  current-mode-id
+                                  (map-nested-elt (agent-shell--state) '(:session :modes)))))
+         (mode-choices (mapcar (lambda (mode)
+                                 (cons (map-elt mode 'name)
+                                       (map-elt mode 'id)))
+                               (map-nested-elt (agent-shell--state) '(:session :modes))))
+         (selection (completing-read "Set session mode: "
+                                     (mapcar #'car mode-choices)
+                                     nil t nil nil default-mode-name))
+         (selected-mode-id (cdr (seq-find (lambda (choice)
+                                            (string= selection (car choice)))
+                                          mode-choices))))
+    (unless selected-mode-id
+      (user-error "Unknown session mode: %s" selection))
+    (when (and current-mode-id (string= selected-mode-id current-mode-id))
+      (error "Session mode already %s" selection))
+    (acp-send-request
+     :client (map-elt (agent-shell--state) :client)
+     :request (acp-make-session-set-mode-request
+               :session-id (map-nested-elt (agent-shell--state) '(:session :id))
+               :mode-id selected-mode-id)
+     :on-success (lambda (_response)
+                   (let ((updated-session (map-elt (agent-shell--state) :session)))
+                     (map-put! updated-session :mode-id selected-mode-id)
+                     (map-put! (agent-shell--state) :session updated-session)
+                     (message "Session mode: %s"
+                              (agent-shell--resolve-session-mode-name
+                               selected-mode-id
+                               (map-nested-elt (agent-shell--state)
+                                               '(:session :modes)))))
+                   (force-mode-line-update))
+     :on-failure (lambda (error _raw-message)
+                   (message "Failed to change session mode: %s" error)))))
+
 (defun agent-shell--format-available-modes (modes &optional current-mode-id)
   "Format MODES for shell rendering.
 If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
