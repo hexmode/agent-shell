@@ -880,9 +880,8 @@ Returns propertized labels in :status and :title propertized."
        (let-alist entry
          (let* ((status-label (agent-shell--status-label .status))
                 (label-length (length status-label))
-                ;; Add 2 spaces to compensate box padding.
                 (padding (make-string
-                          (max 1 (+ 2 (- max-label-width label-length)))
+                          (max 1 (- max-label-width label-length))
                           ?\s)))
            (concat
             status-label

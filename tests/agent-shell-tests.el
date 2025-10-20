@@ -186,5 +186,31 @@
     ;; Test empty string
     (should (equal (agent-shell--shorten-paths "") ""))))
 
+(ert-deftest agent-shell--format-plan-test ()
+  "Test `agent-shell--format-plan' function."
+  ;; Test homogeneous statuses
+  (should (equal (agent-shell--format-plan [((content . "Update state initialization")
+                                             (status . "pending"))
+                                            ((content . "Update session initialization")
+                                             (status . "pending"))])
+                 (substring-no-properties
+                  " pending  Update state initialization
+ pending  Update session initialization")))
+
+  ;; Test mixed statuses
+  (should (equal (substring-no-properties
+                  (agent-shell--format-plan [((content . "First task")
+                                              (status . "pending"))
+                                             ((content . "Second task")
+                                              (status . "in_progress"))
+                                             ((content . "Third task")
+                                              (status . "completed"))]))
+                 " pending     First task
+ in progress  Second task
+ completed   Third task"))
+
+  ;; Test empty entries
+  (should (equal (agent-shell--format-plan []) "")))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
