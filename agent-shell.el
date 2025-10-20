@@ -788,7 +788,7 @@ Returns in the form:
                           (buffer-string))))))))
 
 (defun agent-shell--view-as-error (text)
-  "Display TEXT in a read-only error buffer."
+  "Display TEXT in a `read-only' error buffer."
   (let ((buf (get-buffer-create "*acp error*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
@@ -2074,7 +2074,7 @@ Uses :eval so the mode updates automatically when state changes."
                       '((:eval (agent-shell--session-mode-line-format))))))
 
 (defun agent-shell-cycle-session-mode ()
-  "Cycle through available session modes for the current agent-shell session."
+  "Cycle through available session modes for the current `agent-shell' session."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (user-error "Not in an agent-shell buffer"))
