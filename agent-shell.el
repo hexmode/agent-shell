@@ -1444,6 +1444,13 @@ Must provide ON-SESSION-INIT (lambda ())."
                                       (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
                   :body "\n\nReady"
                   :append t)
+                 (agent-shell--update-dialog-block
+                  :state agent-shell--state
+                  :block-id "available_modes"
+                  :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
+                  :body (agent-shell--format-available-modes
+                         (map-nested-elt response '(modes availableModes))
+                         (map-nested-elt response '(modes currentModeId))))
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
@@ -2037,7 +2044,7 @@ When DEACTIVATE is non-nil, deactivate region/selection."
               "\n"
               "```"))))
 
-;;; Session mode cycling
+;;; Session modes
 
 (defun agent-shell--resolve-session-mode-name (mode-id available-session-modes)
   "Get the name of the session mode with MODE-ID from AVAILABLE-SESSION-MODES.
@@ -2108,6 +2115,35 @@ Uses :eval so the mode updates automatically when state changes."
                    (force-mode-line-update))
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change session mode: %s" error)))))
+
+(defun agent-shell--format-available-modes (modes &optional current-mode-id)
+  "Format MODES for shell rendering.
+If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
+  (let ((max-name-length (seq-reduce (lambda (acc mode)
+                                       (let ((name (map-elt mode 'name))
+                                             (is-current (and current-mode-id
+                                                            (string= (map-elt mode 'id) current-mode-id))))
+                                         (max acc (length (if is-current
+                                                              (concat name " (current)")
+                                                            name)))))
+                                     modes
+                                     0)))
+    (mapconcat
+     (lambda (mode)
+       (let* ((name (map-elt mode 'name))
+              (desc (map-elt mode 'description))
+              (is-current (and current-mode-id
+                              (string= (map-elt mode 'id) current-mode-id)))
+              (display-name (if is-current
+                                (concat name " (current)")
+                              name)))
+         (concat
+          (propertize (format (format "%%-%ds" max-name-length) display-name)
+                      'font-lock-face 'font-lock-function-name-face)
+          "  "
+          (propertize desc 'font-lock-face 'font-lock-comment-face))))
+     modes
+     "\n")))
 
 (provide 'agent-shell)
 
