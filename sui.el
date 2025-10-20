@@ -22,6 +22,10 @@
 (require 'map)
 (require 'cursor-sensor)
 
+(defvar-local sui--content-store nil
+  "A hash table used to save sui content like body.
+This avoids duplicating body content in text properties which is more costly.")
+
 (cl-defun sui-make-dialog-block-model (&key (namespace-id "global") (block-id "1") label-left label-right body)
   "Create a dialog block model alist.
 NAMESPACE-ID, BLOCK-ID, LABEL-LEFT, LABEL-RIGHT, and BODY are the keys."
@@ -150,12 +154,9 @@ For existing blocks, the current expansion state is preserved unless overridden.
                                  :property 'sui-section :value 'label-right)))
           (setf (map-elt dialog :label-right) (buffer-substring (map-elt label-right :start)
                                                                 (map-elt label-right :end))))
-        (if-let ((body (map-elt state :body)))
-            (setf (map-elt dialog :body) body)
-          (when-let ((body (sui--nearest-range-matching-property
-                            :property 'sui-section :value 'body)))
-            (setf (map-elt dialog :body) (buffer-substring (map-elt body :start)
-                                                           (map-elt body :end)))))))
+        (when sui--content-store
+          (when-let ((body (gethash (concat qualified-id "-body") sui--content-store)))
+            (setf (map-elt dialog :body) body)))))
     dialog))
 
 (cl-defun sui-delete-dialog-block (&key namespace-id block-id)
@@ -173,6 +174,8 @@ For existing blocks, the current expansion state is preserved unless overridden.
       (when match
         (let ((block-start (prop-match-beginning match))
               (block-end (prop-match-end match)))
+          (when sui--content-store
+            (remhash qualified-id sui--content-store))
           ;; Remove vertical space that's part of the block.
           (goto-char block-end)
           (skip-chars-forward " \t\n")
@@ -348,10 +351,17 @@ NAVIGATION controls navigability:
               (overlay-put ws-overlay 'invisible t)
               (overlay-put ws-overlay 'evaporate t)
               (overlay-put ws-overlay 'sui-section 'trailing-whitespace))))))
+    (when body
+      (unless sui--content-store
+        (setq sui--content-store (make-hash-table :test 'equal)))
+      (puthash (concat qualified-id "-body") body sui--content-store))
     (put-text-property
      block-start (or body-end label-right-end label-left-end)
      'sui-state (list
-                 (cons :body body)
+                 ;; Note: Avoid storing chunky data in
+                 ;; sui-state as it will impact performance.
+                 ;; Use sui--content-store for these instances.
+                 ;; For example, dialog body.
                  (cons :qualified-id qualified-id)
                  (cons :collapsed (not expanded))
                  (cons :navigatable (cond
