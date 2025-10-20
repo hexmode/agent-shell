@@ -673,10 +673,10 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
 
 (defun agent-shell--format-available-commands (commands)
   "Format COMMANDS for shell rendering."
-  (let ((max-name-length (cl-reduce #'max commands
-                                    :key (lambda (cmd)
-                                           (length (map-elt cmd 'name)))
-                                    :initial-value 0)))
+  (let ((max-name-length (seq-reduce (lambda (acc cmd)
+                                       (max acc (length (map-elt cmd 'name))))
+                                     commands
+                                     0)))
     (mapconcat
      (lambda (cmd)
        (let ((name (map-elt cmd 'name))
