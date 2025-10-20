@@ -483,6 +483,18 @@ Flow:
                   :label-left (propertize "Available commands" 'font-lock-face 'font-lock-doc-markup-face)
                   :body (agent-shell--format-available-commands (map-elt update 'availableCommands))))
                (map-put! state :last-entry-type "available_commands_update"))
+              ((equal (map-elt update 'sessionUpdate) "current_mode_update")
+               (let ((updated-session (map-elt state :session))
+                     (new-mode-id (map-elt update 'currentModeId)))
+                 (map-put! updated-session :mode-id new-mode-id)
+                 (map-put! state :session updated-session)
+                 (message "Session mode: %s"
+                          (agent-shell--resolve-session-mode-name
+                           new-mode-id
+                           (map-nested-elt (agent-shell--state)
+                                           '(:session :modes))))
+                 ;; Note: No need to set :last-entry-type as no text was inserted.
+                 (force-mode-line-update)))
               (t
                (agent-shell--update-dialog-block
                 :state state
@@ -495,7 +507,7 @@ Flow:
            (agent-shell--update-dialog-block
             :state state
             :block-id "Notification - fallback"
-            :body (format "%s" notification)
+            :body (format "Unhandled (please file an issue): %s" notification)
             :create-new t
             :navigation 'never)
            (map-put! state :last-entry-type nil)))))
