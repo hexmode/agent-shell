@@ -269,13 +269,27 @@ Returns an empty string if no icon should be displayed."
   (message "agent-shell v%s" agent-shell--version))
 
 (defun agent-shell-interrupt ()
-  "Interrupt in-progress request."
+  "Interrupt in-progress request and reject all pending permissions."
   (interactive)
   (unless (eq major-mode 'agent-shell-mode)
     (error "Not in a shell"))
   (unless (map-nested-elt (agent-shell--state) '(:session :id))
     (error "No active session"))
   (when (y-or-n-p "Abort?")
+    ;; First, reject all pending permission requests
+    (map-do
+     (lambda (tool-call-id tool-call-data)
+       (when (and (map-elt tool-call-data :permission-request-id)
+                  (map-elt tool-call-data :permission-reject-option-id))
+         (message "Rejecting pending permission for tool call: %s" tool-call-id)
+         (agent-shell--send-permission-response
+          :client (map-elt (agent-shell--state) :client)
+          :request-id (map-elt tool-call-data :permission-request-id)
+          :option-id (map-elt tool-call-data :permission-reject-option-id)
+          :state (agent-shell--state)
+          :tool-call-id tool-call-id)))
+     (map-elt (agent-shell--state) :tool-calls))
+    ;; Then send the cancel notification
     (acp-send-notification
      :client (map-elt (agent-shell--state) :client)
      :notification (acp-make-session-cancel-notification
@@ -517,13 +531,18 @@ Flow:
   "Handle incoming request using SHELL, STATE, and REQUEST."
   (let-alist request
     (cond ((equal .method "session/request_permission")
-           (agent-shell--save-tool-call
-            state .params.toolCall.toolCallId
-            (append (list (cons :title .params.toolCall.title)
-                          (cons :status .params.toolCall.status)
-                          (cons :kind .params.toolCall.kind))
-                    (when-let ((diff (agent-shell--make-diff-info .params.toolCall.content)))
-                      (list (cons :diff diff)))))
+           (let ((reject-option (seq-find (lambda (opt)
+                                            (equal (map-elt opt 'kind) "reject_once"))
+                                          .params.options)))
+             (agent-shell--save-tool-call
+              state .params.toolCall.toolCallId
+              (append (list (cons :title .params.toolCall.title)
+                            (cons :status .params.toolCall.status)
+                            (cons :kind .params.toolCall.kind)
+                            (cons :permission-request-id .id)
+                            (cons :permission-reject-option-id (map-elt reject-option 'optionId)))
+                      (when-let ((diff (agent-shell--make-diff-info .params.toolCall.content)))
+                        (list (cons :diff diff))))))
            (agent-shell--update-dialog-block
             :state state
             ;; block-id must be the same as the one used
@@ -1769,7 +1788,11 @@ Displays MESSAGE-TEXT and moves cursor to end."
   ;; block-id must be the same as the one used as
   ;; agent-shell--update-dialog-block param by "session/request_permission".
   (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" tool-call-id))
-  (message "%s" message-text)
+  (let ((updated-tool-calls (map-copy (map-elt state :tool-calls))))
+    (map-delete updated-tool-calls tool-call-id)
+    (map-put! state :tool-calls updated-tool-calls))
+  (when message-text
+    (message "%s" message-text))
   (goto-char (point-max)))
 
 (cl-defun agent-shell--resolve-permission-choice-to-action (&key choice actions)
