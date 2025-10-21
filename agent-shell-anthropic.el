@@ -133,11 +133,11 @@ additional environment variables."
                               (list "ANTHROPIC_API_KEY="))
                              (t
                               (error "Invalid authentication configuration")))))
-    (acp-make-client :command (car agent-shell-anthropic-claude-command)
-                     :command-params (cdr agent-shell-anthropic-claude-command)
-                     :environment-variables (append env-vars-overrides
-                                                    agent-shell-anthropic-claude-environment)
-                     :context-buffer buffer)))
+    (agent-shell--make-acp-client :command (car agent-shell-anthropic-claude-command)
+                                  :command-params (cdr agent-shell-anthropic-claude-command)
+                                  :environment-variables (append env-vars-overrides
+                                                                 agent-shell-anthropic-claude-environment)
+                                  :context-buffer buffer)))
 
 (defun agent-shell-anthropic-key ()
   "Get the Anthropic API key."
