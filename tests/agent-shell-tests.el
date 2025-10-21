@@ -245,14 +245,16 @@
   (let* ((temp-file (make-temp-file "agent-shell-test" nil ".txt"))
          (file-content "Test file content")
          (default-directory (file-name-directory temp-file))
-         (file-name (file-name-nondirectory temp-file)))
+         (file-name (file-name-nondirectory temp-file))
+         (file-path (expand-file-name temp-file))
+         (file-uri (concat "file://" file-path)))
 
     (unwind-protect
         (progn
           (with-temp-file temp-file
             (insert file-content))
 
-          ;; Mock agent-shell-cwd and agent-shell--state
+          ;; Mock agent-shell-cwd
           (cl-letf (((symbol-function 'agent-shell-cwd)
                      (lambda () default-directory)))
 
@@ -260,49 +262,48 @@
             (let ((agent-shell--state (list
                                        (cons :agent-supports-embedded-context t))))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
-                (should (> (length blocks) 0))
-                ;; Should have a resource block
-                (let ((resource-block (seq-find
-                                       (lambda (block)
-                                         (equal (map-elt block 'type) "resource"))
-                                       blocks)))
-                  (should resource-block)
-                  (should (equal (map-nested-elt resource-block '(resource text))
-                                 file-content)))))
+                (should (equal blocks
+                               `(((type . "text")
+                                  (text . "Analyze"))
+                                 ((type . "resource")
+                                  (resource . ((uri . ,file-uri)
+                                               (text . ,file-content)
+                                               (mimeType . "text/plain")))))))))
 
             ;; Test without embedded context support
             (let ((agent-shell--state (list
                                        (cons :agent-supports-embedded-context nil))))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
-                (should (> (length blocks) 0))
-                ;; Should have a resource_link block, not resource
-                (should-not (seq-find
-                             (lambda (block)
-                               (equal (map-elt block 'type) "resource"))
-                             blocks))
-                (should (seq-find
-                         (lambda (block)
-                           (equal (map-elt block 'type) "resource_link"))
-                         blocks))))
+                (should (equal blocks
+                               `(((type . "text")
+                                  (text . "Analyze"))
+                                 ((type . "resource_link")
+                                  (uri . ,file-uri)
+                                  (name . ,file-name)
+                                  (mimeType . "text/plain")
+                                  (size . ,(file-attribute-size (file-attributes temp-file)))))))))
 
-            ;; Test with large file (exceeds size limit)
+            ;; Test fallback by setting a very small file size limit
             (let ((agent-shell--state (list
                                        (cons :agent-supports-embedded-context t)))
-                  (agent-shell-embed-file-size-limit 5))  ; Very small limit
+                  (agent-shell-embed-file-size-limit 5))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
-                ;; Should use resource_link for large file
-                (should (seq-find
-                         (lambda (block)
-                           (equal (map-elt block 'type) "resource_link"))
-                         blocks))))
+                (should (equal blocks
+                               `(((type . "text")
+                                  (text . "Analyze"))
+                                 ((type . "resource_link")
+                                  (uri . ,file-uri)
+                                  (name . ,file-name)
+                                  (mimeType . "text/plain")
+                                  (size . ,(file-attribute-size (file-attributes temp-file)))))))))
 
             ;; Test with no mentions
             (let ((agent-shell--state (list
                                        (cons :agent-supports-embedded-context t))))
               (let ((blocks (agent-shell--build-content-blocks "No mentions here")))
-                (should (= (length blocks) 1))
-                (should (equal (map-elt (car blocks) 'type) "text"))
-                (should (equal (map-elt (car blocks) 'text) "No mentions here"))))))
+                (should (equal blocks
+                               '(((type . "text")
+                                  (text . "No mentions here")))))))))
 
       (delete-file temp-file))))
 
@@ -346,7 +347,7 @@
   (let ((sent-request nil)
         (agent-shell--state (list
                             (cons :client 'test-client)
-                            (cons :session-id "test-session")
+                            (cons :session (list (cons :id "test-session")))
                             (cons :agent-supports-embedded-context t)
                             (cons :buffer (current-buffer)))))
 
@@ -365,15 +366,48 @@
 
       ;; Verify basic request structure
       (let* ((request (plist-get sent-request :request))
-             (params (map-elt request 'params))
+             (params (map-elt request :params))
              (prompt (map-elt params 'prompt)))
-        ;; Should have session-id
-        (should (equal (map-elt params 'sessionId) "test-session"))
-        ;; Should have prompt as a vector
-        (should (vectorp prompt))
-        ;; Callbacks should be functions
-        (should (functionp (plist-get sent-request :on-success)))
-        (should (functionp (plist-get sent-request :on-failure)))))))
+        (should prompt)
+        (should (equal prompt '[((type . "text") (text . "Hello agent"))]))))))
+
+(ert-deftest agent-shell--send-command-error-fallback-test ()
+  "Test agent-shell--send-command falls back to plain text on build-content-blocks error."
+  (let ((sent-request nil)
+        (agent-shell--state (list
+                             (cons :client 'test-client)
+                             (cons :session (list (cons :id "test-session")))
+                             (cons :agent-supports-embedded-context t)
+                             (cons :buffer (current-buffer)))))
+
+    ;; Mock build-content-blocks to throw an error
+    (cl-letf (((symbol-function 'agent-shell--build-content-blocks)
+               (lambda (_prompt)
+                 (error "Simulated error in build-content-blocks")))
+              ((symbol-function 'acp-send-request)
+               (lambda (&rest args)
+                 (setq sent-request args))))
+
+      ;; First, verify that build-content-blocks actually throws an error
+      (should-error (agent-shell--build-content-blocks "Test prompt")
+                    :type 'error)
+
+      ;; Now verify send-command handles the error gracefully
+      (agent-shell--send-command
+       :prompt "Test prompt with @file.txt"
+       :shell nil)
+
+      ;; Verify request was sent (fallback succeeded)
+      (should sent-request)
+
+      ;; Verify it fell back to plain text
+      (let* ((request (plist-get sent-request :request))
+             (params (map-elt request :params))
+             (prompt (map-elt params 'prompt)))
+        ;; Should still have a prompt
+        (should prompt)
+        ;; Should be a single text block with the original prompt
+        (should (equal prompt '[((type . "text") (text . "Test prompt with @file.txt"))]))))))
 
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here

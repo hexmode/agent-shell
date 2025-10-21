@@ -1561,7 +1561,7 @@ Returns list of alists with :start, :end, and :path for each mention."
               (text . ,(substring-no-properties prompt pos)))
             content-blocks))
 
-    content-blocks))
+    (nreverse content-blocks)))
 
 (cl-defun agent-shell--collect-attached-files (content-blocks)
   "Collect attached resource uris from CONTENT-BLOCKS."
@@ -1589,7 +1589,10 @@ Returns list of alists with :start, :end, and :path for each mention."
 
 (cl-defun agent-shell--send-command (&key prompt shell)
   "Send PROMPT to agent using SHELL."
-  (let* ((content-blocks (agent-shell--build-content-blocks prompt))
+  (let* ((content-blocks (condition-case nil
+                             (agent-shell--build-content-blocks prompt)
+                           (error `[((type . "text")
+                                     (text . ,(substring-no-properties prompt)))])))
          (attached-files (agent-shell--collect-attached-files content-blocks)))
 
     (when attached-files (agent-shell--display-attached-files attached-files))
@@ -1598,8 +1601,7 @@ Returns list of alists with :start, :end, and :path for each mention."
      :client (map-elt agent-shell--state :client)
      :request (acp-make-session-prompt-request
                :session-id (map-nested-elt agent-shell--state '(:session :id))
-               :prompt `[((type . "text")
-                          (text . ,(substring-no-properties prompt)))])
+               :prompt content-blocks)
      :buffer (current-buffer)
      :on-success (lambda (response)
                    ;; Tool call details are no longer needed after
