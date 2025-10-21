@@ -350,15 +350,6 @@ Unless we have a strong argument to use something else, please stick with =alist
     (:favorite-toy . "Feather Wand"))
 #+end_src
 
-*** map.el
-
-Accessing and working with =alists=? Please prefer =map.el= unless we have a strong argument to use an alternative.
-
-#+begin_src emacs-lisp :lexical no
-  (setq animal (seq-first animals))
-  (map-elt animal :species)
-#+end_src
-
 *** seq.el
 
 Accessing and working with lists? Please prefer =seq.el=, unless we have a strong argument to use an alternative.
@@ -376,6 +367,15 @@ Accessing and working with lists? Please prefer =seq.el=, unless we have a stron
            (:color . "Brown"))))
 
   (seq-first animals)
+#+end_src
+
+*** map.el
+
+Accessing and working with =alists=? Please prefer =map.el= unless we have a strong argument to use an alternative.
+
+#+begin_src emacs-lisp :lexical no
+  (setq animal (seq-first animals))
+  (map-elt animal :species)
 #+end_src
 
 *** cl-lib (limited to =cl-defun=)
