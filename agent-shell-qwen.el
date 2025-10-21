@@ -35,11 +35,20 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
-(cl-defun agent-shell-qwen-make-authentication (&key login)
+(cl-defun agent-shell-qwen-make-authentication (&key login none)
   "Create Qwen Code authentication configuration.
 
-LOGIN when non-nil indicates to use login-based authentication (default)."
-  `((:login . ,login)))
+LOGIN when non-nil indicates to use login-based authentication (default).
+NONE when non-nil disables authentication.
+
+Only one of LOGIN or NONE should be provided, never both."
+  (when (and login none)
+    (error "Cannot specify both :login and :none - choose one"))
+  (unless (or login none)
+    (error "Must specify either :login or :none"))
+  (cond
+   (login `((:login . ,login)))
+   (none `((:none . t)))))
 
 (defcustom agent-shell-qwen-authentication
   (agent-shell-qwen-make-authentication :login t)
@@ -48,7 +57,12 @@ LOGIN when non-nil indicates to use login-based authentication (default)."
 For OAuth login-based authentication:
 
   (setq agent-shell-qwen-authentication
-        (agent-shell-qwen-make-authentication :login t))"
+        (agent-shell-qwen-make-authentication :login t))
+
+For no authentication (when using alternative authentication methods):
+
+  (setq agent-shell-qwen-authentication
+        (agent-shell-qwen-make-authentication :none t))"
   :type 'alist
   :group 'agent-shell)
 
@@ -87,11 +101,13 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :shell-prompt-regexp "qwen> "
    :icon-name "qwen.png"
    :welcome-function #'agent-shell-qwen--welcome-message
-   :needs-authentication t
+   :needs-authentication (not (map-elt agent-shell-qwen-authentication :none))
    :authenticate-request-maker (lambda ()
                                  (cond
                                   ((map-elt agent-shell-qwen-authentication :login)
                                    (acp-make-authenticate-request :method-id "qwen-oauth"))
+                                  ((map-elt agent-shell-qwen-authentication :none)
+                                   nil)
                                   (t
                                    (user-error "Unknown authentication: %s" agent-shell-qwen-authentication))))
    :client-maker (lambda (buffer)
@@ -105,7 +121,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :config (agent-shell-qwen-make-agent-config)))
 
 (cl-defun agent-shell-qwen-make-client (&key buffer)
-  "Create a Qwen Code client using OAuth authentication with BUFFER as context."
+  "Create a Qwen Code client with BUFFER as context."
   (unless buffer
     (error "Missing required argument: :buffer"))
   (acp-make-client :command (car agent-shell-qwen-command)
