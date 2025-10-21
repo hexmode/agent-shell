@@ -110,7 +110,6 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-openai-key) agent-shell-openai-key)
     (user-error "Please migrate to use agent-shell-openai-authentication and eval (setq agent-shell-openai-key nil)"))
   (agent-shell-make-agent-config
-   :new-session t
    :mode-line-name "Codex"
    :buffer-name "Codex"
    :shell-prompt "Codex> "

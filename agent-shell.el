@@ -112,7 +112,12 @@ Can be one of:
                  (const :tag "No header" nil))
   :group 'agent-shell)
 
-(cl-defun agent-shell-make-agent-config (&key no-focus new-session mode-line-name welcome-function
+(defcustom agent-shell-show-welcome-message t
+  "Non-nil to show welcome message."
+  :type 'boolean
+  :group 'agent-shell)
+
+(cl-defun agent-shell-make-agent-config (&key mode-line-name welcome-function
                                               buffer-name shell-prompt shell-prompt-regexp
                                               client-maker
                                               needs-authentication
@@ -122,8 +127,6 @@ Can be one of:
   "Create an agent configuration alist.
 
 Keyword arguments:
-- NO-FOCUS: Non-nil to avoid focusing the agent buffer
-- NEW-SESSION: Non-nil to start a new session
 - MODE-LINE-NAME: Name to display in the mode line
 - WELCOME-FUNCTION: Function to call for welcome message
 - BUFFER-NAME: Name of the agent buffer
@@ -136,9 +139,7 @@ Keyword arguments:
 - INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
 
 Returns an alist with all specified values."
-  `((:no-focus . ,no-focus)
-    (:new-session . ,new-session)
-    (:mode-line-name . ,mode-line-name)
+  `((:mode-line-name . ,mode-line-name)
     (:welcome-function . ,welcome-function)
     (:buffer-name . ,buffer-name)
     (:shell-prompt . ,shell-prompt)
@@ -222,9 +223,9 @@ With prefix argument NEW-SHELL, force start a new shell."
   "Programmatically start shell with CONFIG.
 
 See `agent-shell-make-agent-config' for config format."
-  (agent-shell--apply
-   :function #'agent-shell--start
-   :alist config))
+  (agent-shell--start :config config
+                      :no-focus nil
+                      :new-session t))
 
 (cl-defun agent-shell--config-icon (&key config)
   "Create icon string for CONFIG if available and icons are enabled.
@@ -954,63 +955,53 @@ FUNCTION should be a function accepting keyword arguments (&key ...)."
                    (list (car pair) (cdr pair)))
                  alist)))
 
-(cl-defun agent-shell--start (&key no-focus new-session mode-line-name welcome-function
-                                   buffer-name shell-prompt shell-prompt-regexp
-                                   client-maker
-                                   needs-authentication
-                                   authenticate-request-maker
-                                   icon-name
-                                   install-instructions)
-  "Start an agent shell programmatically.
+;;;###autoload
+(cl-defun agent-shell--start (&key config no-focus new-session)
+  "Programmatically start shell with CONFIG.
+
+See `agent-shell-make-agent-config' for config format.
 
 Set NO-FOCUS to start in background.
-Set NEW-SESSION to start a separate new session.
-Set MODE-LINE-NAME and BUFFER-NAME for display customization.
-Set SHELL-PROMPT and SHELL-PROMPT-REGEXP for shell prompt display.
-Set CLIENT-MAKER function to create the ACP client.
-Set NEEDS-AUTHENTICATION if ACP agent requires client authentication.
-Set AUTHENTICATE-REQUEST-MAKER to create authentication requests.
-Set WELCOME-FUNCTION for custom welcome message.
-Set INSTALL-INSTRUCTIONS for executable installation instructions.
-
-Returns the shell buffer."
+Set NEW-SESSION to start a separate new session."
   (unless (version<= "0.83.1" shell-maker-version)
     (error "Please update shell-maker to version 0.83.1 or newer"))
   (unless (version<= "0.5.2" acp-package-version)
     (error "Please update acp.el to version 0.5.2 or newer"))
   (with-temp-buffer ;; client-maker needs a buffer (use a temp one)
-    (unless (and client-maker (funcall client-maker (current-buffer)))
+    (unless (and (map-elt config :client-maker)
+                 (funcall (map-elt config :client-maker) (current-buffer)))
       (error "No way to create a new client"))
     (agent-shell--ensure-executable
-     (map-elt (funcall client-maker (current-buffer)) :command)
-     install-instructions))
+     (map-elt (funcall (map-elt config :client-maker) (current-buffer)) :command)
+     (map-elt config :install-instructions)))
   (let* ((shell-maker-config (agent-shell--make-shell-maker-config
-                              :prompt shell-prompt
-                              :prompt-regexp shell-prompt-regexp))
+                              :prompt (map-elt config :shell-prompt)
+                              :prompt-regexp (map-elt config :shell-prompt-regexp)))
          (agent-shell--shell-maker-config shell-maker-config)
          (default-directory (agent-shell-cwd))
          (shell-buffer
           (shell-maker-start agent-shell--shell-maker-config
                              no-focus
-                             (or welcome-function #'shell-maker-welcome-message)
+                             (when agent-shell-show-welcome-message
+                               (map-elt config :welcome-function))
                              new-session
-                             (concat buffer-name
+                             (concat (map-elt config :buffer-name)
                                      " Agent @ "
                                      (file-name-nondirectory
                                       (string-remove-suffix "/" default-directory)))
-                             mode-line-name)))
+                             (map-elt config :mode-line-name))))
     (with-current-buffer shell-buffer
       ;; Initialize buffer-local state
       (setq-local agent-shell--state (agent-shell--make-state
                                       :buffer shell-buffer
-                                      :client-maker client-maker
-                                      :needs-authentication needs-authentication
-                                      :authenticate-request-maker authenticate-request-maker))
+                                      :client-maker (map-elt config :client-maker)
+                                      :needs-authentication (map-elt config :needs-authentication)
+                                      :authenticate-request-maker (map-elt config :authenticate-request-maker)))
       ;; Initialize buffer-local shell-maker-config
       (setq-local agent-shell--shell-maker-config shell-maker-config)
       (setq header-line-format (agent-shell--make-header
-                                :icon-name icon-name
-                                :title (concat buffer-name " Agent")
+                                :icon-name (map-elt config :icon-name)
+                                :title (concat (map-elt config :buffer-name) " Agent")
                                 :location (string-remove-suffix "/" (abbreviate-file-name default-directory))))
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1)
@@ -2180,7 +2171,7 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
   (let ((max-name-length (seq-reduce (lambda (acc mode)
                                        (let ((name (map-elt mode 'name))
                                              (is-current (and current-mode-id
-                                                            (string= (map-elt mode 'id) current-mode-id))))
+                                                              (string= (map-elt mode 'id) current-mode-id))))
                                          (max acc (length (if is-current
                                                               (concat name " (current)")
                                                             name)))))
@@ -2191,7 +2182,7 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
        (let* ((name (map-elt mode 'name))
               (desc (map-elt mode 'description))
               (is-current (and current-mode-id
-                              (string= (map-elt mode 'id) current-mode-id)))
+                               (string= (map-elt mode 'id) current-mode-id)))
               (display-name (if is-current
                                 (concat name " (current)")
                               name)))
