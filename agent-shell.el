@@ -99,6 +99,13 @@ See `display-buffer' for the format of display actions."
   :type 'boolean
   :group 'agent-shell)
 
+(defcustom agent-shell-embed-file-size-limit 102400
+  "Maximum file size in bytes for embedding with ContentBlock::Resource.
+Files larger than this will use ContentBlock::ResourceLink instead.
+Default is 100KB (102400 bytes)."
+  :type 'integer
+  :group 'agent-shell)
+
 (defcustom agent-shell-header-style (if (display-graphic-p) 'graphical 'text)
   "Style for agent shell buffer headers.
 
@@ -187,7 +194,8 @@ and AUTHENTICATE-REQUEST-MAKER."
         (cons :chunked-group-count 0)
         (cons :request-count 0)
         (cons :tool-calls nil)
-        (cons :available-commands nil)))
+        (cons :available-commands nil)
+        (cons :agent-supports-embedded-context nil)))
 
 (defvar-local agent-shell--state
     (agent-shell--make-state))
@@ -1407,8 +1415,13 @@ Must provide ON-INITIATED (lambda ())."
              :protocol-version 1
              :read-text-file-capability agent-shell-text-file-capabilities
              :write-text-file-capability agent-shell-text-file-capabilities)
-   :on-success (lambda (_response)
-                 ;; TODO: More to be handled?
+   :on-success (lambda (response)
+                 (with-current-buffer (map-elt shell :buffer)
+                   ;; Check if agent supports embeddedContext
+                   (let ((embedded-context-supported
+                          (map-nested-elt response '(agentCapabilities promptCapabilities embeddedContext))))
+                     (map-put! agent-shell--state :agent-supports-embedded-context
+                               (eq embedded-context-supported t))))
                  (funcall on-initiated))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
@@ -1492,30 +1505,138 @@ Must provide ON-SESSION-INIT (lambda ())."
    :on-request (lambda (request)
                  (agent-shell--on-request :state state :request request))))
 
+(defun agent-shell--parse-file-mentions (prompt)
+  "Parse @ file mentions from PROMPT string.
+Returns list of alists with :start, :end, and :path for each mention."
+  (let ((mentions '())
+        (pos 0))
+    (while (string-match "\\(?:^\\|[[:space:]]\\)@\\(?:\"\\([^\"]+\\)\"\\|\\([^[:space:]]+\\)\\)" prompt pos)
+      (push `((:start . ,(match-beginning 0))
+              (:end . ,(match-end 0))
+              (:path . ,(or (match-string 1 prompt) (match-string 2 prompt))))
+            mentions)
+      (setq pos (match-end 0)))
+    (nreverse mentions)))
+
+(cl-defun agent-shell--build-content-blocks (prompt)
+  "Build content blocks from the PROMPT."
+  (let* ((supports-embedded-context (map-elt agent-shell--state :agent-supports-embedded-context))
+         (mentions (agent-shell--parse-file-mentions prompt))
+         (content-blocks '())
+         (pos 0))
+    (dolist (mention mentions)
+      (let* ((start (map-elt mention :start))
+             (end (map-elt mention :end))
+             (path (map-elt mention :path))
+             (resolved-path (expand-file-name path (agent-shell-cwd))))
+
+        ;; Add text before mention
+        (when (> start pos)
+          (push `((type . "text")
+                  (text . ,(substring-no-properties prompt pos start)))
+                content-blocks))
+
+        ;; Try to embed or link file
+        (condition-case nil
+            (if (file-readable-p resolved-path)
+              (let ((file-size (file-attribute-size (file-attributes resolved-path))))
+                ;; Agent supports embeddedContext and file is small - embed full content
+                (if (and supports-embedded-context
+                         file-size
+                         (< file-size agent-shell-embed-file-size-limit))
+                    (let ((content (with-temp-buffer
+                                     (insert-file-contents resolved-path)
+                                     (buffer-string))))
+                      (push `((type . "resource")
+                              (resource . ((uri . ,(concat "file://" resolved-path))
+                                           (text . ,content)
+                                           ;; TODO: Determine mimetype instead of hardcoding
+                                           (mimeType . "text/plain"))))
+                            content-blocks))
+                  ;; File too large or agent doesn't support embeddedContext - use resource link
+                  ;; so agent can fetch via fs/read_text_file RPC if needed
+                  (push `((type . "resource_link")
+                          (uri . ,(concat "file://" resolved-path))
+                          (name . ,path)
+                          ;; TODO: Determine mimetype instead of hardcoding
+                          (mimeType . "text/plain")
+                          (size . ,file-size))
+                        content-blocks)))
+              ;; File's not readable, so also keep it as text
+              (push `((type . "text")
+                      (text . ,(substring-no-properties prompt start end)))
+                    content-blocks))
+          (error
+           ;; On error, just keep the mention as text
+           (push `((type . "text")
+                   (text . ,(substring-no-properties prompt start end)))
+                 content-blocks)))
+
+        (setq pos end)))
+
+    ;; Add remaining text
+    (when (< pos (length prompt))
+      (push `((type . "text")
+              (text . ,(substring-no-properties prompt pos)))
+            content-blocks))
+
+    (nreverse content-blocks)))
+
+(cl-defun agent-shell--collect-attached-files (content-blocks)
+  "Collect attached resource uris from CONTENT-BLOCKS."
+  (mapcan
+   (lambda (content-block)
+     (let ((type (map-elt content-block 'type)))
+       (cond
+        ((equal type "resource") (list (map-nested-elt content-block '(resource uri))))
+        ((equal type "resource_link") (list (map-elt content-block 'uri)))
+        (t nil))))
+   content-blocks))
+
+(cl-defun agent-shell--display-attached-files (uris)
+  "Display the attached URIS in the buffer."
+  (agent-shell--update-dialog-block
+   :state agent-shell--state
+   :block-id "attached-files"
+   :label-left (format "%d file%s attached"
+                       (length uris)
+                       (if (= (length uris) 1) "" "s"))
+   :body (mapconcat (lambda (f) (format "• %s" f))
+                    (nreverse uris)
+                    "\n")
+   :create-new t))
+
 (cl-defun agent-shell--send-command (&key prompt shell)
   "Send PROMPT to agent using SHELL."
-  (acp-send-request
-   :client (map-elt agent-shell--state :client)
-   :request (acp-make-session-prompt-request
-             :session-id (map-nested-elt agent-shell--state '(:session :id))
-             :prompt `[((type . "text")
-                        (text . ,(substring-no-properties prompt)))])
-   :buffer (current-buffer)
-   :on-success (lambda (response)
-                 ;; Tool call details are no longer needed after
-                 ;; a session prompt request is finished.
-                 ;; Avoid accumulating them unnecessarily.
-                 (map-put! (agent-shell--state) :tool-calls nil)
-                 (let ((success (equal (map-elt response 'stopReason)
-                                       "end_turn")))
-                   (unless success
-                     (funcall (map-elt shell :write-output)
-                              (agent-shell--stop-reason-description
-                               (map-elt response 'stopReason))))
-                   (funcall (map-elt shell :finish-output) t)))
-   :on-failure (lambda (error raw-message)
-                 (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
-                          error raw-message))))
+  (let* ((content-blocks (condition-case nil
+                             (agent-shell--build-content-blocks prompt)
+                           (error `[((type . "text")
+                                     (text . ,(substring-no-properties prompt)))])))
+         (attached-files (agent-shell--collect-attached-files content-blocks)))
+
+    (when attached-files (agent-shell--display-attached-files attached-files))
+
+    (acp-send-request
+     :client (map-elt agent-shell--state :client)
+     :request (acp-make-session-prompt-request
+               :session-id (map-nested-elt agent-shell--state '(:session :id))
+               :prompt content-blocks)
+     :buffer (current-buffer)
+     :on-success (lambda (response)
+                   ;; Tool call details are no longer needed after
+                   ;; a session prompt request is finished.
+                   ;; Avoid accumulating them unnecessarily.
+                   (map-put! (agent-shell--state) :tool-calls nil)
+                   (let ((success (equal (map-elt response 'stopReason)
+                                         "end_turn")))
+                     (unless success
+                       (funcall (map-elt shell :write-output)
+                                (agent-shell--stop-reason-description
+                                 (map-elt response 'stopReason))))
+                     (funcall (map-elt shell :finish-output) t)))
+     :on-failure (lambda (error raw-message)
+                   (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
+                            error raw-message)))))
 
 ;;; Projects
 
