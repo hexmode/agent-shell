@@ -30,7 +30,7 @@ With agent-shell, you can chat with the likes of Gemini CLI, Claude Code, or any
 
 ** External dependencies
 
-*** ACP adapter for Claude Code
+*** Claude Code
 
 For Anthropic's Claude Code, follow [[https://github.com/zed-industries/claude-code-acp][Zed's claude-code-acp instructions]], typically something like:
 
@@ -40,13 +40,13 @@ npm install -g @zed-industries/claude-code-acp
 
 *Note:* The =-g= flag is required to install the binary globally so it's available in your PATH. After installation, verify it's available by running =which claude-code-acp= in your terminal.
 
-*** Gemini CLI
-
-For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sure to get a recent release supporting the =--experimental-acp= flag.
-
 *** Codex
 
 For OpenAI's Codex, install [[https://github.com/zed-industries/codex-acp][zed/codex-acp]] and ensure the `codex-acp` executable is in PATH.
+
+*** Gemini CLI
+
+For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sure to get a recent release supporting the =--experimental-acp= flag.
 
 *** Goose
 
