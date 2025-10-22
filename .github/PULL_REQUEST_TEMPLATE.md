@@ -1,8 +1,4 @@
-## Description
-
-Please make sure to read the [Contributing](https://github.com/xenodium/agent-shell?tab=readme-ov-file#contributing) section of the [README](https://github.com/xenodium/agent-shell) before submitting this PR.
-
-Thank you for contributing!
+Thank you for contributing to agent-shell!
 
 ## Checklist
 
