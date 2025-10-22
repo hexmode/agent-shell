@@ -1898,7 +1898,7 @@ For example:
                           :navigatable t))
                        actions
                        " ")
-            interrupt-button))))
+            interrupt-button)))
 
 (cl-defun agent-shell--send-permission-response (&key client request-id option-id cancelled state tool-call-id message-text)
   "Send permission response and cleanup dialog.
