@@ -80,6 +80,39 @@ returns the resolved path.  Set to nil to disable mapping."
   :type 'function
   :group 'agent-shell)
 
+(defcustom agent-shell-container-command-runner nil
+  "Command prefix for executing commands in a container.
+
+When non-nil, both the agent command and shell commands will be
+executed using this runner. Should be a list of command arguments.
+
+Example for devcontainer:
+  \\='(\"devcontainer\" \"exec\" \"--workspace-folder\" \".\")"
+  :type '(repeat string)
+  :group 'agent-shell)
+
+(cl-defun agent-shell--make-acp-client (&key command
+                                             command-params
+                                             environment-variables
+                                             context-buffer)
+  "Create an ACP client, optionally wrapping with container runner.
+
+COMMAND, COMMAND-PARAMS, ENVIRONMENT-VARIABLES, and CONTEXT-BUFFER are
+passed through to `acp-make-client'.
+
+If `agent-shell-container-command-runner' is set, the command will be
+wrapped with the runner prefix."
+  (let* ((full-command (append (list command) command-params))
+         (wrapped-command
+          (if agent-shell-container-command-runner
+              (append agent-shell-container-command-runner
+                      full-command)
+            full-command)))
+    (acp-make-client :command (car wrapped-command)
+                     :command-params (cdr wrapped-command)
+                     :environment-variables environment-variables
+                     :context-buffer context-buffer)))
+
 (defcustom agent-shell-text-file-capabilities t
   "Whether agents are initialized with read/write text file capabilities.
 
@@ -1681,11 +1714,14 @@ inserted into the shell buffer prompt."
          (proc (make-process
                 :name command
                 :buffer output-buffer
-                :command (list shell-file-name
-                               shell-command-switch
-                               ;; Merge stderr into stdout output
-                               ;; (all into output buffer)
-                               (format "%s 2>&1" command))
+                :command (let ((cmd (list shell-file-name
+                                          shell-command-switch
+                                          ;; Merge stderr into stdout output
+                                          ;; (all into output buffer)
+                                          (format "%s 2>&1" command))))
+                           (if agent-shell-container-command-runner
+                             (append agent-shell-container-command-runner cmd)
+                             cmd))
                 :connection-type 'pipe
                 :filter
                 (lambda (proc output)

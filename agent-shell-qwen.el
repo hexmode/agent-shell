@@ -124,10 +124,10 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   "Create a Qwen Code client with BUFFER as context."
   (unless buffer
     (error "Missing required argument: :buffer"))
-  (acp-make-client :command (car agent-shell-qwen-command)
-                   :command-params (cdr agent-shell-qwen-command)
-                   :environment-variables agent-shell-qwen-environment
-                   :context-buffer buffer))
+  (agent-shell--make-acp-client :command (car agent-shell-qwen-command)
+                                :command-params (cdr agent-shell-qwen-command)
+                                :environment-variables agent-shell-qwen-environment
+                                :context-buffer buffer))
 
 (defun agent-shell-qwen--welcome-message (config)
   "Return Qwen Code ASCII art as welcome message using `shell-maker' CONFIG."
