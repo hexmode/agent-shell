@@ -287,14 +287,13 @@ Returns an empty string if no icon should be displayed."
     ;; First cancel all pending permission requests
     (map-do
      (lambda (tool-call-id tool-call-data)
-       (if (map-elt tool-call-data :permission-request-id)
-           (agent-shell--send-permission-response
-            :client (map-elt (agent-shell--state) :client)
-            :request-id (map-elt tool-call-data :permission-request-id)
-            :cancelled t
-            :state (agent-shell--state)
-            :tool-call-id tool-call-id)
-         (message "Couldn't cancel pending tool call. Please file a bug.")))
+       (when (map-elt tool-call-data :permission-request-id)
+         (agent-shell--send-permission-response
+          :client (map-elt (agent-shell--state) :client)
+          :request-id (map-elt tool-call-data :permission-request-id)
+          :cancelled t
+          :state (agent-shell--state)
+          :tool-call-id tool-call-id)))
      (map-elt (agent-shell--state) :tool-calls))
     ;; Then send the cancel notification
     (acp-send-notification
