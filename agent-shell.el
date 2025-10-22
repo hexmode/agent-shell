@@ -283,7 +283,7 @@ Returns an empty string if no icon should be displayed."
     (error "Not in a shell"))
   (unless (map-nested-elt (agent-shell--state) '(:session :id))
     (error "No active session"))
-  (when (y-or-n-p "Abort?")
+  (when (y-or-n-p "Interrupt?")
     ;; First cancel all pending permission requests
     (map-do
      (lambda (tool-call-id tool-call-data)
@@ -1830,6 +1830,8 @@ For example:
                                           :request-id (map-elt request 'id)
                                           :state state
                                           :tool-call-id tool-call-id)))
+                   ;; Add interrupt keybinding
+                   (define-key map (kbd "C-c C-c") #'agent-shell-interrupt)
                    map))
          (diff-button (when diff
                         (agent-shell--make-permission-button
@@ -1845,13 +1847,22 @@ For example:
                          :keymap keymap
                          :navigatable t
                          :char ?v
-                         :option "view diff"))))
+                         :option "view diff")))
+         (interrupt-key (key-description (where-is-internal 'agent-shell-interrupt agent-shell-mode-map t)))
+         (interrupt-button (agent-shell--make-permission-button
+                            :text (format "Interrupt (%s)" interrupt-key)
+                            :help (format "Press %s to interrupt" interrupt-key)
+                            :action #'agent-shell-interrupt
+                            :keymap keymap
+                            :navigatable t
+                            :char (aref (kbd interrupt-key) 0)
+                            :option "interrupt")))
     (format "╭─
 
     %s %s %s%s
 
 
-    %s%s
+    %s%s %s
 
 
 ╰─"
@@ -1886,7 +1897,8 @@ For example:
                           :option (map-elt action :option)
                           :navigatable t))
                        actions
-                       " "))))
+                       " ")
+            interrupt-button))))
 
 (cl-defun agent-shell--send-permission-response (&key client request-id option-id cancelled state tool-call-id message-text)
   "Send permission response and cleanup dialog.
