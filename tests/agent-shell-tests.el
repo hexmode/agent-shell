@@ -409,5 +409,39 @@
         ;; Should be a single text block with the original prompt
         (should (equal prompt '[((type . "text") (text . "Test prompt with @file.txt"))]))))))
 
+(ert-deftest agent-shell--format-diff-as-text-test ()
+  "Test `agent-shell--format-diff-as-text' function."
+  ;; Test nil input
+  (should (equal (agent-shell--format-diff-as-text nil) nil))
+
+  ;; Test basic diff formatting
+  (let* ((old-text "line 1\nline 2\nline 3\n")
+         (new-text "line 1\nline 2 modified\nline 3\n")
+         (diff-info `((:old . ,old-text)
+                      (:new . ,new-text)
+                      (:file . "test.txt")))
+         (result (agent-shell--format-diff-as-text diff-info)))
+
+    ;; Should return a string
+    (should (stringp result))
+
+    ;; Should NOT contain file header lines with timestamps (they should be stripped)
+    (should-not (string-match-p "^---" result))
+    (should-not (string-match-p "^\\+\\+\\+" result))
+
+    ;; Should contain unified diff hunk headers
+    (should (string-match-p "^@@" result))
+
+    ;; Should contain the actual changes
+    (should (string-match-p "^-line 2" result))
+    (should (string-match-p "^\\+line 2 modified" result))
+
+    ;; Should have syntax highlighting (text properties)
+    (let ((has-diff-face nil))
+      (dotimes (i (length result))
+        (when (get-text-property i 'font-lock-face result)
+          (setq has-diff-face t)))
+      (should has-diff-face))))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
