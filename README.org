@@ -289,12 +289,12 @@ Start a specific agent shell session directly:
 
 ** Running agents in Devcontainers / Docker containers (Experimental)
 
-=agent-shell= provides rudimentary support for running agents in containers.
+=agent-shell= provides rudimentary support for running agents and shell commands in containers.
 
-Adapt the command that starts the agent so it is executed inside the container; for example:
+Use =agent-shell-container-command-runner= to prefix the command that starts the agent, or a shell command that should be run so it is executed inside the container; for example:
 
 #+begin_src emacs-lisp
-(setq agent-shell-anthropic-claude-command '("devcontainer" "exec" "--workspace-folder" "." "claude-code-acp"))
+(setq agent-shell-container-command-runner '("devcontainer" "exec" "--workspace-folder" "."))
 #+end_src
 
 Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container.
