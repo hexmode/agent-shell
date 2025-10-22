@@ -647,6 +647,15 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
            :response (acp-make-fs-read-text-file-response
                       :request-id .id
                       :content content)))
+      (quit
+       ;; Handle C-g interrupts during file read prompts
+       (acp-send-response
+        :client (map-elt state :client)
+        :response (acp-make-fs-read-text-file-response
+                   :request-id .id
+                   :error (acp-make-error
+                           :code -32603
+                           :message "Operation cancelled by user"))))
       (error
        (acp-send-response
         :client (map-elt state :client)
@@ -680,6 +689,15 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
            :client (map-elt state :client)
            :response (acp-make-fs-write-text-file-response
                       :request-id .id)))
+      (quit
+       ;; Handle C-g interrupts during file save prompts
+       (acp-send-response
+        :client (map-elt state :client)
+        :response (acp-make-fs-write-text-file-response
+                   :request-id .id
+                   :error (acp-make-error
+                           :code -32603
+                           :message "Operation cancelled by user"))))
       (error
        (acp-send-response
         :client (map-elt state :client)
