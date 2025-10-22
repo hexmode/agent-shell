@@ -54,6 +54,7 @@ Arguments:
   :OLD-LABEL - Label for old content (default: \"before\")
   :NEW-LABEL - Label for new content (default: \"after\")"
   (let* ((diff-buffer (generate-new-buffer "*quick-diff*"))
+         (calling-window (selected-window))
          (calling-buffer (current-buffer)))
     (unwind-protect
         (progn
@@ -113,8 +114,14 @@ Arguments:
                                            'reject)
                                        (quit 'ignore)))
                             ;; Make sure give focus back to calling buffer on exit.
-                            (when-let ((calling-window (get-buffer-window calling-buffer)))
-                              (select-window calling-window))))
+                            (if (and (window-live-p calling-window)
+                                     (eq (window-buffer calling-window) calling-buffer))
+                                ;; Calling buffer still on calling window, just select it.
+                                (select-window calling-window)
+                              ;; Calling buffer not on calling window, restore it.
+                              (progn
+                                (set-window-buffer calling-window calling-buffer)
+                                (select-window calling-window)))))
                         nil t))
             (setq buffer-read-only t)
             (let ((map (make-sparse-keymap)))
