@@ -297,18 +297,16 @@ Use =agent-shell-container-command-runner= to prefix the command that starts the
 (setq agent-shell-container-command-runner '("devcontainer" "exec" "--workspace-folder" "."))
 #+end_src
 
-Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container.
-It's expected to inject environment variables by means of your devcontainer configuration / Dockerfile.
+Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container. It's expected to inject environment variables by means of your devcontainer configuration / Dockerfile.
 
 Next, set an =agent-shell-path-resolver-function= that resolves container paths in the local working directory, and vice versa.
-Agent shell provides the =agent-shell--resolve-devcontainer-path= function for use with devcontainers:
+Agent shell provides the =agent-shell--resolve-devcontainer-path= function for use with devcontainers specifically: it reads the =workspaceFolder= specified in =.devcontainer/devcontainer.json=, or uses the default value of =/workspaces/<repository-name>= otherwise.
 
 #+begin_src emacs-lisp
 (setq agent-shell-path-resolver-function #'agent-shell--resolve-devcontainer-path)
 #+end_src
 
-Note that this allows the agent to access files on your local file-system.
-While care has been taken to restrict access to files in the local working directory, it's probably possible for a malicious agent to circumvent this restriction.
+Note that this allows the agent to access files on your local file-system. While care has been taken to restrict access to files in the local working directory, it's probably possible for a malicious agent to circumvent this restriction.
 
 Optional: to prevent the agent running inside the container to access your local file-system altogether and to have it read/modify files inside the container directly, in addition to setting the resolver function, disable the "read/write text file" client capabilities:
 
