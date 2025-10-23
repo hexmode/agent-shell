@@ -500,16 +500,21 @@ Flow:
                                 (cons :content (map-elt update 'content)))
                           (when-let ((diff (agent-shell--make-diff-info (map-elt update 'content))))
                             (list (cons :diff diff)))))
-                 (let ((output (concat
-                                "\n\n"
-                                ;; TODO: Consider if there are other
-                                ;; types of content to display.
-                                (mapconcat (lambda (item)
-                                             (let-alist item
-                                               .content.text))
-                                           .content
-                                           "\n\n")
-                                "\n\n")))
+                 (let* ((diff (map-nested-elt state `(:tool-calls ,.toolCallId :diff)))
+                        (output (concat
+                                 "\n\n"
+                                 ;; TODO: Consider if there are other
+                                 ;; types of content to display.
+                                 (mapconcat (lambda (item)
+                                              (let-alist item
+                                                .content.text))
+                                            .content
+                                            "\n\n")
+                                 "\n\n"))
+                        (diff-text (agent-shell--format-diff-as-text diff))
+                        (body-text (if diff-text
+                                       (concat output "\n\nDiff:\n\n" diff-text)
+                                     output)))
                    ;; Hide permission after sending response.
                    ;; Status and permission are no longer pending. User
                    ;; likely selected one of: accepted/rejected/always.
@@ -526,7 +531,7 @@ Flow:
                       :block-id .toolCallId
                       :label-left (map-elt tool-call-labels :status)
                       :label-right (map-elt tool-call-labels :title)
-                      :body (string-trim output)))))
+                      :body (string-trim body-text)))))
                (map-put! state :last-entry-type "tool_call_update"))
               ((equal (map-elt update 'sessionUpdate) "available_commands_update")
                (let-alist update
@@ -813,6 +818,49 @@ Returns in the form:
             (when file-path
               (list (cons :file file-path))))))
 
+
+(defun agent-shell--format-diff-as-text (diff)
+  "Format DIFF info as text suitable for display in tool call body.
+
+DIFF should be in the form returned by `agent-shell--make-diff-info':
+  ((:old . old-text) (:new . new-text) (:file . file-path))"
+  (when-let ((_ diff)
+             (old-file (make-temp-file "old"))
+             (new-file (make-temp-file "new")))
+    (unwind-protect
+        (progn
+          (with-temp-file old-file (insert (map-elt diff :old)))
+          (with-temp-file new-file (insert (map-elt diff :new)))
+          (with-temp-buffer
+            (call-process "diff" nil t nil "-U3" old-file new-file)
+            ;; Remove file header lines with timestamps
+            (goto-char (point-min))
+            (when (looking-at "^---")
+              (delete-region (point) (progn (forward-line 1) (point))))
+            (when (looking-at "^\\+\\+\\+")
+              (delete-region (point) (progn (forward-line 1) (point))))
+            ;; Apply diff syntax highlighting
+            (goto-char (point-min))
+            (while (not (eobp))
+              (let ((line-start (point))
+                    (line-end (line-end-position)))
+                (cond
+                 ;; Removed lines (start with -)
+                 ((looking-at "^-")
+                  (add-text-properties line-start line-end
+                                       '(font-lock-face diff-removed)))
+                 ;; Added lines (start with +)
+                 ((looking-at "^\\+")
+                  (add-text-properties line-start line-end
+                                       '(font-lock-face diff-added)))
+                 ;; Hunk headers (@@)
+                 ((looking-at "^@@")
+                  (add-text-properties line-start line-end
+                                       '(font-lock-face diff-hunk-header))))
+                (forward-line 1)))
+            (buffer-string)))
+      (delete-file old-file)
+      (delete-file new-file))))
 (cl-defun agent-shell--make-error-handler (&key state shell)
   "Create ACP error handler with SHELL STATE."
   (lambda (error raw-message)
