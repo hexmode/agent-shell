@@ -2193,68 +2193,91 @@ Returns nil if the ACP-OPTION kind is not recognized."
 
 ;;; Region
 
-(cl-defun agent-shell-add-region ()
-  "Add region to last accessed shell buffer in project."
-  (interactive)
+(cl-defun agent-shell-insert (&key text submit)
+  "Insert TEXT into the agent shell at `point-max'.
+
+SUBMIT, when non-nil, submits the shell buffer after insertion.
+
+Returns an alist with insertion details or nil otherwise:
+
+  ((:buffer . BUFFER)
+   (:start . START)
+   (:end . END))"
+  (unless text
+    (user-error "No text provided to insert"))
   (let* ((shell-buffer (or (seq-first (agent-shell-project-buffers))
                            (user-error "No agent shell buffers available for current project")))
-         (region (or (agent-shell--get-region :deactivate t)
-                     (user-error "No region selected")))
          (inhibit-read-only t)
          (insert-start (progn
                          ;; Displaying before with-current-buffer below
                          ;; ensures window is selected, thus window-point
                          ;; is also updated after insertion.
                          (agent-shell--display-buffer shell-buffer)
-                         (point-max))))
+                         (point-max)))
+         (insert-end nil))
     (with-current-buffer shell-buffer
       (when (shell-maker-busy)
         (user-error "Busy, try later"))
       (save-excursion
         (save-restriction
           (goto-char insert-start)
-          (insert "\n\n")
-          (insert (if (map-elt region :file)
-                      (sui-add-action-to-text
-                       (format "%s:%d-%d"
-                               (file-relative-name (map-elt region :file)
-                                                   (agent-shell-cwd))
-                               (map-elt region :line-start)
-                               (map-elt region :line-end))
-                       (lambda ()
-                         (interactive)
-                         (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
-                             (if-let ((window (when (get-file-buffer (map-elt region :file))
-                                                (get-buffer-window (get-file-buffer (map-elt region :file))))))
-                                 (progn
-                                   (select-window window)
-                                   (goto-char (point-min))
-                                   (forward-line (1- (map-elt region :line-start)))
-                                   (beginning-of-line)
-                                   (push-mark (save-excursion
-                                                (goto-char (point-min))
-                                                (forward-line (1- (map-elt region :line-end)))
-                                                (end-of-line)
-                                                (point))
-                                              t t))
-                               (find-file (map-elt region :file))
-                               (goto-char (point-min))
-                               (forward-line (1- (map-elt region :line-start)))
-                               (beginning-of-line)
-                               (push-mark (save-excursion
-                                            (goto-char (point-min))
-                                            (forward-line (1- (map-elt region :line-end)))
-                                            (end-of-line)
-                                            (point))
-                                          t t))
-                           (message "File not found")))
-                       (lambda ()
-                         (message "Press RET to open file"))
-                       'link)
-                    (or (map-elt region :content)
-                        "???")))
-          (narrow-to-region insert-start (point))
-          (markdown-overlays-put))))))
+          (unless submit
+            (insert "\n\n"))
+          (insert text)
+          (setq insert-end (point))
+          (narrow-to-region insert-start insert-end)
+          (markdown-overlays-put)))
+      (when submit
+        (shell-maker-submit)))
+    `((:buffer . ,shell-buffer)
+      (:start . ,insert-start)
+      (:end . ,insert-end))))
+
+(cl-defun agent-shell-add-region ()
+  "Add region to last accessed shell buffer in project."
+  (interactive)
+  (let* ((region (or (agent-shell--get-region :deactivate t)
+                     (user-error "No region selected")))
+         (text (if (map-elt region :file)
+                   (sui-add-action-to-text
+                    (format "%s:%d-%d"
+                            (file-relative-name (map-elt region :file)
+                                                (agent-shell-cwd))
+                            (map-elt region :line-start)
+                            (map-elt region :line-end))
+                    (lambda ()
+                      (interactive)
+                      (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
+                          (if-let ((window (when (get-file-buffer (map-elt region :file))
+                                             (get-buffer-window (get-file-buffer (map-elt region :file))))))
+                              (progn
+                                (select-window window)
+                                (goto-char (point-min))
+                                (forward-line (1- (map-elt region :line-start)))
+                                (beginning-of-line)
+                                (push-mark (save-excursion
+                                             (goto-char (point-min))
+                                             (forward-line (1- (map-elt region :line-end)))
+                                             (end-of-line)
+                                             (point))
+                                           t t))
+                            (find-file (map-elt region :file))
+                            (goto-char (point-min))
+                            (forward-line (1- (map-elt region :line-start)))
+                            (beginning-of-line)
+                            (push-mark (save-excursion
+                                         (goto-char (point-min))
+                                         (forward-line (1- (map-elt region :line-end)))
+                                         (end-of-line)
+                                         (point))
+                                       t t))
+                        (message "File not found")))
+                    (lambda ()
+                      (message "Press RET to open file"))
+                    'link)
+                 (or (map-elt region :content)
+                     "???"))))
+    (agent-shell-insert :text text)))
 
 (cl-defun agent-shell--get-region (&key deactivate)
   "Get the active region as an alist.
