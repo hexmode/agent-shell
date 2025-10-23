@@ -513,7 +513,11 @@ Flow:
                                  "\n\n"))
                         (diff-text (agent-shell--format-diff-as-text diff))
                         (body-text (if diff-text
-                                       (concat output "\n\nDiff:\n\n" diff-text)
+                                       (concat output
+                                               "\n\n"
+                                               "╭─────────╮\n"
+                                               "│ changes │\n"
+                                               "╰─────────╯\n\n" diff-text)
                                      output)))
                    ;; Hide permission after sending response.
                    ;; Status and permission are no longer pending. User
