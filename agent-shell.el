@@ -84,7 +84,7 @@ returns the resolved path.  Set to nil to disable mapping."
   "Command prefix for executing commands in a container.
 
 When non-nil, both the agent command and shell commands will be
-executed using this runner. Should be a list of command arguments.
+executed using this runner.  Should be a list of command arguments.
 
 Example for devcontainer:
   \\='(\"devcontainer\" \"exec\" \"--workspace-folder\" \".\")"
@@ -2003,11 +2003,17 @@ For example:
             interrupt-button)))
 
 (cl-defun agent-shell--send-permission-response (&key client request-id option-id cancelled state tool-call-id message-text)
-  "Send permission response and cleanup dialog.
+  "Send a response to a permission request and clean up related dialog UI.
 
-Uses CLIENT to send response with REQUEST-ID and OPTION-ID.
-Cleans up dialog using STATE and TOOL-CALL-ID.
-Displays MESSAGE-TEXT and moves cursor to end."
+Choose OPTION-ID or CANCELLED (never both).
+
+CLIENT: The ACP client used to send the response.
+REQUEST-ID: The ID of the original permission request.
+OPTION-ID: The ID of the selected permission option.
+CANCELLED: Non-nil if the request was cancelled instead of selecting an option.
+STATE: The buffer-local agent-shell session state.
+TOOL-CALL-ID: The tool call identifier.
+MESSAGE-TEXT: Optional message to display after sending the response."
   (acp-send-response
    :client client
    :response (acp-make-session-request-permission-response
