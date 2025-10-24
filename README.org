@@ -25,7 +25,8 @@ With agent-shell, you can chat with the likes of Gemini CLI, Claude Code, or any
 * Related projects
 
 - [[https://github.com/xenodium/acp.el][acp.el]]: An ACP (Agent Client Protocol) implementation in Emacs lisp.
-- [[https://github.com/cmacrae/agent-shell-sidebar][agent-shell-sidebar]]: Emacs sidebar addon for agent-shell.
+- [[https://github.com/jethrokuan/agent-shell-manager][agent-shell-manager]]: Tabulated view and management of =agent-shell= buffers.
+- [[https://github.com/cmacrae/agent-shell-sidebar][agent-shell-sidebar]]: A sidebar add-on for =agent-shell=.
 
 * Setup
 
