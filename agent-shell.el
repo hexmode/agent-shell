@@ -208,12 +208,13 @@ See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
-(cl-defun agent-shell--make-state (&key buffer client-maker needs-authentication authenticate-request-maker)
-  "Construct shell agent state with BUFFER.
+(cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker)
+  "Construct shell agent state with AGENT-CONFIG and BUFFER.
 
-Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION
-and AUTHENTICATE-REQUEST-MAKER."
-  (list (cons :buffer buffer)
+Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION,
+AUTHENTICATE-REQUEST-MAKER."
+  (list (cons :agent-config agent-config)
+        (cons :buffer buffer)
         (cons :client nil)
         (cons :client-maker client-maker)
         (cons :initialized nil)
@@ -557,7 +558,7 @@ Flow:
                            (map-nested-elt (agent-shell--state)
                                            '(:session :modes))))
                  ;; Note: No need to set :last-entry-type as no text was inserted.
-                 (force-mode-line-update)))
+                 (agent-shell--update-header-and-mode-line)))
               (t
                (agent-shell--update-dialog-block
                 :state state
@@ -1120,13 +1121,11 @@ Set NEW-SESSION to start a separate new session."
                                       :buffer shell-buffer
                                       :client-maker (map-elt config :client-maker)
                                       :needs-authentication (map-elt config :needs-authentication)
-                                      :authenticate-request-maker (map-elt config :authenticate-request-maker)))
+                                      :authenticate-request-maker (map-elt config :authenticate-request-maker)
+                                      :agent-config config))
       ;; Initialize buffer-local shell-maker-config
       (setq-local agent-shell--shell-maker-config shell-maker-config)
-      (setq header-line-format (agent-shell--make-header
-                                :icon-name (map-elt config :icon-name)
-                                :title (concat (map-elt config :buffer-name) " Agent")
-                                :location (string-remove-suffix "/" (abbreviate-file-name default-directory))))
+      (agent-shell--update-header-and-mode-line)
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
       (sui-mode +1)
       (when agent-shell-file-completion-enabled
@@ -1311,29 +1310,42 @@ Returns:
           (when inherit-env
             process-environment)))
 
-(cl-defun agent-shell--make-header (&key icon-name title location)
-  "Return header text.
-ICON-NAME is the name of the icon to display (gemini.png).
-TITLE is the title text to show.
-LOCATION is the location information to include."
-  (unless icon-name
-    (error ":icon-name is required"))
-  (unless title
-    (error ":title is required"))
-  (unless location
-    (error ":location is required"))
-  (let ((text-header (format " %s @ %s" title location)))
+(defun agent-shell--make-header (state)
+  "Return header text for current STATE.
+
+STATE should contain :agent-config with :icon-name, :buffer-name, and
+:session with :mode-id and :modes for displaying the current session mode."
+  (unless state
+    (error "STATE is required"))
+  (let* ((text-header (format " %s%s @ %s"
+                              (propertize (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")
+                                          'font-lock-face 'font-lock-variable-name-face)
+                              (if-let ((mode-id (map-nested-elt state '(:session :mode-id))))
+                                  (concat
+                                   " "
+                                   (propertize (format "[%s]"
+                                                       (agent-shell--resolve-session-mode-name
+                                                        mode-id
+                                                        (map-nested-elt state '(:session :modes))))
+                                               'font-lock-face 'font-lock-type-face))
+                                "")
+                              (propertize (string-remove-suffix "/" (abbreviate-file-name default-directory))
+                                          'font-lock-face 'font-lock-string-face))))
     (pcase agent-shell-header-style
       ((or 'none (pred null)) "")
       ('text text-header)
       ('graphical
        (if (display-graphic-p)
+           ;; +------+
+           ;; | icon | Top text line
+           ;; |      | Bottom text line
+           ;; +------+
            (let* ((image-height (* 3 (default-font-height)))
                   (image-width image-height)
                   (text-height 25)
                   (svg (svg-create (frame-pixel-width) (+ image-height 10)))
-                  (icon-filename (agent-shell--fetch-agent-icon icon-name))
-                  (image-type (let ((ext (file-name-extension icon-name)))
+                  (icon-filename (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name))))
+                  (image-type (let ((ext (file-name-extension (map-nested-elt state '(:agent-config :icon-name)))))
                                 (cond
                                  ((member ext '("png" "PNG")) "image/png")
                                  ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
@@ -1345,10 +1357,28 @@ LOCATION is the location information to include."
                (svg-embed svg icon-filename
                           image-type nil
                           :x 0 :y 0 :width image-width :height image-height))
-             (svg-text svg title
-                       :x (+ image-width 10) :y text-height
-                       :fill (face-attribute 'font-lock-variable-name-face :foreground))
-             (svg-text svg location
+             ;; Top text line
+             (svg--append svg (let ((text-node (dom-node 'text
+                                                         `((x . ,(+ image-width 10))
+                                                           (y . ,text-height)))))
+                                ;; Agent name
+                                (dom-append-child text-node
+                                                  (dom-node 'tspan
+                                                            `((fill . ,(face-attribute 'font-lock-variable-name-face :foreground)))
+                                                            (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")))
+                                ;; Session mode (optional)
+                                (when-let ((mode-id (map-nested-elt state '(:session :mode-id))))
+                                  (dom-append-child text-node
+                                                    (dom-node 'tspan
+                                                              `((fill . ,(or (face-attribute 'font-lock-type-face :foreground nil t)
+                                                                             "#6699cc"))
+                                                                (dx . "8"))
+                                                              (format "[%s]" (agent-shell--resolve-session-mode-name
+                                                                              mode-id
+                                                                              (map-nested-elt state '(:session :modes)))))))
+                                text-node))
+             ;; Bottom text line
+             (svg-text svg (string-remove-suffix "/" (abbreviate-file-name default-directory))
                        :x (+ image-width 10) :y (* 2 text-height)
                        :fill (face-attribute 'font-lock-string-face :foreground))
              (format " %s" (with-temp-buffer
@@ -1356,6 +1386,13 @@ LOCATION is the location information to include."
                              (buffer-string))))
          text-header))
       (_ text-header))))
+
+(defun agent-shell--update-header-and-mode-line ()
+  "Update header and mode line."
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (setq header-line-format (agent-shell--make-header (agent-shell--state)))
+  (force-mode-line-update))
 
 (defun agent-shell--fetch-agent-icon (icon-name)
   "Download icon with ICON-NAME from GitHub, only if it exists, and save as binary.
@@ -1566,7 +1603,6 @@ Must provide ON-SESSION-INIT (lambda ())."
                            :session (list (cons :id (map-elt response 'sessionId))
                                           (cons :mode-id (map-nested-elt response '(modes currentModeId)))
                                           (cons :modes (map-nested-elt response '(modes availableModes)))))
-                 (force-mode-line-update)
                  (agent-shell--update-dialog-block
                   :state agent-shell--state
                   :block-id "starting"
@@ -1583,6 +1619,7 @@ Must provide ON-SESSION-INIT (lambda ())."
                     :body (agent-shell--format-available-modes
                            (map-nested-elt response '(modes availableModes))
                            (map-nested-elt response '(modes currentModeId)))))
+                 (agent-shell--update-header-and-mode-line)
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
@@ -1636,29 +1673,29 @@ Returns list of alists with :start, :end, and :path for each mention."
         ;; Try to embed or link file
         (condition-case nil
             (if (file-readable-p resolved-path)
-              (let ((file-size (file-attribute-size (file-attributes resolved-path))))
-                ;; Agent supports embeddedContext and file is small - embed full content
-                (if (and supports-embedded-context
-                         file-size
-                         (< file-size agent-shell-embed-file-size-limit))
-                    (let ((content (with-temp-buffer
-                                     (insert-file-contents resolved-path)
-                                     (buffer-string))))
-                      (push `((type . "resource")
-                              (resource . ((uri . ,(concat "file://" resolved-path))
-                                           (text . ,content)
-                                           ;; TODO: Determine mimetype instead of hardcoding
-                                           (mimeType . "text/plain"))))
-                            content-blocks))
-                  ;; File too large or agent doesn't support embeddedContext - use resource link
-                  ;; so agent can fetch via fs/read_text_file RPC if needed
-                  (push `((type . "resource_link")
-                          (uri . ,(concat "file://" resolved-path))
-                          (name . ,path)
-                          ;; TODO: Determine mimetype instead of hardcoding
-                          (mimeType . "text/plain")
-                          (size . ,file-size))
-                        content-blocks)))
+                (let ((file-size (file-attribute-size (file-attributes resolved-path))))
+                  ;; Agent supports embeddedContext and file is small - embed full content
+                  (if (and supports-embedded-context
+                           file-size
+                           (< file-size agent-shell-embed-file-size-limit))
+                      (let ((content (with-temp-buffer
+                                       (insert-file-contents resolved-path)
+                                       (buffer-string))))
+                        (push `((type . "resource")
+                                (resource . ((uri . ,(concat "file://" resolved-path))
+                                             (text . ,content)
+                                             ;; TODO: Determine mimetype instead of hardcoding
+                                             (mimeType . "text/plain"))))
+                              content-blocks))
+                    ;; File too large or agent doesn't support embeddedContext - use resource link
+                    ;; so agent can fetch via fs/read_text_file RPC if needed
+                    (push `((type . "resource_link")
+                            (uri . ,(concat "file://" resolved-path))
+                            (name . ,path)
+                            ;; TODO: Determine mimetype instead of hardcoding
+                            (mimeType . "text/plain")
+                            (size . ,file-size))
+                          content-blocks)))
               ;; File's not readable, so also keep it as text
               (push `((type . "text")
                       (text . ,(substring-no-properties prompt start end)))
@@ -1790,7 +1827,7 @@ inserted into the shell buffer prompt."
                                           ;; (all into output buffer)
                                           (format "%s 2>&1" command))))
                            (if agent-shell-container-command-runner
-                             (append agent-shell-container-command-runner cmd)
+                               (append agent-shell-container-command-runner cmd)
                              cmd))
                 :connection-type 'pipe
                 :filter
@@ -2401,7 +2438,7 @@ Uses :eval so the mode updates automatically when state changes."
                                next-mode-id
                                (map-nested-elt (agent-shell--state)
                                                '(:session :modes)))))
-                   (force-mode-line-update))
+                   (agent-shell--update-header-and-mode-line))
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change session mode: %s" error)))))
 
@@ -2447,7 +2484,7 @@ Uses :eval so the mode updates automatically when state changes."
                                selected-mode-id
                                (map-nested-elt (agent-shell--state)
                                                '(:session :modes)))))
-                   (force-mode-line-update))
+                   (agent-shell--update-header-and-mode-line))
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change session mode: %s" error)))))
 
