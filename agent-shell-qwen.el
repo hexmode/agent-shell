@@ -140,12 +140,11 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
             message)))
 
 (defun agent-shell-qwen--ascii-art ()
-  "Generate Qwen Code ASCII art with Qwen-branded colors.
-
-https://github.com/QwenLM/qwen-code/blob/9d664623f56dfd025d21c84cedcf63851689248b/packages/cli/src/ui/components/Header.tsx
-https://github.com/QwenLM/qwen-code/blob/9d664623f56dfd025d21c84cedcf63851689248b/packages/cli/src/ui/components/AsciiArt.ts
-https://github.com/QwenLM/qwen-code/blob/9d664623f56dfd025d21c84cedcf63851689248b/packages/cli/src/ui/themes/theme.ts
-"
+  "Generate Qwen Code ASCII art with Qwen-branded colors."
+  ;; Based on:
+  ;; https://github.com/QwenLM/qwen-code/tree/main/packages/cli/src/ui/components/Header.tsx
+  ;; https://github.com/QwenLM/qwen-code/tree/main/packages/cli/src/ui/components/AsciiArt.ts
+  ;; https://github.com/QwenLM/qwen-code/tree/main/packages/cli/src/ui/themes/theme.ts
   (let* ((text (string-trim "
 ██╗       ██████╗ ██╗    ██╗███████╗███╗   ██╗
 ╚██╗     ██╔═══██╗██║    ██║██╔════╝████╗  ██║

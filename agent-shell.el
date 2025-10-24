@@ -5,7 +5,7 @@
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
 ;; Version: 0.10.3
-;; Package-Requires: ((shell-maker "0.82.2")(acp "0.6.1"))
+;; Package-Requires: ((emacs "29.1") (shell-maker "0.82.2") (acp "0.6.1"))
 
 (defconst agent-shell--version "0.10.3")
 
@@ -44,9 +44,9 @@
 (unless (require 'markdown-overlays nil 'noerror)
   (error "Please update 'shell-maker' to v0.82.2 or newer"))
 (require 'shell-maker)
-(require 'sui)
+(require 'agent-shell-ui)
 (require 'svg nil :noerror)
-(require 'quick-diff)
+(require 'agent-shell-diff)
 (require 'agent-shell-anthropic)
 (require 'agent-shell-google)
 (require 'agent-shell-goose)
@@ -313,7 +313,7 @@ Returns an empty string if no icon should be displayed."
 (defun agent-shell-interrupt ()
   "Interrupt in-progress request and reject all pending permissions."
   (interactive)
-  (unless (eq major-mode 'agent-shell-mode)
+  (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (unless (map-nested-elt (agent-shell--state) '(:session :id))
     (error "No active session"))
@@ -378,7 +378,7 @@ Flow:
                      |-> Start prompt session
                           |-> Send COMMAND/prompt (finally!)"
   (with-current-buffer (map-elt shell :buffer)
-    (unless (eq major-mode 'agent-shell-mode)
+    (unless (derived-mode-p 'agent-shell-mode)
       (error "Not in a shell"))
     (map-put! (agent-shell--state) :request-count
               ;; TODO: Make public in shell-maker.
@@ -938,7 +938,7 @@ DIFF should be in the form returned by `agent-shell--make-diff-info':
   "Clean up resources.
 
 For example, shut down ACP client."
-  (unless (eq major-mode 'agent-shell-mode)
+  (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (when (map-elt (agent-shell--state) :client)
     (acp-shutdown :client (map-elt (agent-shell--state) :client))))
@@ -1079,7 +1079,6 @@ FUNCTION should be a function accepting keyword arguments (&key ...)."
                    (list (car pair) (cdr pair)))
                  alist)))
 
-;;;###autoload
 (cl-defun agent-shell--start (&key config no-focus new-session)
   "Programmatically start shell with CONFIG.
 
@@ -1126,7 +1125,7 @@ Set NEW-SESSION to start a separate new session."
       (setq-local agent-shell--shell-maker-config shell-maker-config)
       (agent-shell--update-header-and-mode-line)
       (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
-      (sui-mode +1)
+      (agent-shell-ui-mode +1)
       (when agent-shell-file-completion-enabled
         (agent-shell-completion-mode +1))
       (agent-shell--setup-modeline))
@@ -1135,11 +1134,11 @@ Set NEW-SESSION to start a separate new session."
 (cl-defun agent-shell--delete-dialog-block (&key state block-id)
   "Delete dialog block with STATE and BLOCK-ID."
   (with-current-buffer (map-elt state :buffer)
-    (unless (and (eq major-mode 'agent-shell-mode)
+    (unless (and (derived-mode-p 'agent-shell-mode)
                  (equal (current-buffer)
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
-    (sui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id)))
+    (agent-shell-ui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id)))
 
 (cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new navigation expanded)
   "Update dialog block in the shell buffer.
@@ -1153,13 +1152,13 @@ Optional flags: APPEND text to existing content, CREATE-NEW block,
 NAVIGATION for navigation style, EXPANDED to show block expanded
 by default."
   (with-current-buffer (map-elt state :buffer)
-    (unless (and (eq major-mode 'agent-shell-mode)
+    (unless (and (derived-mode-p 'agent-shell-mode)
                  (equal (current-buffer)
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
     (shell-maker-with-auto-scroll-edit
-     (when-let* ((range (sui-update-dialog-block
-                         (sui-make-dialog-block-model
+     (when-let* ((range (agent-shell-ui-update-dialog-block
+                         (agent-shell-ui-make-dialog-block-model
                           :namespace-id (map-elt state :request-count)
                           :block-id block-id
                           :label-left label-left
@@ -1217,18 +1216,18 @@ by default."
 
 Could be a prompt or an expandable item."
   (interactive)
-  (unless (eq major-mode 'agent-shell-mode)
+  (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (let* ((prompt-pos (save-mark-and-excursion
                        (when (comint-next-prompt 1)
                          (point))))
          (block-pos (save-mark-and-excursion
-                      (sui-forward-block)))
+                      (agent-shell-ui-forward-block)))
          (button-pos (save-mark-and-excursion
                        (agent-shell-next-permission-button)))
-         (next-pos (apply 'min (delq nil (list prompt-pos
-                                               block-pos
-                                               button-pos)))))
+         (next-pos (apply #'min (delq nil (list prompt-pos
+                                                block-pos
+                                                button-pos)))))
     (when next-pos
       (deactivate-mark)
       (goto-char next-pos)
@@ -1249,7 +1248,7 @@ Could be a prompt or an expandable item."
                            (when (< pos current-pos)
                              pos)))))
          (block-pos (save-mark-and-excursion
-                      (let ((pos (sui-backward-block)))
+                      (let ((pos (agent-shell-ui-backward-block)))
                         (when (and pos (< pos current-pos))
                           pos))))
          (button-pos (save-mark-and-excursion
@@ -1260,7 +1259,7 @@ Could be a prompt or an expandable item."
                                     block-pos
                                     button-pos)))
          (next-pos (when positions
-                     (apply 'max positions))))
+                     (apply #'max positions))))
     (when next-pos
       (deactivate-mark)
       (goto-char next-pos)
@@ -1427,13 +1426,24 @@ Icon names starting with https:// are downloaded directly from that location."
 (defun agent-shell-view-traffic ()
   "View agent shell traffic buffer."
   (interactive)
-  (unless (eq major-mode 'agent-shell-mode)
+  (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (let ((traffic-buffer (acp-traffic-buffer :client (map-elt (agent-shell--state) :client))))
     (when (with-current-buffer traffic-buffer
             (= (buffer-size) 0))
       (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
     (pop-to-buffer traffic-buffer)))
+
+(defun agent-shell-view-acp-logs ()
+  "View agent shell ACP logs buffer."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (let ((logs-buffer (acp-logs-buffer :client (map-elt (agent-shell--state) :client))))
+    (when (with-current-buffer logs-buffer
+            (= (buffer-size) 0))
+      (error "No traffic logs available.  Try M-x agent-shell-toggle-logging?"))
+    (pop-to-buffer logs-buffer)))
 
 (defun agent-shell--indent-string (n str)
   "Indent STR lines by N spaces."
@@ -1484,7 +1494,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 
 (defun agent-shell--state ()
   "Get shell state or fail in an incompatible buffer."
-  (unless (eq major-mode 'agent-shell-mode)
+  (unless (derived-mode-p 'agent-shell-mode)
     (error "Processed outside shell: %s" major-mode))
   (unless agent-shell--state
     (error "No shell state available"))
@@ -2072,7 +2082,7 @@ MESSAGE-TEXT: Optional message to display after sending the response."
   (goto-char (point-max)))
 
 (cl-defun agent-shell--resolve-permission-choice-to-action (&key choice actions)
-  "Resolve `quick-diff' CHOICE to corresponding permission action from ACTIONS.
+  "Resolve `agent-shell-diff' CHOICE to permission action from ACTIONS.
 
 CHOICE can be \\='accept or \\='reject.
 Returns the matching action or nil if no match found."
@@ -2094,7 +2104,7 @@ DIFF as per `agent-shell--make-diff-info'.
 ACTIONS as per `agent-shell--make-permission-action'."
   (lambda ()
     (interactive)
-    (quick-diff
+    (agent-shell-diff
      :old (map-elt diff :old)
      :new (map-elt diff :new)
      :title (file-name-nondirectory (map-elt diff :file))
@@ -2279,7 +2289,7 @@ Returns an alist with insertion details or nil otherwise:
   (let* ((region (or (agent-shell--get-region :deactivate t)
                      (user-error "No region selected")))
          (text (if (map-elt region :file)
-                   (sui-add-action-to-text
+                   (agent-shell-ui-add-action-to-text
                     (format "%s:%d-%d"
                             (file-relative-name (map-elt region :file)
                                                 (agent-shell-cwd))

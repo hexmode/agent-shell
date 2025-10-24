@@ -173,11 +173,11 @@ Uses `agent-shell-google-authentication' for authentication configuration."
             message)))
 
 (defun agent-shell-google--gemini-ascii-art ()
-  "Generate Gemini CLI ASCII art, inspired by its codebase.
-
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/Header.tsx
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/AsciiArt.ts
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes/theme.ts"
+  "Generate Gemini CLI ASCII art, inspired by its codebase."
+  ;; Based on:
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/Header.tsx
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/AsciiArt.ts
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes/theme.ts
   (let* ((text (string-trim "
  ███            █████████  ██████████ ██████   ██████ █████ ██████   █████ █████
 ░░░███         ███░░░░░███░░███░░░░░█░░██████ ██████ ░░███ ░░██████ ░░███ ░░███
