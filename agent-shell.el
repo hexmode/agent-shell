@@ -1366,14 +1366,21 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                                                             (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")))
                                 ;; Session mode (optional)
                                 (when-let ((mode-id (map-nested-elt state '(:session :mode-id))))
+                                  ;; Add separator arrow
+                                  (dom-append-child text-node
+                                                    (dom-node 'tspan
+                                                              `((fill . ,(face-attribute 'default :foreground))
+                                                                (dx . "8"))
+                                                              "➤"))
+                                  ;; Add session mode text
                                   (dom-append-child text-node
                                                     (dom-node 'tspan
                                                               `((fill . ,(or (face-attribute 'font-lock-type-face :foreground nil t)
                                                                              "#6699cc"))
                                                                 (dx . "8"))
-                                                              (format "[%s]" (agent-shell--resolve-session-mode-name
-                                                                              mode-id
-                                                                              (map-nested-elt state '(:session :modes)))))))
+                                                              (agent-shell--resolve-session-mode-name
+                                                               mode-id
+                                                               (map-nested-elt state '(:session :modes))))))
                                 text-node))
              ;; Bottom text line
              (svg-text svg (string-remove-suffix "/" (abbreviate-file-name default-directory))
