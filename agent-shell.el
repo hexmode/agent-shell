@@ -1123,7 +1123,7 @@ Set NEW-SESSION to start a separate new session."
                                                 :on-frame-update
                                                 (lambda (frame status)
                                                   (when (get-buffer-window shell-buffer)
-                                                    (force-mode-line-update))
+                                                    (agent-shell--update-header-and-mode-line))
                                                   (cond
                                                    ((eq status 'started)
                                                     0)
@@ -1395,6 +1395,12 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                                                               (agent-shell--resolve-session-mode-name
                                                                mode-id
                                                                (map-nested-elt state '(:session :modes))))))
+                                (when-let ((status-frame (agent-shell--status-frame)))
+                                  (dom-append-child text-node
+                                                    (dom-node 'tspan
+                                                              `((fill . ,(face-attribute 'default :foreground))
+                                                                (dx . "8"))
+                                                              status-frame)))
                                 text-node))
              ;; Bottom text line
              (svg-text svg (string-remove-suffix "/" (abbreviate-file-name default-directory))
@@ -2420,6 +2426,13 @@ See https://agentclientprotocol.com/protocol/session-modes for details."
                              available-session-modes)))
     (map-elt mode 'name)))
 
+(defun agent-shell--status-frame ()
+  "Return busy frame string or nil if not busy."
+  (when (eq 'busy (map-nested-elt (agent-shell--state) '(:spinner :status)))
+    (let ((frames [" ░   " " ░░  " " ░░░ " " ░░░░" " ░░░ " " ░░  " " ░   " "     "]))
+      (seq-elt frames (mod (map-nested-elt (agent-shell--state) '(:spinner :frame))
+                           (length frames))))))
+
 (defun agent-shell--mode-line-format ()
   "Return `agent-shell''s mode-line format.
 
@@ -2433,10 +2446,7 @@ For example: \" [Accept Edits] ░░░ \"."
               (propertize (format " [%s]" mode-name)
                           'face 'font-lock-type-face
                           'help-echo (format "Session Mode: %s" mode-name)))
-            (when-let ((_ (eq 'busy (map-nested-elt (agent-shell--state) '(:spinner :status))))
-                       (frames [" ░   " " ░░  " " ░░░ " " ░░░░" " ░░░ " " ░░  " " ░   " "     "]))
-              (seq-elt frames (mod (map-nested-elt (agent-shell--state) '(:spinner :frame))
-                                   (length frames)))))))
+            (agent-shell--status-frame))))
 
 (defun agent-shell--setup-modeline ()
   "Set up the modeline to display session mode.
