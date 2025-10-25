@@ -1123,7 +1123,8 @@ Set NEW-SESSION to start a separate new session."
                                                 :on-frame-update
                                                 (lambda (frame status)
                                                   (when (get-buffer-window shell-buffer)
-                                                    (agent-shell--update-header-and-mode-line))
+                                                    (with-current-buffer shell-buffer
+                                                      (agent-shell--update-header-and-mode-line)))
                                                   (cond
                                                    ((eq status 'started)
                                                     0)
@@ -1329,18 +1330,9 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
 :session with :mode-id and :modes for displaying the current session mode."
   (unless state
     (error "STATE is required"))
-  (let* ((text-header (format " %s%s @ %s"
+  (let* ((text-header (format " %s @ %s"
                               (propertize (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")
                                           'font-lock-face 'font-lock-variable-name-face)
-                              (if-let ((mode-id (map-nested-elt state '(:session :mode-id))))
-                                  (concat
-                                   " "
-                                   (propertize (format "[%s]"
-                                                       (agent-shell--resolve-session-mode-name
-                                                        mode-id
-                                                        (map-nested-elt state '(:session :modes))))
-                                               'font-lock-face 'font-lock-type-face))
-                                "")
                               (propertize (string-remove-suffix "/" (abbreviate-file-name default-directory))
                                           'font-lock-face 'font-lock-string-face))))
     (pcase agent-shell-header-style
@@ -1413,11 +1405,15 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
       (_ text-header))))
 
 (defun agent-shell--update-header-and-mode-line ()
-  "Update header and mode line."
+  "Update header and mode line based on `agent-shell-header-style'."
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
-  (setq header-line-format (agent-shell--make-header (agent-shell--state)))
-  (force-mode-line-update))
+  (cond
+   ((eq agent-shell-header-style 'graphical)
+    (setq header-line-format (agent-shell--make-header (agent-shell--state))))
+   ((memq agent-shell-header-style '(text none nil))
+    (setq header-line-format (agent-shell--make-header (agent-shell--state)))
+    (force-mode-line-update))))
 
 (defun agent-shell--fetch-agent-icon (icon-name)
   "Download icon with ICON-NAME from GitHub, only if it exists, and save as binary.
@@ -2439,7 +2435,8 @@ See https://agentclientprotocol.com/protocol/session-modes for details."
 Typically includes the session mode and activity or nil if unavailable.
 
 For example: \" [Accept Edits] ░░░ \"."
-  (when-let* (((derived-mode-p 'agent-shell-mode)))
+  (when-let* (((derived-mode-p 'agent-shell-mode))
+              ((memq agent-shell-header-style '(text none nil))))
     (concat (when-let ((mode-name (agent-shell--resolve-session-mode-name
                                    (map-nested-elt (agent-shell--state) '(:session :mode-id))
                                    (map-nested-elt (agent-shell--state) '(:session :modes)))))
