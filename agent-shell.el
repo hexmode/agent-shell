@@ -1330,7 +1330,7 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                               (propertize (string-remove-suffix "/" (abbreviate-file-name default-directory))
                                           'font-lock-face 'font-lock-string-face))))
     (pcase agent-shell-header-style
-      ((or 'none (pred null)) "")
+      ((or 'none (pred null)) nil)
       ('text text-header)
       ('graphical
        (if (display-graphic-p)
