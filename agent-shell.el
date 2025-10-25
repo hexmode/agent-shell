@@ -46,12 +46,13 @@
 (require 'shell-maker)
 (require 'agent-shell-ui)
 (require 'svg nil :noerror)
-(require 'agent-shell-diff)
 (require 'agent-shell-anthropic)
+(require 'agent-shell-diff)
 (require 'agent-shell-google)
 (require 'agent-shell-goose)
 (require 'agent-shell-openai)
 (require 'agent-shell-qwen)
+(require 'agent-shell-spinner)
 
 (defcustom agent-shell-permission-icon "⚠"
   "Icon displayed when shell commands require permission to execute.
@@ -208,15 +209,16 @@ See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
-(cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker)
+(cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker spinner)
   "Construct shell agent state with AGENT-CONFIG and BUFFER.
 
 Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION,
-AUTHENTICATE-REQUEST-MAKER."
+SPINNER, and AUTHENTICATE-REQUEST-MAKER."
   (list (cons :agent-config agent-config)
         (cons :buffer buffer)
         (cons :client nil)
         (cons :client-maker client-maker)
+        (cons :spinner spinner)
         (cons :initialized nil)
         (cons :needs-authentication needs-authentication)
         (cons :authenticate-request-maker authenticate-request-maker)
@@ -1117,6 +1119,17 @@ Set NEW-SESSION to start a separate new session."
       ;; Initialize buffer-local state
       (setq-local agent-shell--state (agent-shell--make-state
                                       :buffer shell-buffer
+                                      :spinner (agent-shell-spinner-make
+                                                :on-frame-update
+                                                (lambda (frame status)
+                                                  (force-mode-line-update)
+                                                  (cond
+                                                   ((eq status 'started)
+                                                    0)
+                                                   ((eq status 'ended)
+                                                    nil)
+                                                   ((eq status 'busy)
+                                                    (1+ frame)))))
                                       :client-maker (map-elt config :client-maker)
                                       :needs-authentication (map-elt config :needs-authentication)
                                       :authenticate-request-maker (map-elt config :authenticate-request-maker)
@@ -1552,7 +1565,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 
 Must provide ON-INITIATED (lambda ())."
   (unless on-initiated
-    (error "Missing required argument: :on-initialized"))
+    (error "Missing required argument: :on-initiated"))
   (with-current-buffer (map-elt agent-shell--state :buffer)
     (agent-shell--update-dialog-block
      :state agent-shell--state
@@ -1763,9 +1776,10 @@ Returns list of alists with :start, :end, and :path for each mention."
                            (error `[((type . "text")
                                      (text . ,(substring-no-properties prompt)))])))
          (attached-files (agent-shell--collect-attached-files content-blocks)))
-
-    (when attached-files (agent-shell--display-attached-files attached-files))
-
+    (when attached-files
+      (agent-shell--display-attached-files attached-files))
+    (agent-shell-spinner-start
+     :spinner (map-elt agent-shell--state :spinner))
     (acp-send-request
      :client (map-elt agent-shell--state :client)
      :request (acp-make-session-prompt-request
@@ -1783,10 +1797,14 @@ Returns list of alists with :start, :end, and :path for each mention."
                        (funcall (map-elt shell :write-output)
                                 (agent-shell--stop-reason-description
                                  (map-elt response 'stopReason))))
-                     (funcall (map-elt shell :finish-output) t)))
+                     (funcall (map-elt shell :finish-output) t))
+                   (agent-shell-spinner-stop
+                    :spinner (map-elt agent-shell--state :spinner)))
      :on-failure (lambda (error raw-message)
                    (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
-                            error raw-message)))))
+                            error raw-message)
+                   (agent-shell-spinner-stop
+                    :spinner (map-elt agent-shell--state :spinner))))))
 
 ;;; Projects
 
@@ -2401,26 +2419,30 @@ See https://agentclientprotocol.com/protocol/session-modes for details."
                              available-session-modes)))
     (map-elt mode 'name)))
 
-(defun agent-shell--session-mode-line-format ()
-  "Return the mode-line format for displaying the current session mode.
+(defun agent-shell--mode-line-format ()
+  "Return `agent-shell''s mode-line format.
 
-Returns a formatted string like \" [Accept Edits]\" for display in the modeline,
-or nil if no session mode is available."
-  (when-let* (((derived-mode-p 'agent-shell-mode))
-              (state (agent-shell--state))
-              (mode-name (agent-shell--resolve-session-mode-name
-                          (map-nested-elt state '(:session :mode-id))
-                          (map-nested-elt state '(:session :modes)))))
-    (propertize (format " [%s]" mode-name)
-                'face 'font-lock-constant-face
-                'help-echo (format "Session Mode: %s" mode-name))))
+Typically includes the session mode and activity or nil if unavailable.
+
+For example: \" [Accept Edits] ░░░ \"."
+  (when-let* (((derived-mode-p 'agent-shell-mode)))
+    (concat (when-let ((mode-name (agent-shell--resolve-session-mode-name
+                                   (map-nested-elt (agent-shell--state) '(:session :mode-id))
+                                   (map-nested-elt (agent-shell--state) '(:session :modes)))))
+              (propertize (format " [%s]" mode-name)
+                          'face 'font-lock-type-face
+                          'help-echo (format "Session Mode: %s" mode-name)))
+            (when-let ((_ (eq 'busy (map-nested-elt (agent-shell--state) '(:spinner :status))))
+                       (frames [" ░   " " ░░  " " ░░░ " " ░░░░" " ░░░ " " ░░  " " ░   " "     "]))
+              (seq-elt frames (mod (map-nested-elt (agent-shell--state) '(:spinner :frame))
+                                   (length frames)))))))
 
 (defun agent-shell--setup-modeline ()
   "Set up the modeline to display session mode.
 Uses :eval so the mode updates automatically when state changes."
   (setq-local mode-line-misc-info
               (append mode-line-misc-info
-                      '((:eval (agent-shell--session-mode-line-format))))))
+                      '((:eval (agent-shell--mode-line-format))))))
 
 (defun agent-shell-cycle-session-mode ()
   "Cycle through available session modes for the current `agent-shell' session."
