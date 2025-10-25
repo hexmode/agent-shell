@@ -34,7 +34,7 @@
   (require 'cl-lib))
 (require 'map)
 
-(cl-defun agent-shell-spinner-make (&key start (frames-per-second 4) on-frame-update)
+(cl-defun agent-shell-spinner-make (&key start (frames-per-second 10) on-frame-update)
   "Create a spinner animation timer.
 
 START when non-nil, starts internal timer immediately.

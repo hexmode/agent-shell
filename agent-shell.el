@@ -1122,7 +1122,8 @@ Set NEW-SESSION to start a separate new session."
                                       :spinner (agent-shell-spinner-make
                                                 :on-frame-update
                                                 (lambda (frame status)
-                                                  (force-mode-line-update)
+                                                  (when (get-buffer-window shell-buffer)
+                                                    (force-mode-line-update))
                                                   (cond
                                                    ((eq status 'started)
                                                     0)
