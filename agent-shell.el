@@ -690,10 +690,12 @@ LINE defaults to 1, LIMIT defaults to nil (read to end)."
           (if buffer
               ;; Buffer is open, write and save.
               (with-current-buffer buffer
-                (let ((inhibit-read-only t))
-                  (erase-buffer)
-                  (insert content)
-                  (basic-save-buffer)))
+                (save-restriction
+                  (widen)
+                  (let ((inhibit-read-only t))
+                    (erase-buffer)
+                    (insert content)
+                    (basic-save-buffer))))
             ;; No open buffer, write to file directly.
             (with-temp-file path
               (insert content)))
