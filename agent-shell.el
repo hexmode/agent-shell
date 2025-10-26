@@ -52,7 +52,7 @@
 (require 'agent-shell-goose)
 (require 'agent-shell-openai)
 (require 'agent-shell-qwen)
-(require 'agent-shell-spinner)
+(require 'agent-shell-heartbeat)
 
 (defcustom agent-shell-permission-icon "⚠"
   "Icon displayed when shell commands require permission to execute.
@@ -209,16 +209,16 @@ See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
-(cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker spinner)
+(cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker heartbeat)
   "Construct shell agent state with AGENT-CONFIG and BUFFER.
 
 Shell state is provider-dependent and needs CLIENT-MAKER, NEEDS-AUTHENTICATION,
-SPINNER, and AUTHENTICATE-REQUEST-MAKER."
+HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
   (list (cons :agent-config agent-config)
         (cons :buffer buffer)
         (cons :client nil)
         (cons :client-maker client-maker)
-        (cons :spinner spinner)
+        (cons :heartbeat heartbeat)
         (cons :initialized nil)
         (cons :needs-authentication needs-authentication)
         (cons :authenticate-request-maker authenticate-request-maker)
@@ -1189,19 +1189,12 @@ Set NEW-SESSION to start a separate new session."
       ;; Initialize buffer-local state
       (setq-local agent-shell--state (agent-shell--make-state
                                       :buffer shell-buffer
-                                      :spinner (agent-shell-spinner-make
-                                                :on-frame-update
-                                                (lambda (frame status)
-                                                  (when (get-buffer-window shell-buffer)
-                                                    (with-current-buffer shell-buffer
-                                                      (agent-shell--update-header-and-mode-line)))
-                                                  (cond
-                                                   ((eq status 'started)
-                                                    0)
-                                                   ((eq status 'ended)
-                                                    nil)
-                                                   ((eq status 'busy)
-                                                    (1+ frame)))))
+                                      :heartbeat (agent-shell-heartbeat-make
+                                                  :on-heartbeat
+                                                  (lambda (_heartbeat _status)
+                                                    (when (get-buffer-window shell-buffer)
+                                                      (with-current-buffer shell-buffer
+                                                        (agent-shell--update-header-and-mode-line)))))
                                       :client-maker (map-elt config :client-maker)
                                       :needs-authentication (map-elt config :needs-authentication)
                                       :authenticate-request-maker (map-elt config :authenticate-request-maker)
@@ -1857,8 +1850,8 @@ Returns list of alists with :start, :end, and :path for each mention."
          (attached-files (agent-shell--collect-attached-files content-blocks)))
     (when attached-files
       (agent-shell--display-attached-files attached-files))
-    (agent-shell-spinner-start
-     :spinner (map-elt agent-shell--state :spinner))
+    (agent-shell-heartbeat-start
+     :heartbeat (map-elt agent-shell--state :heartbeat))
     (acp-send-request
      :client (map-elt agent-shell--state :client)
      :request (acp-make-session-prompt-request
@@ -1877,13 +1870,13 @@ Returns list of alists with :start, :end, and :path for each mention."
                                 (agent-shell--stop-reason-description
                                  (map-elt response 'stopReason))))
                      (funcall (map-elt shell :finish-output) t))
-                   (agent-shell-spinner-stop
-                    :spinner (map-elt agent-shell--state :spinner)))
+                   (agent-shell-heartbeat-stop
+                    :heartbeat (map-elt agent-shell--state :heartbeat)))
      :on-failure (lambda (error raw-message)
                    (funcall (agent-shell--make-error-handler :state agent-shell--state :shell shell)
                             error raw-message)
-                   (agent-shell-spinner-stop
-                    :spinner (map-elt agent-shell--state :spinner))))))
+                   (agent-shell-heartbeat-stop
+                    :heartbeat (map-elt agent-shell--state :heartbeat))))))
 
 ;;; Projects
 
@@ -2500,9 +2493,9 @@ See https://agentclientprotocol.com/protocol/session-modes for details."
 
 (defun agent-shell--status-frame ()
   "Return busy frame string or nil if not busy."
-  (when (eq 'busy (map-nested-elt (agent-shell--state) '(:spinner :status)))
+  (when (eq 'busy (map-nested-elt (agent-shell--state) '(:heartbeat :status)))
     (let ((frames [" ░   " " ░░  " " ░░░ " " ░░░░" " ░░░ " " ░░  " " ░   " "     "]))
-      (seq-elt frames (mod (map-nested-elt (agent-shell--state) '(:spinner :frame))
+      (seq-elt frames (mod (map-nested-elt (agent-shell--state) '(:heartbeat :value))
                            (length frames))))))
 
 (defun agent-shell--mode-line-format ()
