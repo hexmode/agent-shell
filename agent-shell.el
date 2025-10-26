@@ -786,6 +786,76 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
      commands
      "\n")))
 
+(defun agent-shell--format-agent-capabilities (capabilities)
+  "Format agent CAPABILITIES for shell rendering.
+
+CAPABILITIES is as per ACP spec:
+
+  https://agentclientprotocol.com/protocol/schema#agentcapabilities
+
+Groups capabilities by category and displays them as comma-separated values.
+
+Example output:
+
+  prompt        image, and embedded context
+  mcp           http, and sse"
+  (let* ((case-fold-search nil)
+         (categories (delq nil
+                           (mapcar
+                            (lambda (pair)
+                              (let* ((key (if (symbolp (car pair))
+                                              (symbol-name (car pair))
+                                            (car pair)))
+                                     (value (cdr pair))
+                                     ;; "prompt Capabilities" -> "prompt"
+                                     (group-name (replace-regexp-in-string
+                                                  " Capabilities$" ""
+                                                  ;; "promptCapabilities" -> "prompt Capabilities"
+                                                  (replace-regexp-in-string "\\([a-z]\\)\\([A-Z]\\)" "\\1 \\2" key))))
+                                (cond
+                                 ;; Nested capability groups (promptCapabilities, mcpCapabilities)
+                                 ((and (listp value)
+                                       (not (vectorp value))
+                                       (consp (car value)))
+                                  (when-let ((enabled-items (delq nil (mapcar
+                                                                       (lambda (cap-pair)
+                                                                         (when (eq (cdr cap-pair) t)
+                                                                           (let* ((cap-key (car cap-pair))
+                                                                                  (cap-name (if (symbolp cap-key)
+                                                                                                (symbol-name cap-key)
+                                                                                              cap-key)))
+                                                                             (downcase
+                                                                              (replace-regexp-in-string
+                                                                               "\\([a-z]\\)\\([A-Z]\\)" "\\1 \\2"
+                                                                               cap-name)))))
+                                                                       value))))
+                                    (cons (downcase group-name)
+                                          (if (= (length enabled-items) 1)
+                                              (car enabled-items)
+                                            (concat (string-join (butlast enabled-items) ", ")
+                                                    " and "
+                                                    (car (last enabled-items)))))))
+                                 ;; Top-level boolean capabilities (loadSession)
+                                 ((eq value t)
+                                  (cons (downcase group-name) nil)))))
+                            capabilities)))
+         (max-name-length (seq-reduce (lambda (acc pair)
+                                        (max acc (length (car pair))))
+                                      categories
+                                      0)))
+    (mapconcat
+     (lambda (pair)
+       (let ((category (car pair))
+             (tags (cdr pair)))
+         (concat
+          (propertize (format (format "%%-%ds" max-name-length) category)
+                      'font-lock-face 'font-lock-function-name-face)
+          (when tags
+            (concat "  "
+                    (propertize tags 'font-lock-face 'font-lock-comment-face))))))
+     categories
+     "\n")))
+
 (defun agent-shell--make-diff-info (acp-content)
   "Make diff information from ACP's tool_call_update's ACP-CONTENT.
 
@@ -1587,7 +1657,13 @@ Must provide ON-INITIATED (lambda ())."
                    (let ((embedded-context-supported
                           (map-nested-elt response '(agentCapabilities promptCapabilities embeddedContext))))
                      (map-put! agent-shell--state :agent-supports-embedded-context
-                               (eq embedded-context-supported t))))
+                               (eq embedded-context-supported t)))
+                   (when-let ((agent-capabilities (map-elt response 'agentCapabilities)))
+                     (agent-shell--update-dialog-block
+                      :state agent-shell--state
+                      :block-id "agent_capabilities"
+                      :label-left (propertize "Agent capabilities" 'font-lock-face 'font-lock-doc-markup-face)
+                      :body (agent-shell--format-agent-capabilities agent-capabilities))))
                  (funcall on-initiated))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))

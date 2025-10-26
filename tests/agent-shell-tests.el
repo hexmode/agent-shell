@@ -443,5 +443,38 @@
           (setq has-diff-face t)))
       (should has-diff-face))))
 
+(ert-deftest agent-shell--format-agent-capabilities-test ()
+  "Test `agent-shell--format-agent-capabilities' function."
+  ;; Test with multiple capabilities (includes comma)
+  (let ((capabilities '((promptCapabilities (image . t) (audio . :false) (embeddedContext . t))
+                        (mcpCapabilities (http . t) (sse . t)))))
+    (should (equal (substring-no-properties
+                    (agent-shell--format-agent-capabilities capabilities))
+                   (string-trim"
+prompt  image and embedded context
+mcp     http and sse"))))
+
+  ;; Test with single capability per category (no comma)
+  (let ((capabilities '((promptCapabilities (image . t))
+                        (mcpCapabilities (http . t)))))
+    (should (equal (substring-no-properties
+                    (agent-shell--format-agent-capabilities capabilities))
+                   (string-trim "
+prompt  image
+mcp     http"))))
+
+  ;; Test with top-level boolean capability (loadSession)
+  (let ((capabilities '((loadSession . t)
+                        (promptCapabilities (image . t) (embeddedContext . t)))))
+    (should (equal (substring-no-properties
+                    (agent-shell--format-agent-capabilities capabilities))
+                   (string-trim "
+load session
+prompt        image and embedded context"))))
+
+  ;; Test with all capabilities disabled (should return empty string)
+  (let ((capabilities '((promptCapabilities (image . :false) (audio . :false)))))
+    (should (equal (agent-shell--format-agent-capabilities capabilities) ""))))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
