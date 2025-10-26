@@ -75,21 +75,20 @@ Returns an alist of the form:
 SPINNER is the spinner state alist.
 
 Returns the spinner alist with the timer started."
-  (unless spinner
-    (error "Missing required argument: :spinner"))
-  (unless (and (map-elt spinner :spinner-timer)
-               (timerp (map-elt spinner :spinner-timer)))
-    (map-put! spinner :status 'started)
-    (map-put! spinner :frame nil)
-    (map-put! spinner :spinner-timer
-              (run-at-time 0 (/ 1.0 (map-elt spinner :frames-per-second))
-                           (lambda ()
-                             (when-let ((next-frame (funcall (map-elt spinner :on-frame-update)
-                                                             (map-elt spinner :frame)
-                                                             (map-elt spinner :status))))
-                               (map-put! spinner :frame next-frame)
-                               (map-put! spinner :status 'busy))))))
-  spinner)
+  (when spinner
+    (unless (and (map-elt spinner :spinner-timer)
+                 (timerp (map-elt spinner :spinner-timer)))
+      (map-put! spinner :status 'started)
+      (map-put! spinner :frame nil)
+      (map-put! spinner :spinner-timer
+                (run-at-time 0 (/ 1.0 (map-elt spinner :frames-per-second))
+                             (lambda ()
+                               (when-let ((next-frame (funcall (map-elt spinner :on-frame-update)
+                                                               (map-elt spinner :frame)
+                                                               (map-elt spinner :status))))
+                                 (map-put! spinner :frame next-frame)
+                                 (map-put! spinner :status 'busy))))))
+    spinner))
 
 (cl-defun agent-shell-spinner-stop (&key spinner)
   "Stop a spinner timer.
@@ -97,17 +96,16 @@ Returns the spinner alist with the timer started."
 SPINNER is the spinner state alist.
 
 Returns the spinner with latest state."
-  (unless spinner
-    (error "Missing required argument: :spinner"))
-  (when-let ((timer (map-elt spinner :spinner-timer)))
-    (when (timerp timer)
-      (cancel-timer timer))
-    (map-put! spinner :spinner-timer nil))
-  (map-put! spinner :status 'ended)
-  (map-put! spinner :frame nil)
-  (when-let ((callback (map-elt spinner :on-frame-update)))
-    (funcall callback nil 'ended))
-  spinner)
+  (when spinner
+    (when-let ((timer (map-elt spinner :spinner-timer)))
+      (when (timerp timer)
+        (cancel-timer timer))
+      (map-put! spinner :spinner-timer nil))
+    (map-put! spinner :status 'ended)
+    (map-put! spinner :frame nil)
+    (when-let ((callback (map-elt spinner :on-frame-update)))
+      (funcall callback nil 'ended))
+    spinner))
 
 (provide 'agent-shell-spinner)
 
