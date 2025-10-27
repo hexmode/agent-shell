@@ -8,3 +8,4 @@ Thank you for contributing to agent-shell!
 - [ ] I've added tests where applicable.
 - [ ] I've updated documentation where necessary.
 - [ ] I've run `M-x checkdoc` and `M-x byte-compile-file`.
+- [ ] *I've reviewed all code in PR myself and I'm happy with its quality*.
