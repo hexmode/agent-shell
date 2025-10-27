@@ -2672,8 +2672,8 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
     ("m" "Cycle modes" agent-shell-cycle-session-mode :transient t)
     ("M" "Set mode" agent-shell-set-session-mode :transient t)
     ("C" "Interrupt" agent-shell-interrupt :transient t)]
-   ["Shells"
-    ("b" "Switch to recent" agent-shell-toggle :transient t)
+   ["Shell"
+    ("b" "Toggle" agent-shell-toggle :transient t)
     ("N" "New shell" (lambda ()
                        (interactive) (agent-shell t)))]])
 
