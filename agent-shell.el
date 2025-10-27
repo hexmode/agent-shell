@@ -1968,6 +1968,21 @@ inserted into the shell buffer prompt."
 
 ;;; Completion
 
+(defun agent-shell-insert-file ()
+  "Insert a file into `agent-shell'.
+
+If visiting a file, insert this file.
+
+If invoked from shell, select a project file."
+  (interactive)
+  (let* ((in-shell (derived-mode-p 'agent-shell-mode))
+         (file (if in-shell
+                   (completing-read "Insert file: " (agent-shell--project-files))
+                 (or buffer-file-name
+                     (completing-read "Insert file: " (agent-shell--project-files))
+                     (user-error "No file to insert")))))
+    (agent-shell-insert :text (concat "@" file))))
+
 (defun agent-shell--project-files ()
   "Get project files using projectile or project.el."
   (cond
