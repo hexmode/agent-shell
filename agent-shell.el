@@ -46,6 +46,7 @@
 (require 'shell-maker)
 (require 'markdown-overlays)
 (require 'project)
+(require 'transient)
 (require 'agent-shell-ui)
 (require 'svg nil :noerror)
 (require 'agent-shell-anthropic)
@@ -2654,6 +2655,26 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
           (propertize desc 'font-lock-face 'font-lock-comment-face))))
      modes
      "\n")))
+
+;;; Transient
+
+(transient-define-prefix agent-shell-help-menu ()
+  "Transient menu for `agent-shell' commands."
+  [["Navigation"
+    ("<tab>" "Next item" agent-shell-next-item :transient t)
+    ("<backtab>" "Previous item" agent-shell-previous-item :transient t)]
+   ["Insert"
+    ("!" "Shell command" agent-shell-insert-shell-command-output :transient t)
+    ("@" "File" agent-shell-insert-file :transient t)
+    ]]
+  [["Session"
+    ("m" "Cycle modes" agent-shell-cycle-session-mode :transient t)
+    ("M" "Set mode" agent-shell-set-session-mode :transient t)
+    ("C" "Interrupt" agent-shell-interrupt :transient t)]
+   ["Shells"
+    ("b" "Switch to recent" agent-shell-toggle :transient t)
+    ("N" "New shell" (lambda ()
+                       (interactive) (agent-shell t)))]])
 
 (provide 'agent-shell)
 
