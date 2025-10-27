@@ -265,7 +265,8 @@ With prefix argument NEW-SHELL, force start a new shell."
     (unless shell-buffer
       (user-error "No agent shell buffers available for current project"))
     (if-let ((window (get-buffer-window shell-buffer)))
-        (if (> (count-windows) 1)
+        (if (and (> (count-windows) 1)
+                 (not (bound-and-true-p transient--prefix)))
             (delete-window window)
           (switch-to-prev-buffer))
       (agent-shell--display-buffer shell-buffer))))
