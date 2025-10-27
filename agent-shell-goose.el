@@ -32,6 +32,7 @@
 
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
 (cl-defun agent-shell-make-goose-authentication (&key openai-api-key none)

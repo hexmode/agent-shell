@@ -44,6 +44,8 @@
 (unless (require 'markdown-overlays nil 'noerror)
   (error "Please update 'shell-maker' to v0.82.2 or newer"))
 (require 'shell-maker)
+(require 'markdown-overlays)
+(require 'project)
 (require 'agent-shell-ui)
 (require 'svg nil :noerror)
 (require 'agent-shell-anthropic)
@@ -53,6 +55,10 @@
 (require 'agent-shell-openai)
 (require 'agent-shell-qwen)
 (require 'agent-shell-heartbeat)
+
+(declare-function projectile-current-project-files "projectile")
+(declare-function projectile-project-root "projectile")
+(declare-function projectile-project-p "projectile")
 
 (defcustom agent-shell-permission-icon "⚠"
   "Icon displayed when shell commands require permission to execute.
