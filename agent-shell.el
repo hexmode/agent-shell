@@ -243,6 +243,11 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 (defvar-local agent-shell--state
     (agent-shell--make-state))
 
+
+(defvar agent-shell--shell-maker-config nil)
+
+;;; Transcript
+
 (defvar-local agent-shell--transcript-file nil
   "Path to the transcript file for this buffer.")
 
@@ -251,10 +256,6 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 Called with no arguments, should return a string path or nil to disable.
 When nil, transcript saving is disabled.
 Set this to an internal function for testing before rolling out to users.")
-
-(defvar agent-shell--shell-maker-config nil)
-
-;;; Transcript
 
 (defun agent-shell--default-transcript-file-path ()
   "Generate default transcript file path.
