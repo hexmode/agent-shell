@@ -1971,9 +1971,6 @@ Returns list of alists with :start, :end, and :path for each mention."
     (agent-shell-heartbeat-start
      :heartbeat (map-elt agent-shell--state :heartbeat))
 
-    (when attached-files (agent-shell--display-attached-files attached-files))
-
-
     (map-put! agent-shell--state :last-entry-type nil)
 
     (agent-shell--append-transcript
