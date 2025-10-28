@@ -1958,6 +1958,9 @@ Returns list of alists with :start, :end, and :path for each mention."
     (when attached-files (agent-shell--display-attached-files attached-files))
 
 
+    ;; Reset last-entry-type for new user prompt
+    (map-put! agent-shell--state :last-entry-type nil)
+
     (agent-shell--append-transcript
      :text (format "[%s] USER:\n%s\n\n"
                    (format-time-string "%Y-%m-%d %H:%M:%S")
