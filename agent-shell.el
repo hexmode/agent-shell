@@ -261,7 +261,7 @@ Set this to an internal function for testing before rolling out to users.")
 Returns path to transcript file in project's .agent-shell/transcripts/ directory."
   (let* ((cwd (agent-shell-cwd))
          (dir (expand-file-name ".agent-shell/transcripts" cwd))
-         (filename (format-time-string "%Y-%m-%d-%H-%M-%S-transcript.txt"))
+         (filename (format-time-string "%Y-%m-%d-%H-%M-%S-transcript.md"))
          (filepath (expand-file-name filename dir)))
     filepath))
 
@@ -277,11 +277,10 @@ Returns the path to the transcript file, or nil if disabled."
                                "Unknown Agent")))
           (make-directory dir t)
           (write-region
-           (format "Agent Shell Transcript\nAgent: %s\nStarted: %s\nWorking Directory: %s\n\n%s\n\n"
+           (format "# Agent Shell Transcript\n\n**Agent:** %s  \n**Started:** %s  \n**Working Directory:** %s\n\n---\n\n"
                    agent-name
                    (format-time-string "%Y-%m-%d %H:%M:%S")
-                   (agent-shell-cwd)
-                   (make-string 60 ?=))
+                   (agent-shell-cwd))
            nil filepath)
           filepath)
       (error
@@ -300,13 +299,14 @@ Both TEXT and FILE-PATH are required."
 (cl-defun agent-shell--make-transcript-tool-call-entry (&key status title kind description command output)
   "Create a formatted transcript entry for a tool call.
 Returns a formatted string with tool call details."
-  (format "[%s] TOOL CALL [%s]:\n  Tool: %s%s\n  Title: %s%s\n  Output:\n%s\n\n"
-          (format-time-string "%Y-%m-%d %H:%M:%S")
+  (format "<details>\n<summary>🔧 Tool Call [%s]: %s (%s)</summary>\n\n**Tool:** %s%s  \n**Timestamp:** %s%s\n\n**Output:**\n```\n%s\n```\n\n</details>\n\n"
           status
-          (or kind "unknown")
-          (if description (format " - %s" description) "")
           (or title "untitled")
-          (if command (format "\n  Command: %s" command) "")
+          (format-time-string "%H:%M:%S")
+          (or kind "unknown")
+          (if description (format "  \n**Description:** %s" description) "")
+          (format-time-string "%Y-%m-%d %H:%M:%S")
+          (if command (format "  \n**Command:** `%s`" command) "")
           (string-trim output)))
 
 ;;;###autoload
@@ -546,7 +546,7 @@ Flow:
                (unless (equal (map-elt state :last-entry-type) "agent_message_chunk")
                  (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count)))
                  (agent-shell--append-transcript
-                  :text (format "[%s] AGENT:\n" (format-time-string "%Y-%m-%d %H:%M:%S"))
+                  :text (format "## 🤖 Agent (%s)\n\n" (format-time-string "%Y-%m-%d %H:%M:%S"))
                   :file-path (with-current-buffer (map-elt state :buffer)
                                agent-shell--transcript-file)))
                (let-alist update
@@ -1962,7 +1962,7 @@ Returns list of alists with :start, :end, and :path for each mention."
     (map-put! agent-shell--state :last-entry-type nil)
 
     (agent-shell--append-transcript
-     :text (format "[%s] USER:\n%s\n\n"
+     :text (format "## 👤 User (%s)\n\n%s\n\n"
                    (format-time-string "%Y-%m-%d %H:%M:%S")
                    prompt)
      :file-path agent-shell--transcript-file)
