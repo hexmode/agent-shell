@@ -254,8 +254,7 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 (defvar agent-shell--transcript-file-path-function nil
   "Function to generate the full transcript file path.
 Called with no arguments, should return a string path or nil to disable.
-When nil, transcript saving is disabled.
-Set this to an internal function for testing before rolling out to users.")
+When nil, transcript saving is disabled.")
 
 (defun agent-shell--default-transcript-file-path ()
   "Generate default transcript file path.
@@ -269,16 +268,29 @@ Returns path to transcript file in project's .agent-shell/transcripts/ directory
 (defun agent-shell--init-transcript (config)
   "Initialize a new transcript file for this buffer using CONFIG.
 Returns the path to the transcript file, or nil if disabled."
-  (when agent-shell--transcript-file-path-function
+  (when-let* ((path-fn agent-shell--transcript-file-path-function)
+              (filepath (condition-case err
+                            (funcall path-fn)
+                          (error
+                           (message "Failed to generate transcript path: %S" err)
+                           nil)))
+              (dir (file-name-directory filepath))
+              (agent-name (or (map-elt config :mode-line-name)
+                              (map-elt config :buffer-name)
+                              "Unknown Agent")))
     (condition-case err
-        (let* ((filepath (funcall agent-shell--transcript-file-path-function))
-               (dir (file-name-directory filepath))
-               (agent-name (or (map-elt config :mode-line-name)
-                               (map-elt config :buffer-name)
-                               "Unknown Agent")))
+        (progn
           (make-directory dir t)
           (write-region
-           (format "# Agent Shell Transcript\n\n**Agent:** %s  \n**Started:** %s  \n**Working Directory:** %s\n\n---\n\n"
+           (format "# Agent Shell Transcript
+
+**Agent:** %s  
+**Started:** %s  
+**Working Directory:** %s
+
+---
+
+"
                    agent-name
                    (format-time-string "%Y-%m-%d %H:%M:%S")
                    (agent-shell-cwd))
@@ -289,8 +301,7 @@ Returns the path to the transcript file, or nil if disabled."
        nil))))
 
 (cl-defun agent-shell--append-transcript (&key text file-path)
-  "Append TEXT to the transcript at FILE-PATH.
-Both TEXT and FILE-PATH are required."
+  "Append TEXT to the transcript at FILE-PATH."
   (when (and file-path (file-exists-p file-path))
     (condition-case err
         (write-region text nil file-path t 'no-message)
@@ -300,7 +311,20 @@ Both TEXT and FILE-PATH are required."
 (cl-defun agent-shell--make-transcript-tool-call-entry (&key status title kind description command output)
   "Create a formatted transcript entry for a tool call.
 Returns a formatted string with tool call details."
-  (format "<details>\n<summary>🔧 Tool Call [%s]: %s (%s)</summary>\n\n**Tool:** %s%s  \n**Timestamp:** %s%s\n\n**Output:**\n```\n%s\n```\n\n</details>\n\n"
+  (format "<details>
+<summary>Tool Call [%s]: %s (%s)</summary>
+
+**Tool:** %s%s  
+**Timestamp:** %s%s
+
+**Output:**
+```
+%s
+```
+
+</details>
+
+"
           status
           (or title "untitled")
           (format-time-string "%H:%M:%S")
@@ -547,14 +571,12 @@ Flow:
                (unless (equal (map-elt state :last-entry-type) "agent_message_chunk")
                  (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count)))
                  (agent-shell--append-transcript
-                  :text (format "## 🤖 Agent (%s)\n\n" (format-time-string "%Y-%m-%d %H:%M:%S"))
-                  :file-path (with-current-buffer (map-elt state :buffer)
-                               agent-shell--transcript-file)))
+                  :text (format "## Agent (%s)\n\n" (format-time-string "%Y-%m-%d %H:%M:%S"))
+                  :file-path agent-shell--transcript-file))
                (let-alist update
                  (agent-shell--append-transcript
                   :text .content.text
-                  :file-path (with-current-buffer (map-elt state :buffer)
-                               agent-shell--transcript-file))
+                  :file-path agent-shell--transcript-file)
                  (agent-shell--update-dialog-block
                   :state state
                   :block-id (format "%s-agent_message_chunk"
@@ -606,22 +628,15 @@ Flow:
                    ;; Log tool call to transcript when completed or failed
                    (when (and (map-elt update 'status)
                               (member (map-elt update 'status) '("completed" "failed")))
-                     (let* ((tool-call (map-nested-elt state `(:tool-calls ,.toolCallId)))
-                            (title (map-elt tool-call :title))
-                            (kind (map-elt tool-call :kind))
-                            (command (map-elt tool-call :command))
-                            (description (map-elt tool-call :description))
-                            (status (map-elt update 'status)))
-                       (agent-shell--append-transcript
-                        :text (agent-shell--make-transcript-tool-call-entry
-                               :status status
-                               :title title
-                               :kind kind
-                               :description description
-                               :command command
-                               :output body-text)
-                        :file-path (with-current-buffer (map-elt state :buffer)
-                                     agent-shell--transcript-file))))
+                     (agent-shell--append-transcript
+                      :text (agent-shell--make-transcript-tool-call-entry
+                             :status (map-elt update 'status)
+                             :title (map-nested-elt state `(:tool-calls ,.toolCallId :title))
+                             :kind (map-nested-elt state `(:tool-calls ,.toolCallId :kind))
+                             :description (map-nested-elt state `(:tool-calls ,.toolCallId :description))
+                             :command (map-nested-elt state `(:tool-calls ,.toolCallId :command))
+                             :output body-text)
+                      :file-path agent-shell--transcript-file))
                    ;; Hide permission after sending response.
                    ;; Status and permission are no longer pending. User
                    ;; likely selected one of: accepted/rejected/always.
@@ -1959,11 +1974,10 @@ Returns list of alists with :start, :end, and :path for each mention."
     (when attached-files (agent-shell--display-attached-files attached-files))
 
 
-    ;; Reset last-entry-type for new user prompt
     (map-put! agent-shell--state :last-entry-type nil)
 
     (agent-shell--append-transcript
-     :text (format "## 👤 User (%s)\n\n%s\n\n"
+     :text (format "## User (%s)\n\n%s\n\n"
                    (format-time-string "%Y-%m-%d %H:%M:%S")
                    prompt)
      :file-path agent-shell--transcript-file)
@@ -1979,8 +1993,7 @@ Returns list of alists with :start, :end, and :path for each mention."
                    (when (equal (map-elt (agent-shell--state) :last-entry-type) "agent_message_chunk")
                      (agent-shell--append-transcript
                       :text "\n\n"
-                      :file-path (with-current-buffer (map-elt (agent-shell--state) :buffer)
-                                   agent-shell--transcript-file)))
+                      :file-path agent-shell--transcript-file))
                    ;; Tool call details are no longer needed after
                    ;; a session prompt request is finished.
                    ;; Avoid accumulating them unnecessarily.
