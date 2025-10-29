@@ -922,7 +922,9 @@ Returns in the form:
                            (seq-find (lambda (item)
                                        (equal (map-elt item 'type) "diff"))
                                      acp-content))))
-              (old-text (map-elt diff-item 'oldText))
+              ;; oldText can be nil for Write tools creating new files, default to ""
+              ;; TODO: Currently don't have a way to capture overwrites
+              (old-text (or (map-elt diff-item 'oldText) ""))
               (new-text (map-elt diff-item 'newText))
               (file-path (map-elt diff-item 'path)))
     (append (list (cons :old old-text)
