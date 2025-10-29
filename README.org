@@ -1,5 +1,6 @@
 #+TITLE: Emacs Agent Shell
 #+AUTHOR: Álvaro Ramírez
+👉 [[https://github.com/sponsors/xenodium][Support this work via GitHub Sponsors]] by [[https://github.com/xenodium][@xenodium]] (check out my [[https://xenodium.com][blog]])
 
 [[file:agent-shell.png]]
 
@@ -24,13 +25,14 @@ With agent-shell, you can chat with the likes of Gemini CLI, Claude Code, or any
 * Related projects
 
 - [[https://github.com/xenodium/acp.el][acp.el]]: An ACP (Agent Client Protocol) implementation in Emacs lisp.
-- [[https://github.com/cmacrae/agent-shell-sidebar][agent-shell-sidebar]]: Emacs sidebar addon for agent-shell.
+- [[https://github.com/jethrokuan/agent-shell-manager][agent-shell-manager]]: Tabulated view and management of =agent-shell= buffers.
+- [[https://github.com/cmacrae/agent-shell-sidebar][agent-shell-sidebar]]: A sidebar add-on for =agent-shell=.
 
 * Setup
 
 ** External dependencies
 
-*** ACP adapter for Claude Code
+*** Claude Code
 
 For Anthropic's Claude Code, follow [[https://github.com/zed-industries/claude-code-acp][Zed's claude-code-acp instructions]], typically something like:
 
@@ -40,17 +42,27 @@ npm install -g @zed-industries/claude-code-acp
 
 *Note:* The =-g= flag is required to install the binary globally so it's available in your PATH. After installation, verify it's available by running =which claude-code-acp= in your terminal.
 
+*** Codex
+
+For OpenAI's Codex, install [[https://github.com/zed-industries/codex-acp][zed/codex-acp]] and ensure the `codex-acp` executable is in PATH.
+
 *** Gemini CLI
 
 For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sure to get a recent release supporting the =--experimental-acp= flag.
 
-*** Codex
-
-For OpenAI's Codex, install [[https://github.com/cola-io/codex-acp][codex-acp]] and ensure the `codex-acp` executable is in PATH.
-
 *** Goose
 
 For Goose CLI, install [[https://block.github.io/goose/docs/getting-started/installation][goose]] and ensure the `goose` executable is in PATH.
+
+*** Qwen Code
+
+For Qwen Code, install with:
+
+#+begin_src bash
+npm install -g @qwen-code/qwen-code@latest
+#+end_src
+
+See https://github.com/QwenLM/qwen-code for details.
 
 ** Installation
 
@@ -210,6 +222,13 @@ For Vertex AI authentication:
 
 *** OpenAI Codex
 
+For login-based authentication (default):
+
+#+begin_src emacs-lisp
+(setq agent-shell-openai-authentication
+      (agent-shell-openai-make-authentication :login t))
+#+end_src
+
 For API key authentication:
 
 #+begin_src emacs-lisp
@@ -238,9 +257,18 @@ For OpenAI API key authentication:
        :openai-api-key (lambda () (auth-source-pass-get "secret" "openai-api-key"))))
 #+end_src
 
+*** Qwen Code
+
+For OAuth login-based authentication:
+
+#+begin_src emacs-lisp
+(setq agent-shell-qwen-authentication
+      (agent-shell-qwen-make-authentication :login t))
+#+end_src
+
 *** Customizing Available Agents
 
-By default, =agent-shell= includes configurations for all supported agents (Claude Code, Gemini CLI, Codex, and Goose). You can customize which agents are available through the =agent-shell-agent-configs= variable.
+By default, =agent-shell= includes configurations for all supported agents (Claude Code, Gemini CLI, Codex, Goose, and Qwen Code). You can customize which agents are available through the =agent-shell-agent-configs= variable.
 
 ** Usage
 
@@ -258,29 +286,28 @@ Start a specific agent shell session directly:
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
 - =M-x agent-shell-goose-start-agent= - Start a Goose agent session
+- =M-x agent-shell-qwen-start= - Start a Qwen Code agent session
 
 ** Running agents in Devcontainers / Docker containers (Experimental)
 
-=agent-shell= provides rudimentary support for running agents in containers.
+=agent-shell= provides rudimentary support for running agents and shell commands in containers.
 
-Adapt the command that starts the agent so it is executed inside the container; for example:
+Use =agent-shell-container-command-runner= to prefix the command that starts the agent, or a shell command that should be run so it is executed inside the container; for example:
 
 #+begin_src emacs-lisp
-(setq agent-shell-anthropic-claude-command '("devcontainer" "exec" "--workspace-folder" "." "claude-code-acp"))
+(setq agent-shell-container-command-runner '("devcontainer" "exec" "--workspace-folder" "."))
 #+end_src
 
-Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container.
-It's expected to inject environment variables by means of your devcontainer configuration / Dockerfile.
+Note that any =:environment-variables= you may have passed to =acp-make-client= will not apply to the agent process running inside the container. It's expected to inject environment variables by means of your devcontainer configuration / Dockerfile.
 
 Next, set an =agent-shell-path-resolver-function= that resolves container paths in the local working directory, and vice versa.
-Agent shell provides the =agent-shell--resolve-devcontainer-path= function for use with devcontainers:
+Agent shell provides the =agent-shell--resolve-devcontainer-path= function for use with devcontainers specifically: it reads the =workspaceFolder= specified in =.devcontainer/devcontainer.json=, or uses the default value of =/workspaces/<repository-name>= otherwise.
 
 #+begin_src emacs-lisp
 (setq agent-shell-path-resolver-function #'agent-shell--resolve-devcontainer-path)
 #+end_src
 
-Note that this allows the agent to access files on your local file-system.
-While care has been taken to restrict access to files in the local working directory, it's probably possible for a malicious agent to circumvent this restriction.
+Note that this allows the agent to access files on your local file-system. While care has been taken to restrict access to files in the local working directory, it's probably possible for a malicious agent to circumvent this restriction.
 
 Optional: to prevent the agent running inside the container to access your local file-system altogether and to have it read/modify files inside the container directly, in addition to setting the resolver function, disable the "read/write text file" client capabilities:
 
@@ -294,3 +321,119 @@ All of the above settings can be applied on a per-project basis using [[https://
 
 - =C-c C-c= - Interrupt current agent operation
 - =TAB and Shift-TAB= - Navigate interactive elements
+
+* Contributing
+
+** Before Contributing
+
+Before implementing new features, please *file a feature request first* to discuss the proposal. This helps ensure alignment with the project's direction and prevents unnecessary work.
+
+As the maintainer, I must be mindful of all features I accept since I inherit the code to maintain it. Some features may be better suited as separate packages (like [[https://github.com/cmacrae/agent-shell-sidebar][agent-shell-sidebar]]).
+
+I'll gladly promote your package wherever possible.
+
+** Style (or personal preference TBH)
+
+There are lots of ways to accomplish things in elisp. While the following are merely personal preferences, as maintainer, it really simplifies things for me to try to limit the number of ways to accomplish things.
+
+*** Maps (use alists)
+
+This project relies on [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Association-Lists.html][alists]] for much of its functionality. Sure, we can also use plists, hashtables, etc.
+
+Unless we have a strong argument to use something else, please stick with =alists= (and =:= keywords).
+
+#+begin_src emacs-lisp
+  '((:species . "Cat")
+    (:name . "Whiskers")
+    (:age . 4)
+    (:color . "Gray")
+    (:favorite-toy . "Feather Wand"))
+#+end_src
+
+*** seq.el
+
+Accessing and working with lists? Please prefer =seq.el=, unless we have a strong argument to use an alternative.
+
+#+begin_src emacs-lisp :lexical no
+  (setq animals
+        (list
+         '((:species . "Cat")
+           (:name . "Whiskers")
+           (:age . 4)
+           (:color . "Gray"))
+         '((:species . "Dog")
+           (:name . "Buddy")
+           (:age . 6)
+           (:color . "Brown"))))
+
+  (seq-first animals)
+#+end_src
+
+*** map.el
+
+Accessing and working with =alists=? Please prefer =map.el= unless we have a strong argument to use an alternative.
+
+#+begin_src emacs-lisp :lexical no
+  (setq animal (seq-first animals))
+  (map-elt animal :species)
+#+end_src
+
+*** cl-lib (limited to =cl-defun=)
+
+While I'm a fan of =cl-defun=, please limit =cl= usage to =cl-defun= if possible. Nothing against =cl-lib=. I'm just limiting the surface and number of idioms I need to keep in my head to maintain the codebase. Often, =seq.el= and =map.el= can do the job just fine.
+
+=cl-defun=, on the other hand, please do! I'm a fan of named parameters (yay for self-documenting), so use =&key= if possible.
+
+#+begin_src emacs-lisp :lexical no
+  (cl-defun describe (&key animal)
+    "Describe an ANIMAL, which is an alist of properties like :species, :name, :age, :color."
+    (message "This is a %d-year-old %s %s named %s."
+             (map-elt animal :age 0)
+             (map-elt animal :color "Unknown Color")
+             (map-elt animal :species "Unknown Species")
+             (map-elt animal :name "Unnamed")))
+
+  (describe :animal '((:species . "Cat")
+                      (:name . "Whiskers")
+                      (:age . 4)
+                      (:color . "Gray")))
+#+end_src
+
+*** Code/feature consistency
+
+Please try to look for a similar feature in the code base and replicate an existing pattern usage if possible.
+
+*** Code Checks
+
+Before submitting a PR, please run:
+
+- =M-x checkdoc= - Ensures documentation consistency
+- =M-x byte-compile-file= - Identifies compilation warnings
+
+*** Tests
+
+I'm aware, we're a bit light on tests, but we started adding some tests. If adding a new feature, please try to add tests.
+
+Tests live under the tests directory:
+
+#+begin_src bash
+  ls tests/*tests.el
+#+end_src
+
+#+RESULTS:
+| tests/agent-shell-anthropic-tests.el |
+| tests/agent-shell-tests.el           |
+
+*** Running tests
+
+Opening any file under the =tests= directory will load the =agent-shell-run-all-tests= command.
+
+Run tests with =M-x agent-shell-run-all-tests=.
+
+* Contributors
+
+#+HTML: <a href="https://github.com/xenodium/agent-shell/graphs/contributors">
+#+HTML:   <img src="https://contrib.rocks/image?repo=xenodium/agent-shell" />
+#+HTML: </a>
+
+Made with [[https://contrib.rocks][contrib.rocks]].

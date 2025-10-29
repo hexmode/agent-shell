@@ -30,19 +30,25 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
+(declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
-(cl-defun agent-shell-make-goose-authentication (&key openai-api-key)
+(cl-defun agent-shell-make-goose-authentication (&key openai-api-key none)
   "Create Goose authentication configuration.
 
-OPENAI-API-KEY is the OpenAI API key string or function that returns it."
-  (unless openai-api-key
-    (error "Must specify :openai-api-key"))
-  `((:openai-api-key . ,openai-api-key)))
+OPENAI-API-KEY is the OpenAI API key string or function that returns it.
+NONE when non-nil disables API key authentication.
+
+Only one of OPENAI-API-KEY or NONE should be provided, never both."
+  (when (and openai-api-key none)
+    (error "Cannot specify both :openai-api-key and :none - choose one"))
+  (unless (or openai-api-key none)
+    (error "Must specify either :openai-api-key or :none"))
+  (cond
+   (openai-api-key `((:openai-api-key . ,openai-api-key)))
+   (none `((:none . t)))))
 
 (defcustom agent-shell-goose-authentication nil
   "Configuration for Goose authentication.
@@ -54,7 +60,12 @@ For API key (string):
 For API key (function):
 
   (setq agent-shell-goose-authentication
-        (agent-shell-make-goose-authentication :openai-api-key (lambda () ...)))"
+        (agent-shell-make-goose-authentication :openai-api-key (lambda () ...)))
+
+For no authentication (when using alternative authentication methods):
+
+  (setq agent-shell-goose-authentication
+        (agent-shell-make-goose-authentication :none t))"
   :type 'alist
   :group 'agent-shell)
 
@@ -66,21 +77,36 @@ The first element is the command name, and the rest are command parameters."
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-goose-environment
+  nil
+  "Environment variables for the Goose client.
+
+This should be a list of environment variables to be used when
+starting the Goose client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-goose-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (defun agent-shell-goose-make-agent-config ()
   "Create a Goose agent configuration.
 
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-make-agent-config
-    :new-session t
-    :mode-line-name "Goose"
-    :buffer-name "Goose"
-    :shell-prompt "Goose> "
-    :shell-prompt-regexp "Goose> "
-    :welcome-function #'agent-shell-goose--welcome-message
-    :icon-name "goose.png"
-    :client-maker (lambda ()
-                    (agent-shell-goose-make-client))
-    :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
+   :mode-line-name "Goose"
+   :buffer-name "Goose"
+   :shell-prompt "Goose> "
+   :shell-prompt-regexp "Goose> "
+   :welcome-function #'agent-shell-goose--welcome-message
+   :icon-name "goose.png"
+   :client-maker (lambda (buffer)
+                   (agent-shell-goose-make-client :buffer buffer))
+   :install-instructions "See https://block.github.io/goose/docs/getting-started/installation."))
 
 (defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."
@@ -88,16 +114,23 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-goose-make-agent-config)))
 
-(defun agent-shell-goose-make-client ()
-  "Create a Goose client using configured authentication.
+(cl-defun agent-shell-goose-make-client (&key buffer)
+  "Create a Goose client using configured authentication with BUFFER as context.
 
 Uses `agent-shell-goose-authentication' for authentication configuration."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (let ((api-key (agent-shell-goose-key)))
-    (unless api-key
-      (error "Goose OpenAI API key not configured"))
-    (acp-make-client :command (car agent-shell-goose-command)
-                     :command-params (cdr agent-shell-goose-command)
-                     :environment-variables (list (format "OPENAI_API_KEY=%s" api-key)))))
+    (agent-shell--make-acp-client :command (car agent-shell-goose-command)
+                                  :command-params (cdr agent-shell-goose-command)
+                                  :environment-variables (append (cond ((map-elt agent-shell-goose-authentication :none)
+                                                                        nil)
+                                                                       (api-key
+                                                                        (list (format "OPENAI_API_KEY=%s" api-key)))
+                                                                       (t
+                                                                        (error "Missing Goose authentication (see agent-shell-goose-authentication)")))
+                                                                 agent-shell-goose-environment)
+                                  :context-buffer buffer)))
 
 (defun agent-shell-goose-key ()
   "Get the Goose OpenAI API key."

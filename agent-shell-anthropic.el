@@ -30,9 +30,8 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
-(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
@@ -100,15 +99,14 @@ Example usage to set a custom Anthropic API base URL:
 
 Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-make-agent-config
-   :new-session t
    :mode-line-name "Claude Code"
    :buffer-name "Claude Code"
    :shell-prompt "Claude Code> "
    :shell-prompt-regexp "Claude Code> "
    :icon-name "anthropic.png"
    :welcome-function #'agent-shell-anthropic--claude-code-welcome-message
-   :client-maker (lambda ()
-                   (agent-shell-anthropic-make-claude-client))
+   :client-maker (lambda (buffer)
+                   (agent-shell-anthropic-make-claude-client :buffer buffer))
    :install-instructions "See https://github.com/zed-industries/claude-code-acp for installation."))
 
 (defun agent-shell-anthropic-start-claude-code ()
@@ -117,12 +115,14 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-anthropic-make-claude-code-config)))
 
-(defun agent-shell-anthropic-make-claude-client ()
-  "Create a Claude Code ACP client.
+(cl-defun agent-shell-anthropic-make-claude-client (&key buffer)
+  "Create a Claude Code ACP client with BUFFER as context.
 
 See `agent-shell-anthropic-authentication' for authentication
 and optionally `agent-shell-anthropic-claude-environment' for
 additional environment variables."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (when (and (boundp 'agent-shell-anthropic-key) agent-shell-anthropic-key)
     (user-error "Please migrate to use agent-shell-anthropic-authentication and eval (setq agent-shell-anthropic-key nil)"))
   (let ((env-vars-overrides (cond
@@ -133,10 +133,11 @@ additional environment variables."
                               (list "ANTHROPIC_API_KEY="))
                              (t
                               (error "Invalid authentication configuration")))))
-    (acp-make-client :command (car agent-shell-anthropic-claude-command)
-                     :command-params (cdr agent-shell-anthropic-claude-command)
-                     :environment-variables (append env-vars-overrides
-                                                    agent-shell-anthropic-claude-environment))))
+    (agent-shell--make-acp-client :command (car agent-shell-anthropic-claude-command)
+                                  :command-params (cdr agent-shell-anthropic-claude-command)
+                                  :environment-variables (append env-vars-overrides
+                                                                 agent-shell-anthropic-claude-environment)
+                                  :context-buffer buffer)))
 
 (defun agent-shell-anthropic-key ()
   "Get the Anthropic API key."

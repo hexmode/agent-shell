@@ -40,7 +40,6 @@
                                  (list (cons :method (map-nested-elt authenticate-message '(:object method)))
                                        (cons :params (map-nested-elt authenticate-message '(:object params))))))
          (buffer (agent-shell--start
-                  :new-session t
                   :mode-line-name "Fake"
                   :buffer-name "Fake"
                   :shell-prompt "Fake> "

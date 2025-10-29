@@ -30,10 +30,9 @@
 (require 'shell-maker)
 (require 'acp)
 
-(declare-function agent-shell--ensure-executable "agent-shell")
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--interpolate-gradient "agent-shell")
-(declare-function agent-shell--start "agent-shell")
+(declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
@@ -81,10 +80,28 @@ For Vertex AI authentication:
   :group 'agent-shell)
 
 (defcustom agent-shell-google-gemini-command
-  '("gemini" "--experimental-acp")
+  '("gemini" "--experimental-acp"
+    "--allowed-tools" "run_shell_command" "list_directory"
+    "read_many_files" "web_fetch" "google_web_search")
   "Command and parameters for the Gemini client.
 
 The first element is the command name, and the rest are command parameters."
+  :type '(repeat string)
+  :group 'agent-shell)
+
+(defcustom agent-shell-google-gemini-environment
+  nil
+  "Environment variables for the Google Gemini client.
+
+This should be a list of environment variables to be used when
+starting the Gemini client process.
+
+Example usage to set custom environment variables:
+
+  (setq agent-shell-google-gemini-environment
+        (`agent-shell-make-environment-variables'
+         \"MY_VAR\" \"some-value\"
+         \"MY_OTHER_VAR\" \"another-value\"))"
   :type '(repeat string)
   :group 'agent-shell)
 
@@ -95,7 +112,6 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (agent-shell-make-agent-config
-   :new-session t
    :mode-line-name "Gemini CLI"
    :buffer-name "Gemini CLI"
    :shell-prompt "Gemini> "
@@ -110,7 +126,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                                         (acp-make-authenticate-request :method-id "vertex-ai"))
                                        (t
                                         (acp-make-authenticate-request :method-id "oauth-personal"))))
-   :client-maker #'agent-shell-google-make-gemini-client
+   :client-maker (lambda (buffer)
+                   (agent-shell-google-make-gemini-client :buffer buffer))
    :install-instructions "See https://github.com/google-gemini/gemini-cli for installation."))
 
 (defun agent-shell-google-start-gemini ()
@@ -119,24 +136,32 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   (agent-shell-start
    :config (agent-shell-google-make-gemini-config)))
 
-(defun agent-shell-google-make-gemini-client ()
-  "Create a Gemini client using configured authentication.
+(cl-defun agent-shell-google-make-gemini-client (&key buffer)
+  "Create a Gemini client using configured authentication with BUFFER as context.
 
 Uses `agent-shell-google-authentication' for authentication configuration."
+  (unless buffer
+    (error "Missing required argument: :buffer"))
   (when (and (boundp 'agent-shell-google-key) agent-shell-google-key)
     (user-error "Please migrate to use agent-shell-google-authentication and eval (setq agent-shell-google-key nil)"))
   (cond
    ((map-elt agent-shell-google-authentication :api-key)
-    (acp-make-client :command (car agent-shell-google-gemini-command)
-                     :command-params (cdr agent-shell-google-gemini-command)
-                     :environment-variables (when-let ((api-key (agent-shell-google-key)))
-                                              (list (format "GEMINI_API_KEY=%s" api-key)))))
+    (agent-shell--make-acp-client :command (car agent-shell-google-gemini-command)
+                                  :command-params (cdr agent-shell-google-gemini-command)
+                                  :environment-variables (append (when-let ((api-key (agent-shell-google-key)))
+                                                                   (list (format "GEMINI_API_KEY=%s" api-key)))
+                                                                 agent-shell-google-gemini-environment)
+                                  :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :login)
-    (acp-make-client :command (car agent-shell-google-gemini-command)
-                     :command-params (cdr agent-shell-google-gemini-command)))
+    (agent-shell--make-acp-client :command (car agent-shell-google-gemini-command)
+                                  :command-params (cdr agent-shell-google-gemini-command)
+                                  :environment-variables agent-shell-google-gemini-environment
+                                  :context-buffer buffer))
    ((map-elt agent-shell-google-authentication :vertex-ai)
-    (acp-make-client :command (car agent-shell-google-gemini-command)
-                     :command-params (cdr agent-shell-google-gemini-command)))
+    (agent-shell--make-acp-client :command (car agent-shell-google-gemini-command)
+                                  :command-params (cdr agent-shell-google-gemini-command)
+                                  :environment-variables agent-shell-google-gemini-environment
+                                  :context-buffer buffer))
    (t
     (error "Invalid authentication configuration"))))
 
@@ -150,11 +175,11 @@ Uses `agent-shell-google-authentication' for authentication configuration."
             message)))
 
 (defun agent-shell-google--gemini-ascii-art ()
-  "Generate Gemini CLI ASCII art, inspired by its codebase.
-
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/Header.tsx
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/AsciiArt.ts
-https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes/theme.ts"
+  "Generate Gemini CLI ASCII art, inspired by its codebase."
+  ;; Based on:
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/Header.tsx
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/components/AsciiArt.ts
+  ;; https://github.com/google-gemini/gemini-cli/tree/main/packages/cli/src/ui/themes/theme.ts
   (let* ((text (string-trim "
  ███            █████████  ██████████ ██████   ██████ █████ ██████   █████ █████
 ░░░███         ███░░░░░███░░███░░░░░█░░██████ ██████ ░░███ ░░██████ ░░███ ░░███
