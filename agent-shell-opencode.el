@@ -104,7 +104,6 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :shell-prompt "OpenCode> "
    :shell-prompt-regexp "OpenCode> "
    :welcome-function #'agent-shell-opencode--welcome-message
-   :icon-name "https://opencode.ai/favicon.svg"
    :client-maker (lambda (buffer)
                    (agent-shell-opencode-make-client :buffer buffer))
    :install-instructions "See https://opencode.ai/docs for installation."))
