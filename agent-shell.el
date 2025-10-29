@@ -1067,13 +1067,23 @@ For example, shut down ACP client."
      'font-lock-face
      `(:foreground ,color :box (:color ,color)))))
 
-(defun agent-shell--shorten-paths (text)
+(defun agent-shell--shorten-paths (text &optional include-project)
   "Shorten file paths in TEXT relative to project root.
 
-\"/path/to/project/file.txt\" -> \"file.txt\""
+\"/path/to/project/file.txt\" -> \"file.txt\"
+
+With INCLUDE-PROJECT
+
+\"/path/to/project/file.txt\" -> \"project/file.txt\""
   (when text
     (let ((cwd (string-remove-suffix "/" (agent-shell-cwd))))
-      (replace-regexp-in-string (concat (regexp-quote cwd) "/")
+      (replace-regexp-in-string (concat (regexp-quote
+                                         (if include-project
+                                             (string-remove-suffix
+                                              "/"
+                                              (file-name-directory
+                                               (directory-file-name cwd)))
+                                           cwd)) "/")
                                 ""
                                 (or text "")))))
 
@@ -2806,7 +2816,9 @@ Returns the path to the transcript file, or nil if disabled."
                    agent-name
                    (format-time-string "%F %T")
                    (agent-shell-cwd))
-           nil filepath)
+           nil filepath nil 'no-message)
+          (message "Created %s"
+                   (agent-shell--shorten-paths filepath t))
           filepath)
       (error
        (message "Failed to initialize transcript: %S" err)
