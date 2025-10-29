@@ -243,6 +243,8 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 (defvar-local agent-shell--state
     (agent-shell--make-state))
 
+(defvar-local agent-shell--transcript-file nil
+  "Path to the shell's transcript file.")
 
 (defvar agent-shell--shell-maker-config nil)
 
@@ -2712,9 +2714,6 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
                        (interactive) (agent-shell t)))]])
 
 ;;; Transcript
-
-(defvar-local agent-shell--transcript-file nil
-  "Path to the shell's transcript file.")
 
 (defvar agent-shell--transcript-file-path-function nil
   "Function to generate the full transcript file path.
