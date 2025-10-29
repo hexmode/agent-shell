@@ -464,7 +464,15 @@ Flow:
                   :state state
                   :block-id (map-elt update 'toolCallId)
                   :label-left (map-elt tool-call-labels :status)
-                  :label-right (map-elt tool-call-labels :title)))
+                  :label-right (map-elt tool-call-labels :title))
+                 ;; Display plan as markdown block if present
+                 (when-let ((plan (map-nested-elt update '(rawInput plan))))
+                   (agent-shell--update-dialog-block
+                    :state state
+                    :block-id (concat (map-elt update 'toolCallId) "-plan")
+                    :label-left (propertize "Proposed plan" 'font-lock-face 'font-lock-doc-markup-face)
+                    :body plan
+                    :expanded t)))
                (map-put! state :last-entry-type "tool_call"))
               ((equal (map-elt update 'sessionUpdate) "agent_thought_chunk")
                (let-alist update
