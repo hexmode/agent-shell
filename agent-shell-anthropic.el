@@ -35,6 +35,7 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
+;;;###autoload
 (cl-defun agent-shell-anthropic-make-authentication (&key api-key login)
   "Create anthropic authentication configuration.
 

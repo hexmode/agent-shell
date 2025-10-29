@@ -36,6 +36,7 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
+;;;###autoload
 (cl-defun agent-shell-qwen-make-authentication (&key login none)
   "Create Qwen Code authentication configuration.
 

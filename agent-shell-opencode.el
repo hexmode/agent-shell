@@ -35,6 +35,7 @@
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
+;;;###autoload
 (cl-defun agent-shell-opencode-make-authentication (&key api-key none)
   "Create OpenCode authentication configuration.
 

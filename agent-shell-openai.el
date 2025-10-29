@@ -35,6 +35,7 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
+;;;###autoload
 (cl-defun agent-shell-openai-make-authentication (&key api-key codex-api-key login)
   "Create OpenAI authentication configuration.
 

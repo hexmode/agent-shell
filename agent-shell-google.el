@@ -36,6 +36,7 @@
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell-start "agent-shell")
 
+;;;###autoload
 (cl-defun agent-shell-google-make-authentication (&key api-key login vertex-ai)
   "Create Google authentication configuration.
 
