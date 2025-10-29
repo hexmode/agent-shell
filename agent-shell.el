@@ -54,6 +54,7 @@
 (require 'agent-shell-google)
 (require 'agent-shell-goose)
 (require 'agent-shell-openai)
+(require 'agent-shell-opencode)
 (require 'agent-shell-qwen)
 (require 'agent-shell-heartbeat)
 
@@ -206,6 +207,7 @@ This function aggregates agents from OpenAI, Anthropic, Google, and Goose."
         (agent-shell-google-make-gemini-config)
         (agent-shell-goose-make-agent-config)
         (agent-shell-openai-make-codex-config)
+        (agent-shell-opencode-make-agent-config)
         (agent-shell-qwen-make-agent-config)))
 
 (defcustom agent-shell-agent-configs
