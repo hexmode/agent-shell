@@ -246,98 +246,6 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 
 (defvar agent-shell--shell-maker-config nil)
 
-;;; Transcript
-
-(defvar-local agent-shell--transcript-file nil
-  "Path to the shell's transcript file.")
-
-(defvar agent-shell--transcript-file-path-function nil
-  "Function to generate the full transcript file path.
-Called with no arguments, should return a string path or nil to disable.
-When nil, transcript saving is disabled.")
-
-(defun agent-shell--default-transcript-file-path ()
-  "Generate a transcript file path in project root.
-
-For example:
-
- project/.agent-shell/transcripts/."
-  (let* ((cwd (agent-shell-cwd))
-         (dir (expand-file-name ".agent-shell/transcripts" cwd))
-         (filename (format-time-string "%F-%H-%M-%S-transcript.md"))
-         (filepath (expand-file-name filename dir)))
-    filepath))
-
-(defun agent-shell--init-transcript (config)
-  "Initialize a new transcript file for this buffer using CONFIG.
-Returns the path to the transcript file, or nil if disabled."
-  (when-let* ((path-fn agent-shell--transcript-file-path-function)
-              (filepath (condition-case err
-                            (funcall path-fn)
-                          (error
-                           (message "Failed to generate transcript path: %S" err)
-                           nil)))
-              (dir (file-name-directory filepath))
-              (agent-name (or (map-elt config :mode-line-name)
-                              (map-elt config :buffer-name)
-                              "Unknown Agent")))
-    (condition-case err
-        (progn
-          (make-directory dir t)
-          (write-region
-           (format "# Agent Shell Transcript
-
-**Agent:** %s
-**Started:** %s
-**Working Directory:** %s
-
----
-
-"
-                   agent-name
-                   (format-time-string "%F %T")
-                   (agent-shell-cwd))
-           nil filepath)
-          filepath)
-      (error
-       (message "Failed to initialize transcript: %S" err)
-       nil))))
-
-(cl-defun agent-shell--append-transcript (&key text file-path)
-  "Append TEXT to the transcript at FILE-PATH."
-  (when (and file-path (file-exists-p file-path))
-    (condition-case err
-        (write-region text nil file-path t 'no-message)
-      (error
-       (message "Error writing to transcript: %S" err)))))
-
-(cl-defun agent-shell--make-transcript-tool-call-entry (&key status title kind description command output)
-  "Create a formatted transcript entry for a tool call.
-
-Includes STATUS, TITLE, KIND, DESCRIPTION, COMMAND, and OUTPUT."
-  (format "<details>
-<summary>Tool Call [%s]: %s (%s)</summary>
-
-**Tool:** %s%s
-**Timestamp:** %s%s
-
-**Output:**
-```
-%s
-```
-
-</details>
-
-"
-          status
-          (or title "untitled")
-          (format-time-string "%T")
-          (or kind "unknown")
-          (if description (format "  \n**Description:** %s" description) "")
-          (format-time-string "%F %T")
-          (if command (format "  \n**Command:** `%s`" command) "")
-          (string-trim output)))
-
 ;;;###autoload
 (defun agent-shell (&optional new-shell)
   "Start or reuse an existing agent shell.
@@ -2802,6 +2710,98 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
     ("b" "Toggle" agent-shell-toggle :transient t)
     ("N" "New shell" (lambda ()
                        (interactive) (agent-shell t)))]])
+
+;;; Transcript
+
+(defvar-local agent-shell--transcript-file nil
+  "Path to the shell's transcript file.")
+
+(defvar agent-shell--transcript-file-path-function nil
+  "Function to generate the full transcript file path.
+Called with no arguments, should return a string path or nil to disable.
+When nil, transcript saving is disabled.")
+
+(defun agent-shell--default-transcript-file-path ()
+  "Generate a transcript file path in project root.
+
+For example:
+
+ project/.agent-shell/transcripts/."
+  (let* ((cwd (agent-shell-cwd))
+         (dir (expand-file-name ".agent-shell/transcripts" cwd))
+         (filename (format-time-string "%F-%H-%M-%S-transcript.md"))
+         (filepath (expand-file-name filename dir)))
+    filepath))
+
+(defun agent-shell--init-transcript (config)
+  "Initialize a new transcript file for this buffer using CONFIG.
+Returns the path to the transcript file, or nil if disabled."
+  (when-let* ((path-fn agent-shell--transcript-file-path-function)
+              (filepath (condition-case err
+                            (funcall path-fn)
+                          (error
+                           (message "Failed to generate transcript path: %S" err)
+                           nil)))
+              (dir (file-name-directory filepath))
+              (agent-name (or (map-elt config :mode-line-name)
+                              (map-elt config :buffer-name)
+                              "Unknown Agent")))
+    (condition-case err
+        (progn
+          (make-directory dir t)
+          (write-region
+           (format "# Agent Shell Transcript
+
+**Agent:** %s
+**Started:** %s
+**Working Directory:** %s
+
+---
+
+"
+                   agent-name
+                   (format-time-string "%F %T")
+                   (agent-shell-cwd))
+           nil filepath)
+          filepath)
+      (error
+       (message "Failed to initialize transcript: %S" err)
+       nil))))
+
+(cl-defun agent-shell--append-transcript (&key text file-path)
+  "Append TEXT to the transcript at FILE-PATH."
+  (when (and file-path (file-exists-p file-path))
+    (condition-case err
+        (write-region text nil file-path t 'no-message)
+      (error
+       (message "Error writing to transcript: %S" err)))))
+
+(cl-defun agent-shell--make-transcript-tool-call-entry (&key status title kind description command output)
+  "Create a formatted transcript entry for a tool call.
+
+Includes STATUS, TITLE, KIND, DESCRIPTION, COMMAND, and OUTPUT."
+  (format "<details>
+<summary>Tool Call [%s]: %s (%s)</summary>
+
+**Tool:** %s%s
+**Timestamp:** %s%s
+
+**Output:**
+```
+%s
+```
+
+</details>
+
+"
+          status
+          (or title "untitled")
+          (format-time-string "%T")
+          (or kind "unknown")
+          (if description (format "  \n**Description:** %s" description) "")
+          (format-time-string "%F %T")
+          (if command (format "  \n**Command:** `%s`" command) "")
+          (string-trim output)))
 
 (provide 'agent-shell)
 
