@@ -2678,18 +2678,15 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
                                      0)))
     (mapconcat
      (lambda (mode)
-       (let* ((name (map-elt mode 'name))
-              (desc (map-elt mode 'description))
-              (is-current (and current-mode-id
-                               (string= (map-elt mode 'id) current-mode-id)))
-              (display-name (if is-current
-                                (concat name " (current)")
-                              name)))
+       (when (map-elt mode 'name)
          (concat
-          (propertize (format (format "%%-%ds" max-name-length) display-name)
+          (propertize (format (format "%%-%ds" max-name-length)
+                              (map-elt mode 'name))
                       'font-lock-face 'font-lock-function-name-face)
-          "  "
-          (propertize desc 'font-lock-face 'font-lock-comment-face))))
+          (when (map-elt mode 'description)
+            (concat "  "
+                    (propertize (map-elt mode 'description)
+                                'font-lock-face 'font-lock-comment-face))))))
      modes
      "\n")))
 
