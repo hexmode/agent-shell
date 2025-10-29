@@ -249,7 +249,7 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 ;;; Transcript
 
 (defvar-local agent-shell--transcript-file nil
-  "Path to the transcript file for this buffer.")
+  "Path to the shell's transcript file.")
 
 (defvar agent-shell--transcript-file-path-function nil
   "Function to generate the full transcript file path.
@@ -257,11 +257,14 @@ Called with no arguments, should return a string path or nil to disable.
 When nil, transcript saving is disabled.")
 
 (defun agent-shell--default-transcript-file-path ()
-  "Generate default transcript file path.
-Returns path to transcript file in project's .agent-shell/transcripts/ directory."
+  "Generate a transcript file path in project root.
+
+For example:
+
+ project/.agent-shell/transcripts/."
   (let* ((cwd (agent-shell-cwd))
          (dir (expand-file-name ".agent-shell/transcripts" cwd))
-         (filename (format-time-string "%Y-%m-%d-%H-%M-%S-transcript.md"))
+         (filename (format-time-string "%F-%H-%M-%S-transcript.md"))
          (filepath (expand-file-name filename dir)))
     filepath))
 
@@ -284,15 +287,15 @@ Returns the path to the transcript file, or nil if disabled."
           (write-region
            (format "# Agent Shell Transcript
 
-**Agent:** %s  
-**Started:** %s  
+**Agent:** %s
+**Started:** %s
 **Working Directory:** %s
 
 ---
 
 "
                    agent-name
-                   (format-time-string "%Y-%m-%d %H:%M:%S")
+                   (format-time-string "%F %T")
                    (agent-shell-cwd))
            nil filepath)
           filepath)
@@ -310,11 +313,12 @@ Returns the path to the transcript file, or nil if disabled."
 
 (cl-defun agent-shell--make-transcript-tool-call-entry (&key status title kind description command output)
   "Create a formatted transcript entry for a tool call.
-Returns a formatted string with tool call details."
+
+Includes STATUS, TITLE, KIND, DESCRIPTION, COMMAND, and OUTPUT."
   (format "<details>
 <summary>Tool Call [%s]: %s (%s)</summary>
 
-**Tool:** %s%s  
+**Tool:** %s%s
 **Timestamp:** %s%s
 
 **Output:**
@@ -327,10 +331,10 @@ Returns a formatted string with tool call details."
 "
           status
           (or title "untitled")
-          (format-time-string "%H:%M:%S")
+          (format-time-string "%T")
           (or kind "unknown")
           (if description (format "  \n**Description:** %s" description) "")
-          (format-time-string "%Y-%m-%d %H:%M:%S")
+          (format-time-string "%F %T")
           (if command (format "  \n**Command:** `%s`" command) "")
           (string-trim output)))
 
@@ -571,7 +575,7 @@ Flow:
                (unless (equal (map-elt state :last-entry-type) "agent_message_chunk")
                  (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count)))
                  (agent-shell--append-transcript
-                  :text (format "## Agent (%s)\n\n" (format-time-string "%Y-%m-%d %H:%M:%S"))
+                  :text (format "## Agent (%s)\n\n" (format-time-string "%F %T"))
                   :file-path agent-shell--transcript-file))
                (let-alist update
                  (agent-shell--append-transcript
@@ -1975,7 +1979,7 @@ Returns list of alists with :start, :end, and :path for each mention."
 
     (agent-shell--append-transcript
      :text (format "## User (%s)\n\n%s\n\n"
-                   (format-time-string "%Y-%m-%d %H:%M:%S")
+                   (format-time-string "%F %T")
                    prompt)
      :file-path agent-shell--transcript-file)
 
