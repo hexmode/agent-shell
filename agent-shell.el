@@ -288,8 +288,11 @@ See `agent-shell-make-agent-config' for config format."
   "Create icon string for CONFIG if available and icons are enabled.
 Returns an empty string if no icon should be displayed."
   (if-let* ((graphics-capable (display-graphic-p))
-            (icon-name (map-elt config :icon-name))
-            (icon-filename (agent-shell--fetch-agent-icon icon-name)))
+            (icon-filename (if (map-elt config :icon-name)
+                               (agent-shell--fetch-agent-icon
+                                (map-elt config :icon-name))
+                             (agent-shell--make-agent-fallback-icon
+                              (map-elt config :buffer-name) 100))))
       (with-temp-buffer
         (insert-image (create-image icon-filename nil nil
                                     :ascent 'center
@@ -1064,13 +1067,23 @@ For example, shut down ACP client."
      'font-lock-face
      `(:foreground ,color :box (:color ,color)))))
 
-(defun agent-shell--shorten-paths (text)
+(defun agent-shell--shorten-paths (text &optional include-project)
   "Shorten file paths in TEXT relative to project root.
 
-\"/path/to/project/file.txt\" -> \"file.txt\""
+\"/path/to/project/file.txt\" -> \"file.txt\"
+
+With INCLUDE-PROJECT
+
+\"/path/to/project/file.txt\" -> \"project/file.txt\""
   (when text
     (let ((cwd (string-remove-suffix "/" (agent-shell-cwd))))
-      (replace-regexp-in-string (concat (regexp-quote cwd) "/")
+      (replace-regexp-in-string (concat (regexp-quote
+                                         (if include-project
+                                             (string-remove-suffix
+                                              "/"
+                                              (file-name-directory
+                                               (directory-file-name cwd)))
+                                           cwd)) "/")
                                 ""
                                 (or text "")))))
 
@@ -1445,8 +1458,11 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                   (image-width image-height)
                   (text-height 25)
                   (svg (svg-create (frame-pixel-width) (+ image-height 10)))
-                  (icon-filename (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name))))
-                  (image-type (let ((ext (file-name-extension (map-nested-elt state '(:agent-config :icon-name)))))
+                  (icon-filename
+                   (if (map-nested-elt state '(:agent-config :icon-name))
+                       (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name)))
+                     (agent-shell--make-agent-fallback-icon (map-nested-elt state '(:agent-config :buffer-name)) 100)))
+                  (image-type (let ((ext (file-name-extension icon-filename)))
                                 (cond
                                  ((member ext '("png" "PNG")) "image/png")
                                  ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
@@ -1552,6 +1568,36 @@ Icon names starting with https:// are downloaded directly from that location."
             (kill-buffer buffer))))
       (when (file-exists-p cache-path)
         cache-path))))
+
+(defun agent-shell--make-agent-fallback-icon (icon-name width)
+  "Create SVG icon with first character of ICON-NAME and WIDTH.
+Return file path of the generated SVG."
+  (when (and icon-name (not (string-empty-p icon-name)))
+    (let* ((icon-text (char-to-string (string-to-char icon-name)))
+           (mode (if (eq (frame-parameter nil 'background-mode) 'dark) "dark" "light"))
+           (filename (format "%s-%s.svg" icon-name width))
+           (cache-dir (file-name-concat (temporary-file-directory) "agent-shell" mode))
+           (cache-path (expand-file-name filename cache-dir))
+           (font-size (* 0.7 width))
+           (x (/ width 2))
+           (y (/ width 2)))
+      (unless (file-exists-p cache-path)
+        (make-directory cache-dir t)
+        (let ((svg (svg-create width width :stroke "white" :fill "black")))
+          (svg-text svg icon-text
+                    :x x :y y
+                    :text-anchor "middle"
+                    :dominant-baseline "central"
+                    :font-weight "bold"
+                    :font-size font-size
+                    ;; :font-family "Monaco, Courier New, Courier, monospace"
+                    :font-family (face-attribute 'default :family)
+                    :fill (face-attribute 'default :foreground))
+          (with-temp-buffer
+            (let ((standard-output (current-buffer)))
+              (svg-print svg))
+            (write-region (point-min) (point-max) cache-path))))
+      cache-path)))
 
 (defun agent-shell-view-traffic ()
   "View agent shell traffic buffer."
@@ -2770,7 +2816,9 @@ Returns the path to the transcript file, or nil if disabled."
                    agent-name
                    (format-time-string "%F %T")
                    (agent-shell-cwd))
-           nil filepath)
+           nil filepath nil 'no-message)
+          (message "Created %s"
+                   (agent-shell--shorten-paths filepath t))
           filepath)
       (error
        (message "Failed to initialize transcript: %S" err)
