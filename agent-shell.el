@@ -1518,11 +1518,21 @@ Names can be found at https://github.com/lobehub/lobe-icons/tree/master/packages
 Icon names starting with https:// are downloaded directly from that location."
   (when icon-name
     (let* ((mode (if (eq (frame-parameter nil 'background-mode) 'dark) "dark" "light"))
-           (url (if (string-prefix-p "https://" (downcase icon-name))
+           (is-url (string-prefix-p "https://" (downcase icon-name)))
+           (url (if is-url
                     icon-name
                   (concat "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/"
                           mode "/" icon-name)))
-           (filename (file-name-nondirectory url))
+           (filename (if is-url
+                         ;; For URLs, sanitize to create readable filename
+                         ;; e.g., "https://opencode.ai/favicon.svg" -> "opencode.ai-favicon.svg"
+                         (replace-regexp-in-string
+                          "[/:]" "-"
+                          (replace-regexp-in-string
+                           "^https?://" ""
+                           url))
+                       ;; For lobe-icons names, use the original filename
+                       (file-name-nondirectory url)))
            (cache-dir (file-name-concat (temporary-file-directory) "agent-shell" mode))
            (cache-path (expand-file-name filename cache-dir)))
       (unless (file-exists-p cache-path)
