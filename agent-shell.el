@@ -2793,7 +2793,7 @@ For example:
  project/.agent-shell/transcripts/."
   (let* ((cwd (agent-shell-cwd))
          (dir (expand-file-name ".agent-shell/transcripts" cwd))
-         (filename (format-time-string "%F-%H-%M-%S-transcript.md"))
+         (filename (format-time-string "%F-%H-%M-%S.md"))
          (filepath (expand-file-name filename dir)))
     filepath))
 
