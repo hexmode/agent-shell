@@ -253,14 +253,27 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 ;;;###autoload
 (defun agent-shell (&optional new-shell)
   "Start or reuse an existing agent shell.
+
+If in a project without a shell, offer to create one.
+
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
-  (if (and (not new-shell)
-           (seq-first (agent-shell-buffers)))
-      (agent-shell--display-buffer (seq-first (agent-shell-buffers)))
-    (agent-shell-start :config (or (agent-shell-select-config
-                                    :prompt "Start new agent: ")
-                                   (error "No agent config found")))))
+  (if new-shell
+      (agent-shell-start :config (or (agent-shell-select-config
+                                      :prompt "Start new agent: ")
+                                     (error "No agent config found")))
+    (if-let ((_ (not new-shell))
+             (existing-shell (seq-first (agent-shell-project-buffers))))
+        (agent-shell--display-buffer existing-shell)
+      (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
+          (if (y-or-n-p "No shells in project.  Start a new one? ")
+              (agent-shell-start :config (or (agent-shell-select-config
+                                              :prompt "Start new agent: ")
+                                             (error "No agent config found")))
+            (agent-shell--display-buffer other-project-shell))
+        (agent-shell-start :config (or (agent-shell-select-config
+                                        :prompt "Start new agent: ")
+                                       (error "No agent config found")))))))
 
 ;;;###autoload
 (defun agent-shell-toggle ()
