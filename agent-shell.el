@@ -262,8 +262,7 @@ With prefix argument NEW-SHELL, force start a new shell."
       (agent-shell-start :config (or (agent-shell-select-config
                                       :prompt "Start new agent: ")
                                      (error "No agent config found")))
-    (if-let ((_ (not new-shell))
-             (existing-shell (seq-first (agent-shell-project-buffers))))
+    (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
         (agent-shell--display-buffer existing-shell)
       (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
           (if (y-or-n-p "No shells in project.  Start a new one? ")
