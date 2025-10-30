@@ -2080,20 +2080,33 @@ inserted into the shell buffer prompt."
 
 ;;; Completion
 
-(defun agent-shell-insert-file ()
+(defun agent-shell-send-file (&optional prompt-for-file)
   "Insert a file into `agent-shell'.
 
 If visiting a file, insert this file.
 
-If invoked from shell, select a project file."
-  (interactive)
+If invoked from shell, select a project file.
+
+With prefix argument PROMPT-FOR-FILE, always prompt for file selection."
+  (interactive "P")
   (let* ((in-shell (derived-mode-p 'agent-shell-mode))
-         (file (if in-shell
-                   (completing-read "Insert file: " (agent-shell--project-files))
+         (file (if (or in-shell prompt-for-file)
+                   (completing-read "Send file: " (agent-shell--project-files))
                  (or buffer-file-name
-                     (completing-read "Insert file: " (agent-shell--project-files))
-                     (user-error "No file to insert")))))
+                     (completing-read "Send file: " (agent-shell--project-files))
+                     (user-error "No file to send")))))
     (agent-shell-insert :text (concat "@" file))))
+
+(defalias 'agent-shell-insert-file #'agent-shell-send-file)
+
+(defalias 'agent-shell-send-current-file #'agent-shell-send-file)
+
+(defun agent-shell-send-other-file ()
+  "Prompt to send a file into `agent-shell'.
+
+Always prompts for file selection, even if a current file is available."
+  (interactive)
+  (agent-shell-send-file t))
 
 (defun agent-shell--project-files ()
   "Get project files using projectile or project.el."
