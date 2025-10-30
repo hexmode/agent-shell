@@ -288,6 +288,14 @@ With prefix argument NEW-SHELL, force start a new shell."
           (switch-to-prev-buffer))
       (agent-shell--display-buffer shell-buffer))))
 
+;;;###autoload
+(defun agent-shell-new-shell ()
+  "Start a new agent shell.
+
+Always prompts for agent selection, even if existing shells are available."
+  (interactive)
+  (agent-shell t))
+
 (cl-defun agent-shell-start (&key config)
   "Programmatically start shell with CONFIG.
 
