@@ -685,21 +685,28 @@ Flow:
 
 (cl-defun agent-shell--extract-buffer-text (&key buffer line limit)
   "Extract text from BUFFER starting from LINE with optional LIMIT.
-LINE defaults to 1, LIMIT defaults to nil (read to end)."
+If the buffer's file has changed, prompt the user to reload it."
   (with-current-buffer buffer
-    (save-excursion
-      (goto-char (point-min))
-      (when (and line (> line 1))
-        ;; Seems odd to use forward-line but
-        ;; that's what `goto-line' recommends.
-        (forward-line (1- line)))
-      (let ((start (point)))
-        (if limit
-            ;; Seems odd to use forward-line but
-            ;; that's what `goto-line' recommends.
-            (forward-line limit)
-          (goto-char (point-max)))
-        (buffer-substring-no-properties start (point))))))
+    (when (and (buffer-file-name)
+               (not (verify-visited-file-modtime))
+               (y-or-n-p (format "%s has changed on file.  Reload? "
+                                 (buffer-name))))
+      (revert-buffer t nil nil))
+    (save-restriction
+      (widen)
+      (save-excursion
+        (goto-char (point-min))
+        (when (and line (> line 1))
+          ;; Seems odd to use forward-line but
+          ;; that's what `goto-line' recommends.
+          (forward-line (1- line)))
+        (let ((start (point)))
+          (if limit
+              ;; Seems odd to use forward-line but
+              ;; that's what `goto-line' recommends.
+              (forward-line limit)
+            (goto-char (point-max)))
+          (buffer-substring-no-properties start (point)))))))
 
 (cl-defun agent-shell--on-fs-read-text-file-request (&key state request)
   "Handle fs/read_text_file REQUEST with STATE."
