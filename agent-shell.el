@@ -2640,8 +2640,8 @@ Returns an alist with insertion details or nil otherwise:
       (:start . ,insert-start)
       (:end . ,insert-end))))
 
-(cl-defun agent-shell-add-region ()
-  "Add region to last accessed shell buffer in project."
+(cl-defun agent-shell-send-region ()
+  "Send region to last accessed shell buffer in project."
   (interactive)
   (let* ((region (or (agent-shell--get-region :deactivate t)
                      (user-error "No region selected")))
