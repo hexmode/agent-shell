@@ -166,6 +166,17 @@ Can be one of:
   :type 'boolean
   :group 'agent-shell)
 
+(defcustom agent-shell-screenshot-command
+  (if (eq system-type 'darwin)
+      '("/usr/sbin/screencapture" "-i")
+    ;; ImageMagick is common on Linux and many other *nix systems.
+    '("/usr/bin/import"))
+  "The program to use for capturing screenshots.
+
+Assume screenshot file path will be appended to this list."
+  :type '(repeat string)
+  :group 'agent-shell)
+
 (cl-defun agent-shell-make-agent-config (&key mode-line-name welcome-function
                                               buffer-name shell-prompt shell-prompt-regexp
                                               client-maker
@@ -1087,6 +1098,36 @@ For example, shut down ACP client."
     (error "Not in a shell"))
   (when (map-elt (agent-shell--state) :client)
     (acp-shutdown :client (map-elt (agent-shell--state) :client))))
+
+(cl-defun agent-shell--capture-screenshot (&key destination-dir)
+  "Capture a screenshot and save it to DESTINATION-DIR.
+
+Returns the full path to the captured screenshot file on success.
+Signals an error on failure.
+
+DESTINATION-DIR is required and must be provided."
+  (unless destination-dir
+    (error "Destination-dir is required"))
+  (let* ((file-path (expand-file-name
+                     (format "screenshot-%s.png"
+                             (format-time-string "%Y%m%d-%H%M%S"))
+                     destination-dir))
+         (command (car agent-shell-screenshot-command))
+         (args (append (cdr agent-shell-screenshot-command)
+                       (list file-path))))
+    (unless (file-directory-p destination-dir)
+      (make-directory destination-dir t))
+    (redisplay) ;; Give redisplay a chance before blocking call-process
+    (let ((exit-code (apply #'call-process command nil nil nil args)))
+      (cond
+       ((not (zerop exit-code))
+        (error "Screenshot command failed with exit code %d" exit-code))
+       ((not (file-exists-p file-path))
+        (error "Screenshot file was not created"))
+       ((zerop (nth 7 (file-attributes file-path)))
+        (error "Screenshot file is empty"))
+       (t
+        file-path)))))
 
 (defun agent-shell--status-label (status)
   "Convert STATUS codes to user-visible labels."
@@ -2175,6 +2216,16 @@ Always prompts for file selection, even if a current file is available."
   (interactive)
   (agent-shell-send-file t))
 
+(defun agent-shell-send-screenshot ()
+  "Capture a screenshot and insert it into `agent-shell'.
+
+The screenshot is saved to .agent-shell/screenshots in the project root.
+The captured screenshot file path is then inserted into the shell prompt."
+  (interactive)
+  (let* ((screenshots-dir (expand-file-name ".agent-shell/screenshots" (agent-shell-cwd)))
+         (screenshot-path (agent-shell--capture-screenshot :destination-dir screenshots-dir)))
+    (agent-shell-insert :text (concat "@" screenshot-path))))
+
 (defun agent-shell--project-files ()
   "Get project files using projectile or project.el."
   (cond
@@ -2871,8 +2922,7 @@ When nil, transcript saving is disabled.")
 For example:
 
  project/.agent-shell/transcripts/."
-  (let* ((cwd (agent-shell-cwd))
-         (dir (expand-file-name ".agent-shell/transcripts" cwd))
+  (let* ((dir (expand-file-name ".agent-shell/transcripts" (agent-shell-cwd)))
          (filename (format-time-string "%F-%H-%M-%S.md"))
          (filepath (expand-file-name filename dir)))
     filepath))
