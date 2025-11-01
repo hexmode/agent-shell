@@ -260,7 +260,7 @@
 
             ;; Test with embedded context support and small file
             (let ((agent-shell--state (list
-                                       (cons :agent-supports-embedded-context t))))
+                                       (cons :prompt-capabilities '((:embedded-context . t))))))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
                 (should (equal blocks
                                `(((type . "text")
@@ -272,7 +272,7 @@
 
             ;; Test without embedded context support
             (let ((agent-shell--state (list
-                                       (cons :agent-supports-embedded-context nil))))
+                                       (cons :prompt-capabilities nil))))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
                 (should (equal blocks
                                `(((type . "text")
@@ -285,7 +285,7 @@
 
             ;; Test fallback by setting a very small file size limit
             (let ((agent-shell--state (list
-                                       (cons :agent-supports-embedded-context t)))
+                                       (cons :prompt-capabilities '((:embedded-context . t)))))
                   (agent-shell-embed-file-size-limit 5))
               (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
                 (should (equal blocks
@@ -299,11 +299,89 @@
 
             ;; Test with no mentions
             (let ((agent-shell--state (list
-                                       (cons :agent-supports-embedded-context t))))
+                                       (cons :prompt-capabilities '((:embedded-context . t))))))
               (let ((blocks (agent-shell--build-content-blocks "No mentions here")))
                 (should (equal blocks
                                '(((type . "text")
                                   (text . "No mentions here")))))))))
+
+      (delete-file temp-file))))
+
+(ert-deftest agent-shell--build-content-blocks-binary-file-test ()
+  "Test agent-shell--build-content-blocks with binary PNG files."
+  (let* ((temp-file (make-temp-file "agent-shell-test" nil ".png"))
+         ;; Minimal valid 1x1 PNG file (69 bytes)
+         (png-data (unibyte-string
+                    #x89 #x50 #x4E #x47 #x0D #x0A #x1A #x0A ; PNG signature
+                    #x00 #x00 #x00 #x0D #x49 #x48 #x44 #x52 ; IHDR chunk
+                    #x00 #x00 #x00 #x01 #x00 #x00 #x00 #x01
+                    #x08 #x02 #x00 #x00 #x00 #x90 #x77 #x53
+                    #xDE #x00 #x00 #x00 #x0C #x49 #x44 #x41 ; IDAT chunk
+                    #x54 #x08 #xD7 #x63 #xF8 #xCF #xC0 #x00
+                    #x00 #x03 #x01 #x01 #x00 #x18 #xDD #x8D
+                    #xB4 #x00 #x00 #x00 #x00 #x49 #x45 #x4E ; IEND chunk
+                    #x44 #xAE #x42 #x60 #x82))
+         (default-directory (file-name-directory temp-file))
+         (file-name (file-name-nondirectory temp-file))
+         (file-path (expand-file-name temp-file))
+         (file-uri (concat "file://" file-path)))
+
+    (unwind-protect
+        (progn
+          ;; Write binary PNG data
+          (with-temp-file temp-file
+            (set-buffer-multibyte nil)
+            (insert png-data))
+
+          ;; Mock agent-shell-cwd
+          (cl-letf (((symbol-function 'agent-shell-cwd)
+                     (lambda () default-directory)))
+
+            ;; Test with image and embedded context support - should use ContentBlock::Image
+            (let ((agent-shell--state (list
+                                       (cons :prompt-capabilities '((:image . t) (:embedded-context . t))))))
+              (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
+                ;; Should have text block and image block
+                (should (= (length blocks) 2))
+
+                ;; Check text block
+                (should (equal (map-elt (nth 0 blocks) 'type) "text"))
+                (should (equal (map-elt (nth 0 blocks) 'text) "Analyze"))
+
+                ;; Check image block
+                (let ((image-block (nth 1 blocks)))
+                  (should (equal (map-elt image-block 'type) "image"))
+
+                  ;; Check URI
+                  (should (equal (map-elt image-block 'uri) file-uri))
+
+                  ;; Check MIME type is image/png
+                  (should (equal (map-elt image-block 'mimeType) "image/png"))
+
+                  ;; Check content is base64-encoded (not raw binary)
+                  (let ((content (map-elt image-block 'data)))
+                    ;; Should be a string
+                    (should (stringp content))
+                    ;; Should not contain raw PNG signature
+                    (should-not (string-match-p "\x89PNG" content))
+                    ;; Should be base64 (alphanumeric + / + = padding)
+                    (should (string-match-p "^[A-Za-z0-9+/\n]+=*$" content))
+                    ;; Should be longer than original (base64 overhead)
+                    (should (> (length content) 69))))))
+
+            ;; Test without image capability - should use resource_link with correct mime type
+            (let ((agent-shell--state (list
+                                       (cons :prompt-capabilities nil))))
+              (let ((blocks (agent-shell--build-content-blocks (format "Analyze @%s" file-name))))
+                (should (= (length blocks) 2))
+
+                (let ((resource-link (nth 1 blocks)))
+                  (should (equal (map-elt resource-link 'type) "resource_link"))
+                  (should (equal (map-elt resource-link 'uri) file-uri))
+                  ;; Should have image/png mime type
+                  (should (equal (map-elt resource-link 'mimeType) "image/png"))
+                  (should (equal (map-elt resource-link 'name) file-name))
+                  (should (equal (map-elt resource-link 'size) 69)))))))
 
       (delete-file temp-file))))
 
@@ -348,7 +426,7 @@
         (agent-shell--state (list
                             (cons :client 'test-client)
                             (cons :session (list (cons :id "test-session")))
-                            (cons :agent-supports-embedded-context t)
+                            (cons :prompt-capabilities '((:embedded-context . t)))
                             (cons :buffer (current-buffer)))))
 
     ;; Mock acp-send-request to capture what gets sent
@@ -377,7 +455,7 @@
         (agent-shell--state (list
                              (cons :client 'test-client)
                              (cons :session (list (cons :id "test-session")))
-                             (cons :agent-supports-embedded-context t)
+                             (cons :prompt-capabilities '((:embedded-context . t)))
                              (cons :buffer (current-buffer)))))
 
     ;; Mock build-content-blocks to throw an error

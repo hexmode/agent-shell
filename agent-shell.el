@@ -240,7 +240,7 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
         (cons :request-count 0)
         (cons :tool-calls nil)
         (cons :available-commands nil)
-        (cons :agent-supports-embedded-context nil)))
+        (cons :prompt-capabilities nil)))
 
 (defvar-local agent-shell--state
     (agent-shell--make-state))
@@ -1773,11 +1773,12 @@ Must provide ON-INITIATED (lambda ())."
              :write-text-file-capability agent-shell-text-file-capabilities)
    :on-success (lambda (response)
                  (with-current-buffer (map-elt shell :buffer)
-                   ;; Check if agent supports embeddedContext
-                   (let ((embedded-context-supported
-                          (map-nested-elt response '(agentCapabilities promptCapabilities embeddedContext))))
-                     (map-put! agent-shell--state :agent-supports-embedded-context
-                               (eq embedded-context-supported t)))
+                   ;; Save prompt capabilities from agent, converting to internal symbols
+                   (when-let ((prompt-capabilities
+                               (map-nested-elt response '(agentCapabilities promptCapabilities))))
+                     (map-put! agent-shell--state :prompt-capabilities
+                               (list (cons :image (map-elt prompt-capabilities 'image))
+                                     (cons :embedded-context (map-elt prompt-capabilities 'embeddedContext)))))
                    (when-let ((agent-capabilities (map-elt response 'agentCapabilities)))
                      (agent-shell--update-dialog-block
                       :state agent-shell--state
@@ -1882,7 +1883,8 @@ Returns list of alists with :start, :end, and :path for each mention."
 
 (cl-defun agent-shell--build-content-blocks (prompt)
   "Build content blocks from the PROMPT."
-  (let* ((supports-embedded-context (map-elt agent-shell--state :agent-supports-embedded-context))
+  (let* ((supports-embedded-context (map-nested-elt agent-shell--state '(:prompt-capabilities :embedded-context)))
+         (supports-image (map-nested-elt agent-shell--state '(:prompt-capabilities :image)))
          (mentions (agent-shell--parse-file-mentions prompt))
          (content-blocks '())
          (pos 0))
@@ -1891,7 +1893,6 @@ Returns list of alists with :start, :end, and :path for each mention."
              (end (map-elt mention :end))
              (path (map-elt mention :path))
              (resolved-path (expand-file-name path (agent-shell-cwd))))
-
         ;; Add text before mention
         (when (> start pos)
           (push `((type . "text")
@@ -1900,34 +1901,41 @@ Returns list of alists with :start, :end, and :path for each mention."
 
         ;; Try to embed or link file
         (condition-case nil
-            (if (file-readable-p resolved-path)
-                (let ((file-size (file-attribute-size (file-attributes resolved-path))))
-                  ;; Agent supports embeddedContext and file is small - embed full content
-                  (if (and supports-embedded-context
-                           file-size
-                           (< file-size agent-shell-embed-file-size-limit))
-                      (let ((content (with-temp-buffer
-                                       (insert-file-contents resolved-path)
-                                       (buffer-string))))
-                        (push `((type . "resource")
-                                (resource . ((uri . ,(concat "file://" resolved-path))
-                                             (text . ,content)
-                                             ;; TODO: Determine mimetype instead of hardcoding
-                                             (mimeType . "text/plain"))))
-                              content-blocks))
-                    ;; File too large or agent doesn't support embeddedContext - use resource link
-                    ;; so agent can fetch via fs/read_text_file RPC if needed
-                    (push `((type . "resource_link")
-                            (uri . ,(concat "file://" resolved-path))
-                            (name . ,path)
-                            ;; TODO: Determine mimetype instead of hardcoding
-                            (mimeType . "text/plain")
-                            (size . ,file-size))
-                          content-blocks)))
-              ;; File's not readable, so also keep it as text
-              (push `((type . "text")
-                      (text . ,(substring-no-properties prompt start end)))
-                    content-blocks))
+            (let ((file (and (file-readable-p resolved-path)
+                             (agent-shell--read-file-content :file-path resolved-path))))
+              (cond
+               ;; File not readable - keep mention as text
+               ((not file)
+                (push `((type . "text")
+                        (text . ,(substring-no-properties prompt start end)))
+                      content-blocks))
+               ;; Binary image and image capability supported
+               ;; Use ContentBlock::Image
+               ((and supports-image (map-elt file :base64-p)
+                     (string-prefix-p "image/" (map-elt file :mime-type)))
+                (push `((type . "image")
+                        (data . ,(map-elt file :content))
+                        (mimeType . ,(map-elt file :mime-type))
+                        (uri . ,(concat "file://" resolved-path)))
+                      content-blocks))
+               ;; Text file, small enough, and embeddedContext supported
+               ;; Use ContentBlock::Resource
+               ((and supports-embedded-context (map-elt file :size)
+                     (< (map-elt file :size) agent-shell-embed-file-size-limit))
+                (push `((type . "resource")
+                        (resource . ((uri . ,(concat "file://" resolved-path))
+                                     (text . ,(map-elt file :content))
+                                     (mimeType . ,(map-elt file :mime-type)))))
+                      content-blocks))
+               ;; File too large or agent doesn't support embeddedContext
+               ;; Use resource link
+               (t
+                (push `((type . "resource_link")
+                        (uri . ,(concat "file://" resolved-path))
+                        (name . ,path)
+                        (mimeType . ,(map-elt file :mime-type))
+                        (size . ,(map-elt file :size)))
+                      content-blocks))))
           (error
            ;; On error, just keep the mention as text
            (push `((type . "text")
@@ -1943,6 +1951,38 @@ Returns list of alists with :start, :end, and :path for each mention."
             content-blocks))
 
     (nreverse content-blocks)))
+
+(cl-defun agent-shell--read-file-content (&key file-path)
+  "Read FILE-PATH and return metadata and content as an alist.
+
+Returns an alist with:
+  :size - file size in bytes
+  :extension - file extension (lowercase)
+  :mime-type - MIME type based on extension
+  :base64-p - t if content is base64-encoded (binary image), nil otherwise
+  :content - file content"
+  (let* ((ext (downcase (or (file-name-extension file-path) "")))
+         (mime-type (cond
+                     ((member ext '("png")) "image/png")
+                     ((member ext '("jpg" "jpeg")) "image/jpeg")
+                     ((member ext '("gif")) "image/gif")
+                     ((member ext '("webp")) "image/webp")
+                     ((member ext '("svg")) "image/svg+xml")
+                     (t "text/plain")))
+         (is-binary (string-prefix-p "image/" mime-type))
+         (file-size (file-attribute-size (file-attributes file-path)))
+         (content (with-temp-buffer
+                    (if is-binary
+                        (progn
+                          (insert-file-contents-literally file-path)
+                          (base64-encode-string (buffer-string) t))
+                      (insert-file-contents file-path)
+                      (buffer-string)))))
+    (list (cons :size file-size)
+          (cons :extension ext)
+          (cons :mime-type mime-type)
+          (cons :base64-p is-binary)
+          (cons :content content))))
 
 (cl-defun agent-shell--collect-attached-files (content-blocks)
   "Collect attached resource uris from CONTENT-BLOCKS."
