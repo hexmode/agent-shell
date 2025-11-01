@@ -424,10 +424,11 @@
   "Integration test: verify agent-shell--send-command calls ACP correctly."
   (let ((sent-request nil)
         (agent-shell--state (list
-                            (cons :client 'test-client)
-                            (cons :session (list (cons :id "test-session")))
-                            (cons :prompt-capabilities '((:embedded-context . t)))
-                            (cons :buffer (current-buffer)))))
+                             (cons :client 'test-client)
+                             (cons :session (list (cons :id "test-session")))
+                             (cons :prompt-capabilities '((:embedded-context . t)))
+                             (cons :buffer (current-buffer))
+                             (cons :last-entry-type nil))))
 
     ;; Mock acp-send-request to capture what gets sent
     (cl-letf (((symbol-function 'acp-send-request)
@@ -456,7 +457,8 @@
                              (cons :client 'test-client)
                              (cons :session (list (cons :id "test-session")))
                              (cons :prompt-capabilities '((:embedded-context . t)))
-                             (cons :buffer (current-buffer)))))
+                             (cons :buffer (current-buffer))
+                             (cons :last-entry-type nil))))
 
     ;; Mock build-content-blocks to throw an error
     (cl-letf (((symbol-function 'agent-shell--build-content-blocks)
