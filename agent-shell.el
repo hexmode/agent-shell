@@ -2011,7 +2011,10 @@ Returns an alist with:
                      ((member ext '("webp")) "image/webp")
                      ((member ext '("svg")) "image/svg+xml")
                      (t "text/plain")))
-         (is-binary (string-prefix-p "image/" mime-type))
+         ;; Only treat supported binary image formats as binary
+         ;; SVG is XML/text and should not be base64-encoded
+         ;; API only supports: image/png, image/jpeg, image/gif, image/webp
+         (is-binary (member mime-type '("image/png" "image/jpeg" "image/gif" "image/webp")))
          (file-size (file-attribute-size (file-attributes file-path)))
          (content (with-temp-buffer
                     (if is-binary
