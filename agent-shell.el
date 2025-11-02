@@ -39,6 +39,7 @@
 (require 'acp)
 (eval-when-compile
   (require 'cl-lib))
+(require 'dired)
 (require 'json)
 (require 'map)
 (unless (require 'markdown-overlays nil 'noerror)
@@ -2191,19 +2192,50 @@ inserted into the shell buffer prompt."
 (defun agent-shell-send-file (&optional prompt-for-file)
   "Insert a file into `agent-shell'.
 
-If visiting a file, insert this file.
+If visiting a file, send this file.
 
 If invoked from shell, select a project file.
+
+If invoked from `dired', use selection or region files.
 
 With prefix argument PROMPT-FOR-FILE, always prompt for file selection."
   (interactive "P")
   (let* ((in-shell (derived-mode-p 'agent-shell-mode))
-         (file (if (or in-shell prompt-for-file)
-                   (completing-read "Send file: " (agent-shell--project-files))
-                 (or buffer-file-name
-                     (completing-read "Send file: " (agent-shell--project-files))
-                     (user-error "No file to send")))))
-    (agent-shell-insert :text (concat "@" file))))
+         (files (if (or in-shell prompt-for-file)
+                    (list (completing-read "Send file: " (agent-shell--project-files)))
+                  (or (agent-shell--buffer-files)
+                      (list (completing-read "Send file: " (agent-shell--project-files)))
+                      (user-error "No file to send")))))
+    (mapc (lambda (file)
+            (agent-shell-insert :text (concat "@" file)))
+          files)))
+
+(defun agent-shell--buffer-files ()
+  "Return buffer file(s) or `dired' selected file(s)."
+  (if (buffer-file-name)
+      (list (buffer-file-name))
+    (or
+     (agent-shell--dired-paths-in-region)
+     (dired-get-marked-files))))
+
+(defun agent-shell--dired-paths-in-region ()
+  "If `dired' buffer, return region files.  nil otherwise."
+  (when (and (equal major-mode 'dired-mode)
+             (use-region-p))
+    (let ((start (region-beginning))
+          (end (region-end))
+          (paths))
+      (save-excursion
+        (save-restriction
+          (goto-char start)
+          (while (< (point) end)
+            ;; Skip non-file lines.
+            (while (and (< (point) end) (dired-between-files))
+              (forward-line 1))
+            (when (dired-get-filename nil t)
+              (setq paths (append paths (list (dired-get-filename nil t)))))
+            (forward-line 1))))
+      paths)))
 
 (defalias 'agent-shell-insert-file #'agent-shell-send-file)
 
