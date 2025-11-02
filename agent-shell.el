@@ -3011,28 +3011,23 @@ Returns the path to the transcript file, or nil if disabled."
   "Create a formatted transcript entry for a tool call.
 
 Includes STATUS, TITLE, KIND, DESCRIPTION, COMMAND, and OUTPUT."
-  (format "<details>
-<summary>Tool Call [%s]: %s (%s)</summary>
-
-**Tool:** %s%s
-**Timestamp:** %s%s
-
-**Output:**
-```
-%s
-```
-
-</details>
-
-"
-          status
-          (or title "untitled")
-          (format-time-string "%T")
-          (or kind "unknown")
-          (if description (format "  \n**Description:** %s" description) "")
-          (format-time-string "%F %T")
-          (if command (format "  \n**Command:** `%s`" command) "")
-          (string-trim output)))
+  (concat
+   (format "\n\n### Tool Call [%s]: %s\n"
+           (or status "no status") (or title ""))
+   (when kind
+     (format "\n**Tool:** %s" kind))
+   (format "\n**Timestamp:** %s" (format-time-string "%F %T"))
+   (when description
+     (format "\n**Description:** %s" description))
+   (when command
+     (format "\n**Command:** %s" command))
+   "\n\n"
+   "```"
+   "\n"
+   (string-trim (string-trim output)
+                "```" "```")
+   "\n"
+   "```"))
 
 (provide 'agent-shell)
 

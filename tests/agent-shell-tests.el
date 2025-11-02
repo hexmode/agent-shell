@@ -556,5 +556,87 @@ prompt        image and embedded context"))))
   (let ((capabilities '((promptCapabilities (image . :false) (audio . :false)))))
     (should (equal (agent-shell--format-agent-capabilities capabilities) ""))))
 
+(ert-deftest agent-shell--make-transcript-tool-call-entry-test ()
+  "Test `agent-shell--make-transcript-tool-call-entry' function."
+  ;; Mock format-time-string to return a predictable value
+  (cl-letf (((symbol-function 'format-time-string)
+             (lambda (format &optional _time _zone)
+               (cond
+                ((string= format "%F %T") "2025-11-02 18:17:41")
+                (t (error "Unexpected format-time-string format: %s" format))))))
+
+    ;; Test with all parameters provided
+    (let ((entry (agent-shell--make-transcript-tool-call-entry
+                  :status "completed"
+                  :title "grep \"transcript\""
+                  :kind "search"
+                  :description "Search for transcript references"
+                  :command "grep \"transcript\""
+                  :output "Found 6 files\n/path/to/file1.md\n/path/to/file2.md")))
+      (should (equal entry "\n\n### Tool Call [completed]: grep \"transcript\"
+
+**Tool:** search
+**Timestamp:** 2025-11-02 18:17:41
+**Description:** Search for transcript references
+**Command:** grep \"transcript\"
+
+```
+Found 6 files
+/path/to/file1.md
+/path/to/file2.md
+```")))
+
+    ;; Test with minimal parameters
+    (let ((entry (agent-shell--make-transcript-tool-call-entry
+                  :status "completed"
+                  :title "test command"
+                  :output "simple output")))
+      (should (equal entry "\n\n### Tool Call [completed]: test command
+
+**Timestamp:** 2025-11-02 18:17:41
+
+```
+simple output
+```")))
+
+    ;; Test with nil status and title
+    (let ((entry (agent-shell--make-transcript-tool-call-entry
+                  :status nil
+                  :title nil
+                  :output "output")))
+      (should (equal entry "\n\n### Tool Call [no status]:
+
+**Timestamp:** 2025-11-02 18:17:41
+
+```
+output
+```")))
+
+    ;; Test that output whitespace is trimmed
+    (let ((entry (agent-shell--make-transcript-tool-call-entry
+                  :status "completed"
+                  :title "test"
+                  :output "  \n  output with spaces  \n  ")))
+      (should (equal entry "\n\n### Tool Call [completed]: test
+
+**Timestamp:** 2025-11-02 18:17:41
+
+```
+output with spaces
+```")))
+
+    ;; Test that code blocks in output are stripped
+    (let ((entry (agent-shell--make-transcript-tool-call-entry
+                  :status "completed"
+                  :title "test"
+                  :output "```\ncode block content\n```")))
+      (should (equal entry "\n\n### Tool Call [completed]: test
+
+**Timestamp:** 2025-11-02 18:17:41
+
+```
+code block content
+```")))))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
