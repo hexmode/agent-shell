@@ -1,4 +1,4 @@
-;;; agent-shell.el --- An agent shell powered by ACP -*- lexical-binding: t; -*-
+;;; agent-shell.el --- A single native shell experience to interact with agentic providers (Claude Code, Gemini CLI, Goose, Codex, OpenCode, Qwen, etc.)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024 Alvaro Ramirez
 
@@ -24,15 +24,18 @@
 
 ;;; Commentary:
 ;;
-;; agent-shell is driven by ACP (Agent Client Protocol) as per spec
-;; https://agentclientprotocol.com
+;; `agent-shell' offers a native `comint' shell experience to
+;; interact with any agent powered by ACP (Agent Client Protocol).
 ;;
-;; Note: This package is in the very early stage and is likely
-;; incomplete or may have some rough edges.
+;; `agent-shell' currently provides access to Claude Code, Gemini CLI,
+;; Goose, Codex, OpenCode, and Qwen amongst other agents.
+;;
+;; This package depends on the `acp' package to provide the ACP layer
+;; as per https://agentclientprotocol.com spec.
 ;;
 ;; Report issues at https://github.com/xenodium/agent-shell/issues
 ;;
-;; ✨ Please support this work https://github.com/sponsors/xenodium ✨
+;; ✨ Support this work https://github.com/sponsors/xenodium ✨
 
 ;;; Code:
 
