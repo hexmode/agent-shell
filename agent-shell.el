@@ -2042,7 +2042,8 @@ Returns an alist with:
 
 MAX-WIDTH specifies the maximum width in pixels for the image (default 200).
 If FILE-PATH is not an image, returns nil."
-  (when-let* ((metadata (agent-shell--read-file-content :file-path file-path :shallow t))
+  (when-let* ((_ (display-graphic-p))
+              (metadata (agent-shell--read-file-content :file-path file-path :shallow t))
               (mime-type (map-elt metadata :mime-type))
               ;; Check if it's an image type
               (is-image (string-prefix-p "image/" mime-type)))
