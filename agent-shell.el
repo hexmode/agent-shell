@@ -2513,6 +2513,27 @@ ACTIONS as per `agent-shell--make-permission-action'."
                        (list :key "p"
                              :description "previous hunk"
                              :command 'diff-hunk-prev)
+                       (list :key "y"
+                             :description "accept all"
+                             :command (lambda ()
+                                        (interactive)
+                                        (let ((action (agent-shell--resolve-permission-choice-to-action
+                                                       :choice 'accept
+                                                       :actions actions))
+                                              (agent-shell-on-exit nil))
+                                          ;; Disable on-exit since killing
+                                          ;; the buffer should not trigger
+                                          ;; asking user if they want to
+                                          ;; keep or reject changes.
+                                          (kill-current-buffer)
+                                          (with-current-buffer shell-buffer
+                                            (agent-shell--send-permission-response
+                                             :client client
+                                             :request-id request-id
+                                             :option-id (map-elt action :option-id)
+                                             :state state
+                                             :tool-call-id tool-call-id
+                                             :message-text (map-elt action :option))))))
                        (list :key (key-description (where-is-internal 'agent-shell-interrupt agent-shell-mode-map t))
                              :description nil ;; hide from header-line-format
                              :command (lambda ()
