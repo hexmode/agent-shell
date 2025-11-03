@@ -2368,7 +2368,13 @@ For example:
                                       :option-id (map-elt action :option-id)
                                       :state state
                                       :tool-call-id tool-call-id
-                                      :message-text (map-elt action :option))))))
+                                      :message-text (map-elt action :option))
+                                     (when (equal (map-elt action :kind) "reject_once")
+                                       ;; No point in rejecting the change but letting
+                                       ;; the agent continue (it doesn't know why you
+                                       ;; have rejected the change).
+                                       ;; May as well interrupt so you can course-correct.
+                                       (agent-shell-interrupt t))))))
                    ;; Add diff keybinding if diff info is available
                    (when diff
                      (define-key map "v" (agent-shell--make-diff-viewing-function
@@ -2395,22 +2401,13 @@ For example:
                          :keymap keymap
                          :navigatable t
                          :char ?v
-                         :option "view diff")))
-         (interrupt-key (key-description (where-is-internal 'agent-shell-interrupt agent-shell-mode-map t)))
-         (interrupt-button (agent-shell--make-permission-button
-                            :text (format "Interrupt (%s)" interrupt-key)
-                            :help (format "Press %s to interrupt" interrupt-key)
-                            :action #'agent-shell-interrupt
-                            :keymap keymap
-                            :navigatable t
-                            :char (aref (kbd interrupt-key) 0)
-                            :option "interrupt")))
+                         :option "view diff"))))
     (format "╭─
 
     %s %s %s%s
 
 
-    %s%s %s
+    %s%s
 
 
 ╰─"
@@ -2439,14 +2436,19 @@ For example:
                                      :option-id (map-elt action :option-id)
                                      :state state
                                      :tool-call-id tool-call-id
-                                     :message-text (format "Selected: %s" (map-elt action :option))))
+                                     :message-text (format "Selected: %s" (map-elt action :option)))
+                                    (when (equal (map-elt action :kind) "reject_once")
+                                      ;; No point in rejecting the change but letting
+                                      ;; the agent continue (it doesn't know why you
+                                      ;; have rejected the change).
+                                      ;; May as well interrupt so you can course-correct.
+                                      (agent-shell-interrupt t)))
                           :keymap keymap
                           :char (map-elt action :char)
                           :option (map-elt action :option)
                           :navigatable t))
                        actions
-                       " ")
-            interrupt-button)))
+                       " "))))
 
 (cl-defun agent-shell--send-permission-response (&key client request-id option-id cancelled state tool-call-id message-text)
   "Send a response to a permission request and clean up related dialog UI.
@@ -2549,20 +2551,28 @@ ACTIONS as per `agent-shell--make-permission-action'."
                                             (agent-shell-interrupt t)))))
                        (list :key "q" :description "exit" :command 'kill-current-buffer))
        :on-exit (lambda ()
-                  (if-let ((action (agent-shell--resolve-permission-choice-to-action
-                                    :choice (condition-case nil
-                                                (if (y-or-n-p "Accept changes?")
-                                                    'accept
-                                                  'reject)
-                                              (quit 'ignore))
+                  (if-let ((choice (condition-case nil
+                                       (if (y-or-n-p "Accept changes?")
+                                           'accept
+                                         'reject)
+                                     (quit 'ignore)))
+                           (action (agent-shell--resolve-permission-choice-to-action
+                                    :choice choice
                                     :actions actions)))
-                      (agent-shell--send-permission-response
-                       :client client
-                       :request-id request-id
-                       :option-id (map-elt action :option-id)
-                       :state state
-                       :tool-call-id tool-call-id
-                       :message-text (map-elt action :option))
+                      (progn
+                        (agent-shell--send-permission-response
+                         :client client
+                         :request-id request-id
+                         :option-id (map-elt action :option-id)
+                         :state state
+                         :tool-call-id tool-call-id
+                         :message-text (map-elt action :option))
+                        (when (eq choice 'reject)
+                          ;; No point in rejecting the change but letting
+                          ;; the agent continue (it doesn't know why you
+                          ;; have rejected the change).
+                          ;; May as well interrupt so you can course-correct.
+                          (agent-shell-interrupt t)))
                     (message "Ignored")))))))
 
 (cl-defun agent-shell--make-permission-button (&key text help action keymap navigatable char option)
