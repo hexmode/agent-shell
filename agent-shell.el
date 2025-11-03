@@ -363,14 +363,15 @@ Returns an empty string if no icon should be displayed."
   (interactive)
   (message "agent-shell v%s" agent-shell--version))
 
-(defun agent-shell-interrupt ()
-  "Interrupt in-progress request and reject all pending permissions."
+(defun agent-shell-interrupt (&optional force)
+  "Interrupt in-progress request and reject all pending permissions.
+When FORCE is non-nil, skip confirmation prompt."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (unless (map-nested-elt (agent-shell--state) '(:session :id))
     (error "No active session"))
-  (when (y-or-n-p "Interrupt?")
+  (when (or force (y-or-n-p "Interrupt?"))
     ;; First cancel all pending permission requests
     (map-do
      (lambda (tool-call-id tool-call-data)
@@ -2497,24 +2498,51 @@ Returns the matching action or nil if no match found."
 
 DIFF as per `agent-shell--make-diff-info'.
 ACTIONS as per `agent-shell--make-permission-action'."
-  (lambda ()
-    (interactive)
-    (agent-shell-diff
-     :old (map-elt diff :old)
-     :new (map-elt diff :new)
-     :title (file-name-nondirectory (map-elt diff :file))
-     :on-exit (lambda (choice)
-                (if-let ((action (agent-shell--resolve-permission-choice-to-action
-                                  :choice choice
-                                  :actions actions)))
-                    (agent-shell--send-permission-response
-                     :client client
-                     :request-id request-id
-                     :option-id (map-elt action :option-id)
-                     :state state
-                     :tool-call-id tool-call-id
-                     :message-text (map-elt action :option))
-                  (message "Ignored"))))))
+  (unless (derived-mode-p 'agent-shell-mode)
+    (error "Not in a shell"))
+  (let ((shell-buffer (current-buffer)))
+    (lambda ()
+      (interactive)
+      (agent-shell-diff
+       :old (map-elt diff :old)
+       :new (map-elt diff :new)
+       :title (file-name-nondirectory (map-elt diff :file))
+       :bindings (list (list :key "n"
+                             :description "next hunk"
+                             :command 'diff-hunk-next)
+                       (list :key "p"
+                             :description "previous hunk"
+                             :command 'diff-hunk-prev)
+                       (list :key (key-description (where-is-internal 'agent-shell-interrupt agent-shell-mode-map t))
+                             :description nil ;; hide from header-line-format
+                             :command (lambda ()
+                                        (interactive)
+                                        (when (y-or-n-p "Interrupt?")
+                                          (let ((agent-shell-on-exit nil))
+                                            ;; Disable on-exit since killing
+                                            ;; the buffer should not trigger
+                                            ;; asking user if they want to
+                                            ;; keep or reject changes.
+                                            (kill-current-buffer))
+                                          (with-current-buffer shell-buffer
+                                            (agent-shell-interrupt t)))))
+                       (list :key "q" :description "exit" :command 'kill-current-buffer))
+       :on-exit (lambda ()
+                  (if-let ((action (agent-shell--resolve-permission-choice-to-action
+                                    :choice (condition-case nil
+                                                (if (y-or-n-p "Accept changes?")
+                                                    'accept
+                                                  'reject)
+                                              (quit 'ignore))
+                                    :actions actions)))
+                      (agent-shell--send-permission-response
+                       :client client
+                       :request-id request-id
+                       :option-id (map-elt action :option-id)
+                       :state state
+                       :tool-call-id tool-call-id
+                       :message-text (map-elt action :option))
+                    (message "Ignored")))))))
 
 (cl-defun agent-shell--make-permission-button (&key text help action keymap navigatable char option)
   "Create a permission button with TEXT, HELP, ACTION, and KEYMAP.

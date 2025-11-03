@@ -33,24 +33,30 @@
   (require 'cl-lib))
 (require 'diff-mode)
 
-(cl-defun agent-shell-diff (&key old new on-exit title)
+(defvar-local agent-shell-on-exit nil
+  "Function to call when the diff buffer is killed.
+
+This variable is automatically set by :on-exit from `agent-shell-diff'
+and can be temporarily let-bound to nil to prevent the
+on-exit callback from running when the buffer is killed.")
+
+(cl-defun agent-shell-diff (&key old new on-exit title bindings)
   "Display a diff between OLD and NEW strings in a buffer.
 
 Creates a new buffer showing the differences between OLD and NEW
-using `diff-mode'.  The buffer is read-only with the following
-key bindings:
-  n - next diff hunk
-  p - previous diff hunk
-  q - kill buffer and exit
+using `diff-mode'.  The buffer is read-only.
 
-When the buffer is killed, prompts \"Accept changes?\" and calls
-ON-EXIT with t or nil based on the response.
+When the buffer is killed, calls ON-EXIT with no arguments.
 
 Arguments:
   :OLD       - Original string content
   :NEW       - Modified string content
-  :ON-EXIT   - Function called with (t/nil) when buffer is killed
+  :ON-EXIT   - Function called with no arguments when buffer is killed
   :TITLE     - Optional title to display in header line
+  :BINDINGS  - List of alists defining key bindings, each with:
+               :key         - Key string (e.g., \"n\")
+               :description - Description for header line (e.g., \"next hunk\")
+               :command     - Command function (e.g., `diff-hunk-next')
   :OLD-LABEL - Label for old content (default: \"before\")
   :NEW-LABEL - Label for new content (default: \"after\")"
   (let* ((diff-buffer (generate-new-buffer "*agent-shell-diff*"))
@@ -90,29 +96,36 @@ Arguments:
                                  (propertize "│ changes │\n╰─────────╯\n\n" 'face face))
                     (overlay-put overlay 'evaporate t)))))
             (diff-mode)
-            (setq header-line-format
-                  (concat
-                   "  "
-                   (when title
-                     (concat (propertize title 'face 'mode-line-emphasis) " "))
-                   (propertize "n" 'face 'help-key-binding)
-                   " next hunk "
-                   (propertize "p" 'face 'help-key-binding)
-                   " previous hunk "
-                   (propertize "q" 'face 'help-key-binding)
-                   " exit"))
+            (when bindings
+              (setq header-line-format
+                    (concat
+                     "  "
+                     (when title
+                       (concat (propertize title 'face 'mode-line-emphasis) " "))
+                     (mapconcat
+                      #'identity
+                      (seq-filter
+                       #'identity
+                       (mapcar
+                        (lambda (binding)
+                          (when (map-elt binding :description)
+                            (concat
+                             (propertize (map-elt binding :key) 'face 'help-key-binding)
+                             " "
+                             (map-elt binding :description))))
+                        bindings))
+                      " "))))
             (goto-char (point-min))
             (ignore-errors (diff-hunk-next))
             (when on-exit
+              (setq agent-shell-on-exit on-exit)
               (add-hook 'kill-buffer-hook
                         (lambda ()
+                          (with-current-buffer diff-buffer
+                            (when agent-shell-on-exit
+                              (with-current-buffer calling-buffer
+                                (funcall on-exit))))
                           (with-current-buffer calling-buffer
-                            (funcall on-exit
-                                     (condition-case nil
-                                         (if (y-or-n-p "Accept changes?")
-                                             'accept
-                                           'reject)
-                                       (quit 'ignore)))
                             ;; Make sure give focus back to calling buffer on exit.
                             (if (and (window-live-p calling-window)
                                      (eq (window-buffer calling-window) calling-buffer))
@@ -124,12 +137,12 @@ Arguments:
                                 (select-window calling-window)))))
                         nil t))
             (setq buffer-read-only t)
-            (let ((map (make-sparse-keymap)))
-              (set-keymap-parent map diff-mode-map)
-              (define-key map "n" #'diff-hunk-next)
-              (define-key map "p" #'diff-hunk-prev)
-              (define-key map "q" #'kill-current-buffer)
-              (use-local-map map))))
+            (when bindings
+              (let ((map (make-sparse-keymap)))
+                (set-keymap-parent map diff-mode-map)
+                (dolist (binding bindings)
+                  (define-key map (kbd (map-elt binding :key)) (map-elt binding :command)))
+                (use-local-map map)))))
       (pop-to-buffer diff-buffer '(display-buffer-use-some-window
                                    display-buffer-same-window)))))
 
