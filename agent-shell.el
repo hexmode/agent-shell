@@ -1998,15 +1998,17 @@ Returns list of alists with :start, :end, and :path for each mention."
 
     (nreverse content-blocks)))
 
-(cl-defun agent-shell--read-file-content (&key file-path)
+(cl-defun agent-shell--read-file-content (&key file-path shallow)
   "Read FILE-PATH and return metadata and content as an alist.
+
+When SHALLOW is non-nil, only metadata is returned without loading file content.
 
 Returns an alist with:
   :size - file size in bytes
   :extension - file extension (lowercase)
   :mime-type - MIME type based on extension
   :base64-p - t if content is base64-encoded (binary image), nil otherwise
-  :content - file content"
+  :content - file content (omitted when SHALLOW is non-nil)"
   (let* ((ext (downcase (or (file-name-extension file-path) "")))
          (mime-type (cond
                      ((member ext '("png")) "image/png")
@@ -2020,18 +2022,31 @@ Returns an alist with:
          ;; API only supports: image/png, image/jpeg, image/gif, image/webp
          (is-binary (member mime-type '("image/png" "image/jpeg" "image/gif" "image/webp")))
          (file-size (file-attribute-size (file-attributes file-path)))
-         (content (with-temp-buffer
-                    (if is-binary
-                        (progn
-                          (insert-file-contents-literally file-path)
-                          (base64-encode-string (buffer-string) t))
-                      (insert-file-contents file-path)
-                      (buffer-string)))))
-    (list (cons :size file-size)
-          (cons :extension ext)
-          (cons :mime-type mime-type)
-          (cons :base64-p is-binary)
-          (cons :content content))))
+         (content (unless shallow
+                    (with-temp-buffer
+                      (if is-binary
+                          (progn
+                            (insert-file-contents-literally file-path)
+                            (base64-encode-string (buffer-string) t))
+                        (insert-file-contents file-path)
+                        (buffer-string))))))
+    (append (list (cons :size file-size)
+                  (cons :extension ext)
+                  (cons :mime-type mime-type)
+                  (cons :base64-p is-binary))
+            (unless shallow
+              (list (cons :content content))))))
+
+(cl-defun agent-shell--load-image (&key file-path (max-width 200))
+  "Load image from FILE-PATH and return the image object.
+
+MAX-WIDTH specifies the maximum width in pixels for the image (default 200).
+If FILE-PATH is not an image, returns nil."
+  (when-let* ((metadata (agent-shell--read-file-content :file-path file-path :shallow t))
+              (mime-type (map-elt metadata :mime-type))
+              ;; Check if it's an image type
+              (is-image (string-prefix-p "image/" mime-type)))
+    (create-image file-path nil nil :max-width max-width)))
 
 (cl-defun agent-shell--collect-attached-files (content-blocks)
   "Collect attached resource uris from CONTENT-BLOCKS."
@@ -2207,15 +2222,23 @@ If invoked from `dired', use selection or region files.
 
 With prefix argument PROMPT-FOR-FILE, always prompt for file selection."
   (interactive "P")
-  (let* ((in-shell (derived-mode-p 'agent-shell-mode))
-         (files (if (or in-shell prompt-for-file)
-                    (list (completing-read "Send file: " (agent-shell--project-files)))
-                  (or (agent-shell--buffer-files)
+  (if (and (region-active-p)
+           (buffer-file-name))
+      (agent-shell-send-region)
+    (let* ((in-shell (derived-mode-p 'agent-shell-mode))
+           (files (if (or in-shell prompt-for-file)
                       (list (completing-read "Send file: " (agent-shell--project-files)))
-                      (user-error "No file to send")))))
-    (mapc (lambda (file)
-            (agent-shell-insert :text (concat "@" file)))
-          files)))
+                    (or (agent-shell--buffer-files)
+                        (list (completing-read "Send file: " (agent-shell--project-files)))
+                        (user-error "No file to send")))))
+      (mapc (lambda (file)
+              (let ((text (concat "@" file)))
+                (if-let ((image-display (agent-shell--load-image :file-path file :max-width 200)))
+                    ;; Propertize text to display the image
+                    (agent-shell-insert :text (propertize text 'display image-display))
+                  ;; Not an image, insert as normal text
+                  (agent-shell-insert :text text))))
+            files))))
 
 (defun agent-shell--buffer-files ()
   "Return buffer file(s) or `dired' selected file(s)."
@@ -2263,7 +2286,10 @@ The captured screenshot file path is then inserted into the shell prompt."
   (interactive)
   (let* ((screenshots-dir (expand-file-name ".agent-shell/screenshots" (agent-shell-cwd)))
          (screenshot-path (agent-shell--capture-screenshot :destination-dir screenshots-dir)))
-    (agent-shell-insert :text (concat "@" screenshot-path))))
+    (if-let ((image-display (agent-shell--load-image :file-path screenshot-path :max-width 200)))
+        (agent-shell-insert :text (propertize (concat "@" screenshot-path)
+                                              'display image-display))
+      (agent-shell-insert :text (concat "@" screenshot-path)))))
 
 (defun agent-shell--project-files ()
   "Get project files using projectile or project.el."
