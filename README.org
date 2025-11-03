@@ -68,28 +68,16 @@ See https://github.com/QwenLM/qwen-code for details.
 
 =agent-shell= is powered by built-in =comint-shell=, via [[https://github.com/xenodium/shell-maker][shell-maker]], available on [[https://melpa.org/#/shell-maker][MELPA]].
 
-You can install =shell-maker= via:
+Both [[https://melpa.org/#/agent-shell][agent-shell]] and its dependency [[https://melpa.org/#/acp][acp.el]] are now available on MELPA.
 
-#+begin_src emacs-lisp
-  (use-package shell-maker
-    :ensure t)
-#+end_src
-
-=agent-shell= also depends on [[https://github.com/xenodium/acp.el][acp.el]], which isn't yet on MELPA. You can install with:
-
-#+begin_src emacs-lisp
-  (use-package acp
-    :vc (:url "https://github.com/xenodium/acp.el"))
-#+end_src
-
-If you run into an error like =use-package: Keyword :vc received unknown argument=, ensure you're using the built-in =:vc= syntax shown above. Earlier guides relied on the external [[https://github.com/slotThe/vc-use-package][vc-use-package]] extension, which accepted =:fetcher=/:repo= keywords, but Emacs 30+ expects ELPA-style specs such as =:url=.
-
-Finally, install =agent-shell= with:
+You can install via:
 
 #+begin_src emacs-lisp
   (use-package agent-shell
-    :vc (:url "https://github.com/xenodium/agent-shell"))
+    :ensure t)
 #+end_src
+
+This will automatically install the required dependencies ([[https://melpa.org/#/acp][acp.el]] and [[https://melpa.org/#/shell-maker][shell-maker]]).
 
 *** Doom Emacs
 
@@ -97,8 +85,8 @@ If you are using Doom Emacs and would like to use the =package!= macro:
 
 #+begin_src emacs-lisp
 (package! shell-maker)
-(package! acp :recipe (:host github :repo "xenodium/acp.el"))
-(package! agent-shell :recipe (:host github :repo "xenodium/agent-shell"))
+(package! acp)
+(package! agent-shell)
 #+end_src
 
 Run =doom sync= and restart.
