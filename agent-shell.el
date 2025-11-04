@@ -104,6 +104,18 @@ Example for devcontainer:
   :type '(repeat string)
   :group 'agent-shell)
 
+(defcustom agent-shell-section-functions nil
+  "Abnormal hook run after overlays are applied (experimental).
+Called in `agent-shell--update-dialog-block' after all overlays
+are applied.  Each function is called with a range alist containing:
+  :block       - The block range with :start and :end positions
+  :body        - The body range (if present)
+  :label-left  - The left label range (if present)
+  :label-right - The right label range (if present)
+  :padding     - The padding range with :start and :end (if present)"
+  :type 'hook
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-acp-client (&key command
                                              command-params
                                              environment-variables
@@ -1409,7 +1421,8 @@ by default."
                     (label-right-end (map-nested-elt range '(:label-right :end))))
            (narrow-to-region label-right-start label-right-end)
            (markdown-overlays-put)
-           (widen)))))))
+           (widen)))
+       (run-hook-with-args 'agent-shell-section-functions range)))))
 
 (defun agent-shell-toggle-logging ()
   "Toggle logging."
