@@ -5,7 +5,7 @@
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
 ;; Version: 0.17.2
-;; Package-Requires: ((emacs "29.1") (shell-maker "0.82.2") (acp "0.7.1"))
+;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.1") (acp "0.7.1"))
 
 (defconst agent-shell--version "0.17.2")
 
@@ -46,7 +46,7 @@
 (require 'json)
 (require 'map)
 (unless (require 'markdown-overlays nil 'noerror)
-  (error "Please update 'shell-maker' to v0.82.2 or newer"))
+  (error "Please update 'shell-maker' to v0.84.1 or newer"))
 (require 'shell-maker)
 (require 'markdown-overlays)
 (require 'project)
@@ -114,6 +114,16 @@ are applied.  Each function is called with a range alist containing:
   :label-right - The right label range (if present)
   :padding     - The padding range with :start and :end (if present)"
   :type 'hook
+  :group 'agent-shell)
+
+(defcustom agent-shell-highlight-blocks nil
+  "Whether or not to highlight source blocks.
+
+Highlighting source blocks is currently turned off by default
+as we need a more efficient mechanism.
+
+See https://github.com/xenodium/agent-shell/issues/119"
+  :type 'boolean
   :group 'agent-shell)
 
 (cl-defun agent-shell--make-acp-client (&key command
@@ -1303,8 +1313,8 @@ See `agent-shell-make-agent-config' for config format.
 
 Set NO-FOCUS to start in background.
 Set NEW-SESSION to start a separate new session."
-  (unless (version<= "0.83.1" shell-maker-version)
-    (error "Please update shell-maker to version 0.83.1 or newer"))
+  (unless (version<= "0.84.1" shell-maker-version)
+    (error "Please update shell-maker to version 0.84.1 or newer"))
   (unless (version<= "0.6.1" acp-package-version)
     (error "Please update acp.el to version 0.6.1 or newer"))
   (with-temp-buffer ;; client-maker needs a buffer (use a temp one)
@@ -1409,7 +1419,8 @@ by default."
          (when-let ((body-start (map-nested-elt range '(:body :start)))
                     (body-end (map-nested-elt range '(:body :end))))
            (narrow-to-region body-start body-end)
-           (markdown-overlays-put)
+           (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+             (markdown-overlays-put))
            (widen))
          ;;
          ;; Note: For now, we're skipping applying markdown overlays
@@ -1420,7 +1431,8 @@ by default."
          (when-let ((label-right-start (map-nested-elt range '(:label-right :start)))
                     (label-right-end (map-nested-elt range '(:label-right :end))))
            (narrow-to-region label-right-start label-right-end)
-           (markdown-overlays-put)
+           (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+             (markdown-overlays-put))
            (widen)))
        (run-hook-with-args 'agent-shell-section-functions range)))))
 
@@ -2218,7 +2230,8 @@ inserted into the shell buffer prompt."
 %s
 ```" (with-current-buffer output-buffer
        (buffer-string))))))
-                    (markdown-overlays-put)
+                    (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+                      (markdown-overlays-put))
                     (when (buffer-live-p output-buffer)
                       (kill-buffer output-buffer)))))))
     (set-process-query-on-exit-flag proc nil)
@@ -2774,7 +2787,8 @@ Returns an alist with insertion details or nil otherwise:
           (insert text)
           (setq insert-end (point))
           (narrow-to-region insert-start insert-end)
-          (markdown-overlays-put)))
+          (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+            (markdown-overlays-put))))
       (when submit
         (shell-maker-submit)))
     `((:buffer . ,shell-buffer)
