@@ -293,23 +293,27 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
 
 If in a project without a shell, offer to create one.
 
+If already in a shell, invoke `agent-shell-toggle'.
+
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
   (if new-shell
       (agent-shell-start :config (or (agent-shell-select-config
                                       :prompt "Start new agent: ")
                                      (error "No agent config found")))
-    (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
-        (agent-shell--display-buffer existing-shell)
-      (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
-          (if (y-or-n-p "No shells in project.  Start a new one? ")
-              (agent-shell-start :config (or (agent-shell-select-config
-                                              :prompt "Start new agent: ")
-                                             (error "No agent config found")))
-            (agent-shell--display-buffer other-project-shell))
-        (agent-shell-start :config (or (agent-shell-select-config
-                                        :prompt "Start new agent: ")
-                                       (error "No agent config found")))))))
+    (if (derived-mode-p 'agent-shell-mode)
+        (agent-shell-toggle)
+      (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
+          (agent-shell--display-buffer existing-shell)
+        (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
+            (if (y-or-n-p "No shells in project.  Start a new one? ")
+                (agent-shell-start :config (or (agent-shell-select-config
+                                                :prompt "Start new agent: ")
+                                               (error "No agent config found")))
+              (agent-shell--display-buffer other-project-shell))
+          (agent-shell-start :config (or (agent-shell-select-config
+                                          :prompt "Start new agent: ")
+                                         (error "No agent config found"))))))))
 
 ;;;###autoload
 (defun agent-shell-toggle ()
