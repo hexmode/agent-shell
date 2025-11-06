@@ -500,7 +500,7 @@ Alternatively, if you noticed =agent-shell= is missing a feature (or has a bug),
 
 *** Not sure where to file an issue?
 
-File [[https://github.com/xenodium/agent-shell/issues][in agent-shell]], but please try to provide details, so I can determine whether =agent-shell= or the agent itself needs work. Traffic data would be very useful here. Provide a screenshot or a .traffic file if you think it'll help. See [[#][how to get ACP traffic]].
+File [[https://github.com/xenodium/agent-shell/issues][in agent-shell]], but please try to provide details, so I can determine whether =agent-shell= or the agent itself needs work. Traffic data would be very useful here. Provide a screenshot or a .traffic file if you think it'll help. See [[https://github.com/xenodium/agent-shell?tab=readme-ov-file#how-do-i-viewget-agent-client-protocol-traffic][how to get ACP traffic]].
 
 * Contributing
 
