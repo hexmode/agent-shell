@@ -1,3 +1,4 @@
+Hello
 #+TITLE: Emacs Agent Shell
 #+AUTHOR: Álvaro Ramírez
 👉 [[https://github.com/sponsors/xenodium][Support this work via GitHub Sponsors]] by [[https://github.com/xenodium][@xenodium]] (check out my [[https://xenodium.com][blog]])
@@ -462,6 +463,44 @@ All of the above settings can be applied on a per-project basis using [[https://
 |                    | agent-shell-version                              | Show `agent-shell' mode version.                                             |
 |                    | agent-shell-view-acp-logs                        | View agent shell ACP logs buffer.                                            |
 |                    | agent-shell-view-traffic                         | View agent shell traffic buffer.                                             |
+* Issues
+** =agent-shell= not behaving as expected?
+
+Could be the agent itself missing an [[https://agentclientprotocol.com][Agent Client Protocol]] feature, =agent-shell= missing the feature, or both :) So which one is it? It's hard to tell unless we look at [[https://agentclientprotocol.com][Agent Client Protocol]] traffic between the two.
+
+** How do I view/get [[https://agentclientprotocol.com][Agent Client Protocol]] traffic?
+
+1. =M-x agent-shell-toggle-logging= (make sure logging is ON).
+2. Reproduce the issue
+3. =M-x agent-shell-view-traffic=
+
+Browse through traffic and see if you can spot the issue. For example, if you see a request sent by the agent asking for user permission, but =agent-shell= isn't surfacing this permission, it looks like perhaps =agent-shell= is missing a feature.
+
+For example, here's what a [[https://agentclientprotocol.com/protocol/schema#session%2Frequest-permission][session/request_permission]] request would look like from the traffic viewer.
+
+[[file:traffic.png]]
+
+Sometimes including a traffic screenshot in an issue is enough. Other times including the full traffic is needed. From the traffic viewer, you can =M-x acp-traffic-save-to= to save as =.traffic=.
+
+** Where should I file bug or feature request?
+
+*** Agent issues or feature requests
+
+If you're able to determine the agent is missing a feature (or a bug is present) in their [[https://agentclientprotocol.com][Agent Client Protocol]] implementation, please file an issue directly with the agent folks. For example:
+
+- [[https://github.com/zed-industries/claude-code-acp][claude-code-acp]]: For Claude Code.
+- [[https://github.com/zed-industries/codex-acp][codex-acp]]: For Codex.
+- [[https://github.com/google-gemini/gemini-cli][Gemini CLI]].
+- [[https://block.github.io/goose/docs/getting-started/installation][Goose]].
+- [[https://github.com/QwenLM/qwen-code][Qwen Code]].
+
+*** =agent-shell= issues or feature requests
+
+Alternatively, if you noticed =agent-shell= is missing a feature (or has a bug), please [[https://github.com/xenodium/agent-shell/issues][file an agent-shell issue]].
+
+*** Not sure where to file an issue?
+
+File [[https://github.com/xenodium/agent-shell/issues][in agent-shell]], but please try to provide details, so I can determine whether =agent-shell= or the agent itself needs work. Traffic data would be very useful here. Provide a screenshot or a .traffic file if you think it'll help. See [[#][how to get ACP traffic]].
 
 * Contributing
 
