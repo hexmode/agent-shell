@@ -55,6 +55,16 @@ For Google's [[https://github.com/google-gemini/gemini-cli][Gemini CLI]], be sur
 
 For Goose CLI, install [[https://block.github.io/goose/docs/getting-started/installation][goose]] and ensure the `goose` executable is in PATH.
 
+*** Cursor
+
+For Cursor agent, install with:
+
+#+begin_src bash
+npm install -g @blowmage/cursor-agent-acp
+#+end_src
+
+See https://github.com/blowmage/cursor-agent-acp-npm for details.
+
 *** Qwen Code
 
 For Qwen Code, install with:
@@ -275,6 +285,7 @@ Start a specific agent shell session directly:
 - =M-x agent-shell-openai-start-codex= - Start a Codex agent session
 - =M-x agent-shell-google-start-gemini= - Start a Gemini agent session
 - =M-x agent-shell-goose-start-agent= - Start a Goose agent session
+- =M-x agent-shell-cursor-start-agent= - Start a Cursor agent session
 - =M-x agent-shell-qwen-start= - Start a Qwen Code agent session
 
 ** Running agents in Devcontainers / Docker containers (Experimental)

@@ -65,10 +65,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :welcome-function #'agent-shell-cursor--welcome-message
    :client-maker (lambda (buffer)
                    (agent-shell-cursor-make-client :buffer buffer))
-   :needs-authentication t
-   :authenticate-request-maker (lambda ()
-                                 (acp-make-authenticate-request :method-id "cursor-agent-auth"))
-   :install-instructions "See https://github.com/konsumer/cursor-agent-acp for installation."))
+   :install-instructions "Install with: npm install -g @blowmage/cursor-agent-acp\nSee https://github.com/blowmage/cursor-agent-acp-npm for details."))
 
 (defun agent-shell-cursor-start-agent ()
   "Start an interactive Cursor agent shell."

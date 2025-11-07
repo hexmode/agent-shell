@@ -1,4 +1,4 @@
-;;; agent-shell.el --- A single native shell experience to interact with agentic providers (Claude Code, Gemini CLI, Goose, Codex, OpenCode, Qwen, etc.)  -*- lexical-binding: t; -*-
+;;; agent-shell.el --- A single native shell experience to interact with agentic providers (Claude Code, Cursor, Gemini CLI, Goose, Codex, OpenCode, Qwen, etc.)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024 Alvaro Ramirez
 
@@ -27,8 +27,8 @@
 ;; `agent-shell' offers a native `comint' shell experience to
 ;; interact with any agent powered by ACP (Agent Client Protocol).
 ;;
-;; `agent-shell' currently provides access to Claude Code, Gemini CLI,
-;; Goose, Codex, OpenCode, and Qwen amongst other agents.
+;; `agent-shell' currently provides access to Claude Code, Cursor,
+;; Gemini CLI, Goose, Codex, OpenCode, and Qwen amongst other agents.
 ;;
 ;; This package depends on the `acp' package to provide the ACP layer
 ;; as per https://agentclientprotocol.com spec.
@@ -54,6 +54,7 @@
 (require 'agent-shell-ui)
 (require 'svg nil :noerror)
 (require 'agent-shell-anthropic)
+(require 'agent-shell-cursor)
 (require 'agent-shell-diff)
 (require 'agent-shell-google)
 (require 'agent-shell-goose)
@@ -239,8 +240,10 @@ Returns an alist with all specified values."
 (defun agent-shell--make-default-agent-configs ()
   "Create a list of default agent configs.
 
-This function aggregates agents from OpenAI, Anthropic, Google, and Goose."
+This function aggregates agents from OpenAI, Anthropic, Google,
+Goose, Cursor, and others."
   (list (agent-shell-anthropic-make-claude-code-config)
+        (agent-shell-cursor-make-agent-config)
         (agent-shell-google-make-gemini-config)
         (agent-shell-goose-make-agent-config)
         (agent-shell-openai-make-codex-config)
