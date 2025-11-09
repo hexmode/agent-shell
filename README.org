@@ -475,6 +475,12 @@ All of the above settings can be applied on a per-project basis using [[https://
 |                    | agent-shell-view-acp-logs                        | View agent shell ACP logs buffer.                                            |
 |                    | agent-shell-view-traffic                         | View agent shell traffic buffer.                                             |
 * Issues
+** Can you add support for another agent?
+
+Does the agent support ACP ([[https://agentclientprotocol.com][Agent Client Protocol]])? If so, =agent-shell= can likely support this agent. Some agents have ACP support built-in (like [[https://github.com/google-gemini/gemini-cli][gemini-cli]]). Others require a separate ACP package (like [[https://github.com/zed-industries/claude-code-acp][claude-code-acp]] for [[https://github.com/anthropics/claude-code][claude-code]]). When filing a feature request to add a new agent, please include a link to the project supporting [[https://agentclientprotocol.com][Agent Client Protocol]] (built-in or otherwise).
+
+Agents without ACP support are out of scope for integrating with =agent-shell=. Having said that, if you do build an ACP layer like =claude-code-acp=, then =agent-shell= can work with it.
+
 ** =agent-shell= not behaving as expected?
 
 Could be the agent itself missing an [[https://agentclientprotocol.com][Agent Client Protocol]] feature, =agent-shell= missing the feature, or both :) So which one is it? It's hard to tell unless we look at [[https://agentclientprotocol.com][Agent Client Protocol]] traffic between the two.
