@@ -1,3 +1,11 @@
+---
+name: Issue or Feature Request
+about: Report an issue or request a new feature
+title: ''
+labels: ''
+assignees: ''
+---
+
 ## Checklist
 
 - [ ] I've read the README's [Issues](https://github.com/xenodium/agent-shell?tab=readme-ov-file#issues) section.
