@@ -807,13 +807,15 @@ If the buffer's file has changed, prompt the user to reload it."
             (make-directory dir t))
           (if buffer
               ;; Buffer is open, write and save.
-              (with-current-buffer buffer
-                (save-restriction
-                  (widen)
-                  (let ((inhibit-read-only t))
-                    (erase-buffer)
-                    (insert content)
-                    (basic-save-buffer))))
+              (with-temp-buffer
+                (insert content)
+                (let ((content-buffer (current-buffer))
+                      (inhibit-read-only t))
+                  (with-current-buffer buffer
+                    (save-restriction
+                      (widen)
+                      (replace-buffer-contents content-buffer)
+                      (basic-save-buffer)))))
             ;; No open buffer, write to file directly.
             (with-temp-file path
               (insert content)))
