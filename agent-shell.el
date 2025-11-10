@@ -802,26 +802,19 @@ If the buffer's file has changed, prompt the user to reload it."
         (let* ((path (agent-shell--resolve-path .params.path))
                (content .params.content)
                (dir (file-name-directory path))
-               (buffer (find-buffer-visiting path)))
+               (buffer (or (find-buffer-visiting path)
+                           (find-file-noselect path))))
           (when (and dir (not (file-exists-p dir)))
             (make-directory dir t))
-          (if buffer
-              ;; Buffer is open, write and save.
-              (with-temp-buffer
-                (insert content)
-                (let ((content-buffer (current-buffer))
-                      (inhibit-read-only t))
-                  (with-current-buffer buffer
-                    (save-restriction
-                      (widen)
-                      (replace-buffer-contents content-buffer)
-                      (basic-save-buffer)))))
-            ;; No open buffer, open it, write content
-            ;; and keep buffer around (accessible to user).
-            (with-current-buffer (find-file-noselect path)
-              (erase-buffer)
-              (insert content)
-              (basic-save-buffer)))
+          (with-temp-buffer
+            (insert content)
+            (let ((content-buffer (current-buffer))
+                  (inhibit-read-only t))
+              (with-current-buffer buffer
+                (save-restriction
+                  (widen)
+                  (replace-buffer-contents content-buffer)
+                  (basic-save-buffer)))))
           (acp-send-response
            :client (map-elt state :client)
            :response (acp-make-fs-write-text-file-response
