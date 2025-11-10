@@ -816,9 +816,12 @@ If the buffer's file has changed, prompt the user to reload it."
                       (widen)
                       (replace-buffer-contents content-buffer)
                       (basic-save-buffer)))))
-            ;; No open buffer, write to file directly.
-            (with-temp-file path
-              (insert content)))
+            ;; No open buffer, open it, write content
+            ;; and keep buffer around (accessible to user).
+            (with-current-buffer (find-file-noselect path)
+              (erase-buffer)
+              (insert content)
+              (basic-save-buffer)))
           (acp-send-response
            :client (map-elt state :client)
            :response (acp-make-fs-write-text-file-response
