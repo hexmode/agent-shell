@@ -287,6 +287,14 @@ Start a specific agent shell session directly:
 - =M-x agent-shell-cursor-start-agent= - Start a Cursor agent session
 - =M-x agent-shell-qwen-start= - Start a Qwen Code agent session
 
+*** Setting a default agent for all new shells
+
+You can set a default agent to use for all new shells started via =agent-shell= like so:
+
+#+begin_src emacs-lisp
+(setq agent-shell-new-shell-config (agent-shell-anthropic-make-claude-code-config))
+#+end_src
+
 ** Running agents in Devcontainers / Docker containers (Experimental)
 
 =agent-shell= provides rudimentary support for running agents and shell commands in containers.
@@ -356,6 +364,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 | agent-shell-container-command-runner     | Command prefix for executing commands in a container.                         |
 | agent-shell-cursor-command               | Command and parameters for the Cursor agent client.                           |
 | agent-shell-cursor-environment           | Environment variables for the Cursor agent client.                            |
+| agent-shell-default-config               | Default configuration to use for all new agent shells.                        |
 | agent-shell-display-action               | Display action for agent shell buffers.                                       |
 | agent-shell-embed-file-size-limit        | Maximum file size in bytes for embedding with ContentBlock::Resource.         |
 | agent-shell-file-completion-enabled      | Non-nil automatically enables file completion when starting shells.           |
