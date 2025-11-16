@@ -633,3 +633,7 @@ Run tests with =M-x agent-shell-run-all-tests=.
 #+HTML: </a>
 
 Made with [[https://contrib.rocks][contrib.rocks]].
+
+* Star History
+
+[[https://api.star-history.com/svg?repos=xenodium/agent-shell&type=Date]]
