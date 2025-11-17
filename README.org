@@ -292,7 +292,7 @@ Start a specific agent shell session directly:
 You can set a default agent to use for all new shells started via =agent-shell= like so:
 
 #+begin_src emacs-lisp
-(setq agent-shell-new-shell-config (agent-shell-anthropic-make-claude-code-config))
+(setq agent-shell-preferred-agent-config (agent-shell-anthropic-make-claude-code-config))
 #+end_src
 
 ** Running agents in Devcontainers / Docker containers (Experimental)
@@ -364,7 +364,6 @@ All of the above settings can be applied on a per-project basis using [[https://
 | agent-shell-container-command-runner     | Command prefix for executing commands in a container.                         |
 | agent-shell-cursor-command               | Command and parameters for the Cursor agent client.                           |
 | agent-shell-cursor-environment           | Environment variables for the Cursor agent client.                            |
-| agent-shell-default-config               | Default configuration to use for all new agent shells.                        |
 | agent-shell-display-action               | Display action for agent shell buffers.                                       |
 | agent-shell-embed-file-size-limit        | Maximum file size in bytes for embedding with ContentBlock::Resource.         |
 | agent-shell-file-completion-enabled      | Non-nil automatically enables file completion when starting shells.           |
@@ -375,6 +374,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 | agent-shell-goose-command                | Command and parameters for the Goose client.                                  |
 | agent-shell-goose-environment            | Environment variables for the Goose client.                                   |
 | agent-shell-header-style                 | Style for agent shell buffer headers.                                         |
+| agent-shell-highlight-blocks             | Whether or not to highlight source blocks.                                    |
 | agent-shell-openai-authentication        | Configuration for OpenAI authentication.                                      |
 | agent-shell-openai-codex-command         | Command and parameters for the OpenAI Codex client.                           |
 | agent-shell-openai-codex-environment     | Environment variables for the OpenAI Codex client.                            |
@@ -383,10 +383,12 @@ All of the above settings can be applied on a per-project basis using [[https://
 | agent-shell-opencode-environment         | Environment variables for the OpenCode client.                                |
 | agent-shell-path-resolver-function       | Function for resolving remote paths on the local file-system, and vice versa. |
 | agent-shell-permission-icon              | Icon displayed when shell commands require permission to execute.             |
+| agent-shell-preferred-agent-config       | Default configuration to use for all new shells.                              |
 | agent-shell-qwen-authentication          | Configuration for Qwen Code authentication.                                   |
 | agent-shell-qwen-command                 | Command and parameters for the Qwen Code client.                              |
 | agent-shell-qwen-environment             | Environment variables for the Qwen Code client.                               |
 | agent-shell-screenshot-command           | The program to use for capturing screenshots.                                 |
+| agent-shell-section-functions            | Abnormal hook run after overlays are applied (experimental).                  |
 | agent-shell-show-config-icons            | Whether to show icons in agent config selection.                              |
 | agent-shell-show-welcome-message         | Non-nil to show welcome message.                                              |
 | agent-shell-text-file-capabilities       | Whether agents are initialized with read/write text file capabilities.        |

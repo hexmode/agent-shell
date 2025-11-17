@@ -258,7 +258,7 @@ See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
-(defcustom agent-shell-new-shell-config nil
+(defcustom agent-shell-preferred-agent-config nil
   "Default configuration to use for all new shells.
 
 If this is set, `agent-shell' will unconditionally use this
@@ -309,7 +309,7 @@ If already in a shell, invoke `agent-shell-toggle'.
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
   (if new-shell
-      (agent-shell-start :config (or agent-shell-new-shell-config
+      (agent-shell-start :config (or agent-shell-preferred-agent-config
                                      (agent-shell-select-config
                                       :prompt "Start new agent: ")
                                      (error "No agent config found")))
@@ -319,12 +319,12 @@ With prefix argument NEW-SHELL, force start a new shell."
           (agent-shell--display-buffer existing-shell)
         (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
             (if (y-or-n-p "No shells in project.  Start a new one? ")
-                (agent-shell-start :config (or agent-shell-new-shell-config
+                (agent-shell-start :config (or agent-shell-preferred-agent-config
                                                (agent-shell-select-config
                                                 :prompt "Start new agent: ")
                                                (error "No agent config found")))
               (agent-shell--display-buffer other-project-shell))
-          (agent-shell-start :config (or agent-shell-new-shell-config
+          (agent-shell-start :config (or agent-shell-preferred-agent-config
                                          (agent-shell-select-config
                                           :prompt "Start new agent: ")
                                          (error "No agent config found"))))))))
