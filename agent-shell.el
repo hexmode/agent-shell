@@ -258,6 +258,14 @@ See `agent-shell-*-make-*-config' for details."
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
+(defcustom agent-shell-preferred-agent-config nil
+  "Default configuration to use for all new shells.
+
+If this is set, `agent-shell' will unconditionally use this
+config and not prompt you to select one."
+  :type '(alist :key-type symbol :value-type sexp)
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker heartbeat)
   "Construct shell agent state with AGENT-CONFIG and BUFFER.
 
@@ -301,7 +309,8 @@ If already in a shell, invoke `agent-shell-toggle'.
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
   (if new-shell
-      (agent-shell-start :config (or (agent-shell-select-config
+      (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                     (agent-shell-select-config
                                       :prompt "Start new agent: ")
                                      (error "No agent config found")))
     (if (derived-mode-p 'agent-shell-mode)
@@ -310,11 +319,13 @@ With prefix argument NEW-SHELL, force start a new shell."
           (agent-shell--display-buffer existing-shell)
         (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
             (if (y-or-n-p "No shells in project.  Start a new one? ")
-                (agent-shell-start :config (or (agent-shell-select-config
+                (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                               (agent-shell-select-config
                                                 :prompt "Start new agent: ")
                                                (error "No agent config found")))
               (agent-shell--display-buffer other-project-shell))
-          (agent-shell-start :config (or (agent-shell-select-config
+          (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                         (agent-shell-select-config
                                           :prompt "Start new agent: ")
                                          (error "No agent config found"))))))))
 
