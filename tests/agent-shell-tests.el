@@ -604,8 +604,9 @@ simple output
                   :status nil
                   :title nil
                   :output "output")))
-      (should (equal entry "\n\n### Tool Call [no status]:
+      (should (equal entry "
 
+### Tool Call [no status]: \n
 **Timestamp:** 2025-11-02 18:17:41
 
 ```
@@ -630,12 +631,16 @@ output with spaces
                   :status "completed"
                   :title "test"
                   :output "```\ncode block content\n```")))
-      (should (equal entry "\n\n### Tool Call [completed]: test
+      (should (equal entry "
+
+### Tool Call [completed]: test
 
 **Timestamp:** 2025-11-02 18:17:41
 
 ```
+
 code block content
+
 ```")))))
 
 (ert-deftest agent-shell-mcp-servers-test ()
