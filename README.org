@@ -295,6 +295,19 @@ You can set a default agent to use for all new shells started via =agent-shell= 
 (setq agent-shell-preferred-agent-config (agent-shell-anthropic-make-claude-code-config))
 #+end_src
 
+*** Configuring MCP servers
+
+You can configure MCP servers directly via =agent-shell=. This allows you to avoid having to repeat
+configurations across every agent that you use.
+
+#+begin_src emacs-lisp
+  (setq agent-shell-mcp-servers
+        '(((name . "notion")
+           (type . "http")
+           (headers . [])
+           (url . "https://mcp.notion.com/mcp"))))
+#+end_src
+
 ** Running agents in Devcontainers / Docker containers (Experimental)
 
 =agent-shell= provides rudimentary support for running agents and shell commands in containers.
@@ -375,6 +388,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 | agent-shell-goose-environment            | Environment variables for the Goose client.                                   |
 | agent-shell-header-style                 | Style for agent shell buffer headers.                                         |
 | agent-shell-highlight-blocks             | Whether or not to highlight source blocks.                                    |
+| agent-shell-mcp-servers                  | List of MCP servers to initialize when creating a new session.                |
 | agent-shell-openai-authentication        | Configuration for OpenAI authentication.                                      |
 | agent-shell-openai-codex-command         | Command and parameters for the OpenAI Codex client.                           |
 | agent-shell-openai-codex-environment     | Environment variables for the OpenAI Codex client.                            |
