@@ -1,5 +1,8 @@
 #+TITLE: Emacs Agent Shell
 #+AUTHOR: Álvaro Ramírez
+
+[[https://melpa.org/#/agent-shell][file:https://melpa.org/packages/agent-shell-badge.svg]]
+
 👉 [[https://github.com/sponsors/xenodium][Support this work via GitHub Sponsors]] by [[https://github.com/xenodium][@xenodium]] (check out my [[https://xenodium.com][blog]])
 
 [[file:agent-shell.png]]
@@ -84,7 +87,11 @@ You can install via:
 
 #+begin_src emacs-lisp
   (use-package agent-shell
-    :ensure t)
+      :ensure t
+      :ensure-system-package
+      ;; Add agent installation configs here
+      ((claude . "brew install claude-code")
+       (claude-code-acp . "npm install -g @zed-industries/claude-code-acp")))
 #+end_src
 
 This will automatically install the required dependencies ([[https://melpa.org/#/acp][acp.el]] and [[https://melpa.org/#/shell-maker][shell-maker]]).
