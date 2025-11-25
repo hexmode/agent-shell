@@ -271,6 +271,7 @@ config and not prompt you to select one."
 
 Each element should be an alist representing an MCP server configuration
 following the ACP schema for McpServer as defined at:
+
 https://agentclientprotocol.com/protocol/schema#mcpserver
 
 The schema supports three transport variants:
@@ -278,20 +279,20 @@ The schema supports three transport variants:
 1. Stdio Transport (universally supported):
    ((name . \"server-name\")
     (command . \"/path/to/executable\")
-    (args . [\"arg1\" \"arg2\"])
-    (env . [((name . \"ENV_VAR\") (value . \"value\"))]))
+    (args . (\"arg1\" \"arg2\"))
+    (env . (((name . \"ENV_VAR\") (value . \"value\")))))
 
 2. HTTP Transport (requires mcpCapabilities.http):
    ((name . \"server-name\")
     (type . \"http\")
     (url . \"https://example.com/mcp\")
-    (headers . [((name . \"Authorization\") (value . \"Bearer token\"))]))
+    (headers . (((name . \"Authorization\") (value . \"Bearer token\")))))
 
 3. SSE Transport (requires mcpCapabilities.sse):
    ((name . \"server-name\")
     (type . \"sse\")
     (url . \"https://example.com/mcp\")
-    (headers . [((name . \"Authorization\") (value . \"Bearer token\"))]))
+    (headers . (((name . \"Authorization\") (value . \"Bearer token\")))))
 
 Example configuration with multiple servers:
 
@@ -299,12 +300,12 @@ Example configuration with multiple servers:
         \='(((name . \"notion\")
            (type . \"http\")
            (url . \"https://mcp.notion.com/mcp\")
-           (headers . []))
+           (headers . ()))
           ((name . \"filesystem\")
            (command . \"npx\")
-           (args . [\"-y\"
-                    \"@modelcontextprotocol/server-filesystem\" \"/tmp\"])
-           (env . []))))"
+           (args . (\"-y\"
+                    \"@modelcontextprotocol/server-filesystem\" \"/tmp\"))
+           (env . ()))))"
   :type '(repeat (alist :key-type symbol :value-type sexp))
   :group 'agent-shell)
 
@@ -1960,8 +1961,7 @@ Must provide ON-SESSION-INIT (lambda ())."
    :client (map-elt (agent-shell--state) :client)
    :request (acp-make-session-new-request
              :cwd (agent-shell--resolve-path (agent-shell-cwd))
-             :mcp-servers (when agent-shell-mcp-servers
-                            (apply #'vector agent-shell-mcp-servers)))
+             :mcp-servers (agent-shell--mcp-servers))
    :buffer (current-buffer)
    :on-success (lambda (response)
                  (map-put! agent-shell--state
@@ -1988,6 +1988,28 @@ Must provide ON-SESSION-INIT (lambda ())."
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
                 :state agent-shell--state :shell shell)))
+
+(defun agent-shell--mcp-servers ()
+  "Return normalized MCP servers configuration for JSON serialization.
+
+Converts list-valued `args', `env', and `headers' fields to vectors
+so they serialize properly to JSON arrays.  Returns a vector of
+normalized server configs."
+  (when agent-shell-mcp-servers
+    (apply #'vector
+           (mapcar (lambda (server)
+                     (let ((normalized (copy-alist server)))
+                       (when-let ((args (map-elt normalized 'args))
+                                  (_ (listp args)))
+                         (map-put! normalized 'args (apply #'vector args)))
+                       (when-let ((env (map-elt normalized 'env))
+                                  (_ (listp env)))
+                         (map-put! normalized 'env (apply #'vector env)))
+                       (when-let ((headers (map-elt normalized 'headers))
+                                  (_ (listp headers)))
+                         (map-put! normalized 'headers (apply #'vector headers)))
+                       normalized))
+                   agent-shell-mcp-servers))))
 
 (cl-defun agent-shell--subscribe-to-client-events (&key state)
   "Subscribe SHELL and STATE to ACP events."

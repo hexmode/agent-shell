@@ -638,5 +638,83 @@ output with spaces
 code block content
 ```")))))
 
+(ert-deftest agent-shell-mcp-servers-test ()
+  "Test `agent-shell-mcp-servers' function normalization."
+  ;; Test with nil
+  (let ((agent-shell-mcp-servers nil))
+    (should (equal (agent-shell--mcp-servers) nil)))
+
+  ;; Test with empty list
+  (let ((agent-shell-mcp-servers '()))
+    (should (equal (agent-shell--mcp-servers) nil)))
+
+  ;; Test stdio transport with lists that need normalization
+  (let ((agent-shell-mcp-servers
+         '(((name . "filesystem")
+            (command . "npx")
+            (args . ("-y" "@modelcontextprotocol/server-filesystem" "/tmp"))
+            (env . (((name . "DEBUG") (value . "true"))
+                    ((name . "LOG_LEVEL") (value . "info"))))))))
+    (should (equal (agent-shell--mcp-servers)
+                   [((name . "filesystem")
+                     (command . "npx")
+                     (args . ["-y" "@modelcontextprotocol/server-filesystem" "/tmp"])
+                     (env . [((name . "DEBUG") (value . "true"))
+                             ((name . "LOG_LEVEL") (value . "info"))]))])))
+
+  ;; Test HTTP transport with lists that need normalization
+  (let ((agent-shell-mcp-servers
+         '(((name . "notion")
+            (type . "http")
+            (url . "https://mcp.notion.com/mcp")
+            (headers . (((name . "Authorization") (value . "Bearer token"))
+                        ((name . "Content-Type") (value . "application/json"))))))))
+    (should (equal (agent-shell--mcp-servers)
+                   [((name . "notion")
+                     (type . "http")
+                     (url . "https://mcp.notion.com/mcp")
+                     (headers . [((name . "Authorization") (value . "Bearer token"))
+                                 ((name . "Content-Type") (value . "application/json"))]))])))
+
+  ;; Test with already-vectorized fields (should remain unchanged)
+  (let ((agent-shell-mcp-servers
+         '(((name . "filesystem")
+            (command . "npx")
+            (args . ["-y" "@modelcontextprotocol/server-filesystem" "/tmp"])
+            (env . [])))))
+    (should (equal (agent-shell--mcp-servers)
+                   [((name . "filesystem")
+                     (command . "npx")
+                     (args . ["-y" "@modelcontextprotocol/server-filesystem" "/tmp"])
+                     (env . []))])))
+
+  ;; Test multiple servers
+  (let ((agent-shell-mcp-servers
+         '(((name . "notion")
+            (type . "http")
+            (url . "https://mcp.notion.com/mcp")
+            (headers . []))
+           ((name . "filesystem")
+            (command . "npx")
+            (args . ("-y" "@modelcontextprotocol/server-filesystem" "/tmp"))
+            (env . [])))))
+    (should (equal (agent-shell--mcp-servers)
+                   [((name . "notion")
+                     (type . "http")
+                     (url . "https://mcp.notion.com/mcp")
+                     (headers . []))
+                    ((name . "filesystem")
+                     (command . "npx")
+                     (args . ["-y" "@modelcontextprotocol/server-filesystem" "/tmp"])
+                     (env . []))])))
+
+  ;; Test server without optional fields
+  (let ((agent-shell-mcp-servers
+         '(((name . "simple")
+            (command . "simple-server")))))
+    (should (equal (agent-shell--mcp-servers)
+                   [((name . "simple")
+                     (command . "simple-server"))]))))
+
 (provide 'agent-shell-tests)
 ;;; agent-shell-tests.el ends here
