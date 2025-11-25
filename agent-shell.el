@@ -266,6 +266,48 @@ config and not prompt you to select one."
   :type '(alist :key-type symbol :value-type sexp)
   :group 'agent-shell)
 
+(defcustom agent-shell-mcp-servers nil
+  "List of MCP servers to initialize when creating a new session.
+
+Each element should be an alist representing an MCP server configuration
+following the ACP schema for McpServer as defined at:
+https://agentclientprotocol.com/protocol/schema#mcpserver
+
+The schema supports three transport variants:
+
+1. Stdio Transport (universally supported):
+   ((name . \"server-name\")
+    (command . \"/path/to/executable\")
+    (args . [\"arg1\" \"arg2\"])
+    (env . [((name . \"ENV_VAR\") (value . \"value\"))]))
+
+2. HTTP Transport (requires mcpCapabilities.http):
+   ((name . \"server-name\")
+    (type . \"http\")
+    (url . \"https://example.com/mcp\")
+    (headers . [((name . \"Authorization\") (value . \"Bearer token\"))]))
+
+3. SSE Transport (requires mcpCapabilities.sse):
+   ((name . \"server-name\")
+    (type . \"sse\")
+    (url . \"https://example.com/mcp\")
+    (headers . [((name . \"Authorization\") (value . \"Bearer token\"))]))
+
+Example configuration with multiple servers:
+
+  (setq agent-shell-mcp-servers
+        \='(((name . \"notion\")
+           (type . \"http\")
+           (url . \"https://mcp.notion.com/mcp\")
+           (headers . []))
+          ((name . \"filesystem\")
+           (command . \"npx\")
+           (args . [\"-y\"
+                    \"@modelcontextprotocol/server-filesystem\" \"/tmp\"])
+           (env . []))))"
+  :type '(repeat (alist :key-type symbol :value-type sexp))
+  :group 'agent-shell)
+
 (cl-defun agent-shell--make-state (&key agent-config buffer client-maker needs-authentication authenticate-request-maker heartbeat)
   "Construct shell agent state with AGENT-CONFIG and BUFFER.
 
@@ -1916,7 +1958,10 @@ Must provide ON-SESSION-INIT (lambda ())."
      :append t))
   (acp-send-request
    :client (map-elt (agent-shell--state) :client)
-   :request (acp-make-session-new-request :cwd (agent-shell--resolve-path (agent-shell-cwd)))
+   :request (acp-make-session-new-request
+             :cwd (agent-shell--resolve-path (agent-shell-cwd))
+             :mcp-servers (when agent-shell-mcp-servers
+                            (apply #'vector agent-shell-mcp-servers)))
    :buffer (current-buffer)
    :on-success (lambda (response)
                  (map-put! agent-shell--state
