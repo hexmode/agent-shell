@@ -491,6 +491,8 @@ When FORCE is non-nil, skip confirmation prompt."
   "TAB" #'agent-shell-next-item
   "<tab>" #'agent-shell-next-item
   "<backtab>" #'agent-shell-previous-item
+  "n" #'agent-shell-next-item
+  "p" #'agent-shell-previous-item
   "S-TAB" #'agent-shell-previous-item
   "C-c C-c" #'agent-shell-interrupt)
 
@@ -1510,57 +1512,75 @@ by default."
 (defun agent-shell-next-item ()
   "Go to next item.
 
-Could be a prompt or an expandable item."
+Could be a prompt or an expandable item.
+If point is at the input prompt and a character key was pressed,
+insert the character instead."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
-  (let* ((prompt-pos (save-mark-and-excursion
-                       (when (comint-next-prompt 1)
-                         (point))))
-         (block-pos (save-mark-and-excursion
-                      (agent-shell-ui-forward-block)))
-         (button-pos (save-mark-and-excursion
-                       (agent-shell-next-permission-button)))
-         (next-pos (apply #'min (delq nil (list prompt-pos
-                                                block-pos
-                                                button-pos)))))
-    (when next-pos
-      (deactivate-mark)
-      (goto-char next-pos)
-      (when (eq next-pos prompt-pos)
-        (comint-skip-prompt)))))
+  ;; Check if at prompt and inserting a character
+  ;; (Ignore special keys like TAB/Shift-TAB).
+  (if (and (shell-maker-point-at-last-prompt-p)
+           (integerp last-command-event))
+      ;; At prompt, insert character.
+      (self-insert-command 1)
+    ;; Otherwise navigate.
+    (let* ((prompt-pos (save-mark-and-excursion
+                         (when (comint-next-prompt 1)
+                           (point))))
+           (block-pos (save-mark-and-excursion
+                        (agent-shell-ui-forward-block)))
+           (button-pos (save-mark-and-excursion
+                         (agent-shell-next-permission-button)))
+           (next-pos (apply #'min (delq nil (list prompt-pos
+                                                  block-pos
+                                                  button-pos)))))
+      (when next-pos
+        (deactivate-mark)
+        (goto-char next-pos)
+        (when (eq next-pos prompt-pos)
+          (comint-skip-prompt))))))
 
 (defun agent-shell-previous-item ()
   "Go to previous item.
 
-Could be a prompt or an expandable item."
+Could be a prompt or an expandable item.
+If point is at the input prompt and a character key was pressed,
+insert the character instead."
   (interactive)
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
-  (let* ((current-pos (point))
-         (prompt-pos (save-mark-and-excursion
-                       (when (comint-next-prompt (- 1))
-                         (let ((pos (point)))
-                           (when (< pos current-pos)
-                             pos)))))
-         (block-pos (save-mark-and-excursion
-                      (let ((pos (agent-shell-ui-backward-block)))
-                        (when (and pos (< pos current-pos))
-                          pos))))
-         (button-pos (save-mark-and-excursion
-                       (let ((pos (agent-shell-previous-permission-button)))
-                         (when (and pos (< pos current-pos))
-                           pos))))
-         (positions (delq nil (list prompt-pos
-                                    block-pos
-                                    button-pos)))
-         (next-pos (when positions
-                     (apply #'max positions))))
-    (when next-pos
-      (deactivate-mark)
-      (goto-char next-pos)
-      (when (eq next-pos prompt-pos)
-        (comint-skip-prompt)))))
+  ;; Check if at prompt and inserting a character
+  ;; (Ignore special keys like TAB/Shift-TAB).
+  (if (and (shell-maker-point-at-last-prompt-p)
+           (integerp last-command-event))
+      ;; At prompt, insert character.
+      (self-insert-command 1)
+    ;; Otherwise navigate.
+    (let* ((current-pos (point))
+           (prompt-pos (save-mark-and-excursion
+                         (when (comint-next-prompt (- 1))
+                           (let ((pos (point)))
+                             (when (< pos current-pos)
+                               pos)))))
+           (block-pos (save-mark-and-excursion
+                        (let ((pos (agent-shell-ui-backward-block)))
+                          (when (and pos (< pos current-pos))
+                            pos))))
+           (button-pos (save-mark-and-excursion
+                         (let ((pos (agent-shell-previous-permission-button)))
+                           (when (and pos (< pos current-pos))
+                             pos))))
+           (positions (delq nil (list prompt-pos
+                                      block-pos
+                                      button-pos)))
+           (next-pos (when positions
+                       (apply #'max positions))))
+      (when next-pos
+        (deactivate-mark)
+        (goto-char next-pos)
+        (when (eq next-pos prompt-pos)
+          (comint-skip-prompt))))))
 
 (cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env load-env &allow-other-keys)
   "Return VARS in the form expected by `process-environment'.
