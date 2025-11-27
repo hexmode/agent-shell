@@ -1521,7 +1521,10 @@ insert the character instead."
   ;; Check if at prompt and inserting a character
   ;; (Ignore special keys like TAB/Shift-TAB).
   (if (and (shell-maker-point-at-last-prompt-p)
-           (integerp last-command-event))
+           (integerp last-command-event)
+           (> (length (this-command-keys-vector)) 0)
+           ;; Ensure invoked using a key binding.
+           (eq (key-binding (this-command-keys-vector)) this-command))
       ;; At prompt, insert character.
       (self-insert-command 1)
     ;; Otherwise navigate.
@@ -1553,7 +1556,10 @@ insert the character instead."
   ;; Check if at prompt and inserting a character
   ;; (Ignore special keys like TAB/Shift-TAB).
   (if (and (shell-maker-point-at-last-prompt-p)
-           (integerp last-command-event))
+           (integerp last-command-event)
+           (> (length (this-command-keys-vector)) 0)
+           ;; Ensure invoked using a key binding.
+           (eq (key-binding (this-command-keys-vector)) this-command))
       ;; At prompt, insert character.
       (self-insert-command 1)
     ;; Otherwise navigate.
