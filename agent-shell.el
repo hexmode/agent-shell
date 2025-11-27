@@ -4,10 +4,10 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.18.1
-;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.1") (acp "0.7.1"))
+;; Version: 0.18.2
+;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.1") (acp "0.7.3"))
 
-(defconst agent-shell--version "0.18.1")
+(defconst agent-shell--version "0.18.2")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -1376,8 +1376,8 @@ Set NO-FOCUS to start in background.
 Set NEW-SESSION to start a separate new session."
   (unless (version<= "0.84.1" shell-maker-version)
     (error "Please update shell-maker to version 0.84.1 or newer"))
-  (unless (version<= "0.6.1" acp-package-version)
-    (error "Please update acp.el to version 0.6.1 or newer"))
+  (unless (version<= "0.7.3" acp-package-version)
+    (error "Please update acp.el to version 0.7.3 or newer"))
   (with-temp-buffer ;; client-maker needs a buffer (use a temp one)
     (unless (and (map-elt config :client-maker)
                  (funcall (map-elt config :client-maker) (current-buffer)))
