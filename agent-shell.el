@@ -107,7 +107,7 @@ Example for devcontainer:
 
 (defcustom agent-shell-section-functions nil
   "Abnormal hook run after overlays are applied (experimental).
-Called in `agent-shell--update-dialog-block' after all overlays
+Called in `agent-shell--update-fragment' after all overlays
 are applied.  Each function is called with a range alist containing:
   :block       - The block range with :start and :end positions
   :body        - The body range (if present)
@@ -552,7 +552,7 @@ Flow:
 (cl-defun agent-shell--on-error (&key state error)
   "Handle ERROR with SHELL an STATE."
   (let-alist error
-    (agent-shell--update-dialog-block
+    (agent-shell--update-fragment
      :state state
      :block-id "Error"
      :body (or .message "Some error ¯\\_ (ツ)_/¯")
@@ -583,14 +583,14 @@ Flow:
                           (list (cons :diff diff)))))
                (let ((tool-call-labels (agent-shell-make-tool-call-label
                                         state (map-elt update 'toolCallId))))
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state state
                   :block-id (map-elt update 'toolCallId)
                   :label-left (map-elt tool-call-labels :status)
                   :label-right (map-elt tool-call-labels :title))
                  ;; Display plan as markdown block if present
                  (when-let ((plan (map-nested-elt update '(rawInput plan))))
-                   (agent-shell--update-dialog-block
+                   (agent-shell--update-fragment
                     :state state
                     :block-id (concat (map-elt update 'toolCallId) "-plan")
                     :label-left (propertize "Proposed plan" 'font-lock-face 'font-lock-doc-markup-face)
@@ -605,7 +605,7 @@ Flow:
                  (unless (equal (map-elt state :last-entry-type)
                                 "agent_thought_chunk")
                    (map-put! state :chunked-group-count (1+ (map-elt state :chunked-group-count))))
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state state
                   :block-id (format "%s-agent_thought_chunk"
                                     (map-elt state :chunked-group-count))
@@ -627,7 +627,7 @@ Flow:
                  (agent-shell--append-transcript
                   :text .content.text
                   :file-path agent-shell--transcript-file)
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state state
                   :block-id (format "%s-agent_message_chunk"
                                     (map-elt state :chunked-group-count))
@@ -639,7 +639,7 @@ Flow:
                (map-put! state :last-entry-type "agent_message_chunk"))
               ((equal (map-elt update 'sessionUpdate) "plan")
                (let-alist update
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state state
                   :block-id "plan"
                   :label-left (propertize "Plan" 'font-lock-face 'font-lock-doc-markup-face)
@@ -694,11 +694,11 @@ Flow:
                    (when (and (map-elt update 'status)
                               (not (equal (map-elt update 'status) "pending")))
                      ;; block-id must be the same as the one used as
-                     ;; agent-shell--update-dialog-block param by "session/request_permission".
-                     (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" .toolCallId)))
+                     ;; agent-shell--update-fragment param by "session/request_permission".
+                     (agent-shell--delete-fragment :state state :block-id (format "permission-%s" .toolCallId)))
                    (let ((tool-call-labels (agent-shell-make-tool-call-label
                                             state .toolCallId)))
-                     (agent-shell--update-dialog-block
+                     (agent-shell--update-fragment
                       :state state
                       :block-id .toolCallId
                       :label-left (map-elt tool-call-labels :status)
@@ -708,7 +708,7 @@ Flow:
               ((equal (map-elt update 'sessionUpdate) "available_commands_update")
                (let-alist update
                  (map-put! state :available-commands (map-elt update 'availableCommands))
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state state
                   :block-id "available_commands_update"
                   :label-left (propertize "Available commands" 'font-lock-face 'font-lock-doc-markup-face)
@@ -727,7 +727,7 @@ Flow:
                  ;; Note: No need to set :last-entry-type as no text was inserted.
                  (agent-shell--update-header-and-mode-line)))
               (t
-               (agent-shell--update-dialog-block
+               (agent-shell--update-fragment
                 :state state
                 :block-id "Session Update - fallback"
                 :body (format "%s" notification)
@@ -735,7 +735,7 @@ Flow:
                 :navigation 'never)
                (map-put! state :last-entry-type nil)))))
           (t
-           (agent-shell--update-dialog-block
+           (agent-shell--update-fragment
             :state state
             :block-id "Notification - fallback"
             :body (format "Unhandled (please file an issue): %s" notification)
@@ -755,10 +755,10 @@ Flow:
                           (cons :permission-request-id .id))
                     (when-let ((diff (agent-shell--make-diff-info .params.toolCall.content)))
                       (list (cons :diff diff)))))
-           (agent-shell--update-dialog-block
+           (agent-shell--update-fragment
             :state state
             ;; block-id must be the same as the one used
-            ;; in agent-shell--delete-dialog-block param.
+            ;; in agent-shell--delete-fragment param.
             :block-id (format "permission-%s" .params.toolCall.toolCallId)
             :body (with-current-buffer (map-elt state :buffer)
                     (agent-shell--make-tool-call-permission-text
@@ -778,7 +778,7 @@ Flow:
             :state state
             :request request))
           (t
-           (agent-shell--update-dialog-block
+           (agent-shell--update-fragment
             :state state
             :block-id "Unhandled Incoming Request"
             :body (format "⚠ Unhandled incoming request: \"%s\"" .method)
@@ -1116,7 +1116,7 @@ DIFF should be in the form returned by `agent-shell--make-diff-info':
   (lambda (error raw-message)
     (let-alist error
       (with-current-buffer (map-elt state :buffer)
-        (agent-shell--update-dialog-block
+        (agent-shell--update-fragment
          :state (agent-shell--state)
          :block-id (format "failed-%s-id:%s-code:%s"
                            (map-elt state :request-count)
@@ -1424,17 +1424,17 @@ Set NEW-SESSION to start a separate new session."
       (setq-local agent-shell--transcript-file (agent-shell--init-transcript config)))
     shell-buffer))
 
-(cl-defun agent-shell--delete-dialog-block (&key state block-id)
-  "Delete dialog block with STATE and BLOCK-ID."
+(cl-defun agent-shell--delete-fragment (&key state block-id)
+  "Delete fragment with STATE and BLOCK-ID."
   (with-current-buffer (map-elt state :buffer)
     (unless (and (derived-mode-p 'agent-shell-mode)
                  (equal (current-buffer)
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
-    (agent-shell-ui-delete-dialog-block :namespace-id (map-elt state :request-count) :block-id block-id)))
+    (agent-shell-ui-delete-fragment :namespace-id (map-elt state :request-count) :block-id block-id)))
 
-(cl-defun agent-shell--update-dialog-block (&key state block-id label-left label-right body append create-new navigation expanded)
-  "Update dialog block in the shell buffer.
+(cl-defun agent-shell--update-fragment (&key state block-id label-left label-right body append create-new navigation expanded)
+  "Update fragment in the shell buffer.
 
 Creates or updates existing dialog using STATE's request count as namespace.
 BLOCK-ID uniquely identifies the block.
@@ -1450,8 +1450,8 @@ by default."
                         (map-elt state :buffer)))
       (error "Editing the wrong buffer: %s" (current-buffer)))
     (shell-maker-with-auto-scroll-edit
-     (when-let* ((range (agent-shell-ui-update-dialog-block
-                         (agent-shell-ui-make-dialog-block-model
+     (when-let* ((range (agent-shell-ui-update-fragment
+                         (agent-shell-ui-make-fragment-model
                           :namespace-id (map-elt state :request-count)
                           :block-id block-id
                           :label-left label-left
@@ -1851,7 +1851,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 
 (cl-defun agent-shell--initialize-client (&key shell)
   "Initialize ACP client with SHELL."
-  (agent-shell--update-dialog-block
+  (agent-shell--update-fragment
    :state (agent-shell--state)
    :block-id "starting"
    :label-left (format "%s %s"
@@ -1871,7 +1871,7 @@ FORMAT-ARGS are passed to `format' with ERROR-FORMAT."
 
 (cl-defun agent-shell--initialize-subscriptions (&key shell)
   "Initialize ACP client subscriptions with SHELL.."
-  (agent-shell--update-dialog-block
+  (agent-shell--update-fragment
    :state agent-shell--state
    :block-id "starting"
    :label-left (format "%s %s"
@@ -1894,7 +1894,7 @@ Must provide ON-INITIATED (lambda ())."
   (unless on-initiated
     (error "Missing required argument: :on-initiated"))
   (with-current-buffer (map-elt agent-shell--state :buffer)
-    (agent-shell--update-dialog-block
+    (agent-shell--update-fragment
      :state agent-shell--state
      :block-id "starting"
      :body "\n\nInitializing..."
@@ -1914,7 +1914,7 @@ Must provide ON-INITIATED (lambda ())."
                                (list (cons :image (map-elt prompt-capabilities 'image))
                                      (cons :embedded-context (map-elt prompt-capabilities 'embeddedContext)))))
                    (when-let ((agent-capabilities (map-elt response 'agentCapabilities)))
-                     (agent-shell--update-dialog-block
+                     (agent-shell--update-fragment
                       :state agent-shell--state
                       :block-id "agent_capabilities"
                       :label-left (propertize "Agent capabilities" 'font-lock-face 'font-lock-doc-markup-face)
@@ -1928,7 +1928,7 @@ Must provide ON-INITIATED (lambda ())."
 
 Must provide ON-AUTHENTICATED (lambda ())."
   (with-current-buffer (map-elt agent-shell--state :buffer)
-    (agent-shell--update-dialog-block
+    (agent-shell--update-fragment
      :state (agent-shell--state)
      :block-id "starting"
      :body "\n\nAuthenticating..."
@@ -1952,7 +1952,7 @@ Must provide ON-SESSION-INIT (lambda ())."
   (unless on-session-init
     (error "Missing required argument: :on-session-init"))
   (with-current-buffer (map-elt (agent-shell--state) :buffer)
-    (agent-shell--update-dialog-block
+    (agent-shell--update-fragment
      :state (agent-shell--state)
      :block-id "starting"
      :body "\n\nCreating session..."
@@ -1968,7 +1968,7 @@ Must provide ON-SESSION-INIT (lambda ())."
                            :session (list (cons :id (map-elt response 'sessionId))
                                           (cons :mode-id (map-nested-elt response '(modes currentModeId)))
                                           (cons :modes (map-nested-elt response '(modes availableModes)))))
-                 (agent-shell--update-dialog-block
+                 (agent-shell--update-fragment
                   :state agent-shell--state
                   :block-id "starting"
                   :label-left (format "%s %s"
@@ -1977,7 +1977,7 @@ Must provide ON-SESSION-INIT (lambda ())."
                   :body "\n\nReady"
                   :append t)
                  (when (map-nested-elt response '(modes availableModes))
-                   (agent-shell--update-dialog-block
+                   (agent-shell--update-fragment
                     :state agent-shell--state
                     :block-id "available_modes"
                     :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
@@ -2174,7 +2174,7 @@ If FILE-PATH is not an image, returns nil."
 
 (cl-defun agent-shell--display-attached-files (uris)
   "Display the attached URIS in the buffer."
-  (agent-shell--update-dialog-block
+  (agent-shell--update-fragment
    :state agent-shell--state
    :block-id "attached-files"
    :label-left (format "%d file%s attached"
@@ -2610,8 +2610,8 @@ MESSAGE-TEXT: Optional message to display after sending the response."
               :option-id option-id))
   ;; Hide permission after sending response.
   ;; block-id must be the same as the one used as
-  ;; agent-shell--update-dialog-block param by "session/request_permission".
-  (agent-shell--delete-dialog-block :state state :block-id (format "permission-%s" tool-call-id))
+  ;; agent-shell--update-fragment param by "session/request_permission".
+  (agent-shell--delete-fragment :state state :block-id (format "permission-%s" tool-call-id))
   (let ((updated-tool-calls (map-copy (map-elt state :tool-calls))))
     (map-delete updated-tool-calls tool-call-id)
     (map-put! state :tool-calls updated-tool-calls))
