@@ -491,9 +491,10 @@ When FORCE is non-nil, skip confirmation prompt."
   "<tab>" #'agent-shell-next-item
   "<backtab>" #'agent-shell-previous-item
   "S-TAB" #'agent-shell-previous-item
+  "C-<tab>" #'agent-shell-cycle-session-mode
+  "C-TAB" #'agent-shell-cycle-session-mode
   "C-c C-c" #'agent-shell-interrupt
-  "C-c m" #'agent-shell-cycle-session-mode
-  "C-c M" #'agent-shell-set-session-mode)
+  "C-c m" #'agent-shell-set-session-mode)
 
 (shell-maker-define-major-mode (agent-shell--make-shell-maker-config) agent-shell-mode-map)
 

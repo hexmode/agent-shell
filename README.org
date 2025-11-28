@@ -453,7 +453,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 |                    | agent-shell-clear-buffer                         | Clear the current shell buffer.                                              |
 |                    | agent-shell-completion-mode                      | Toggle agent shell completion with @ or / prefix.                            |
 |                    | agent-shell-cursor-start-agent                   | Start an interactive Cursor agent shell.                                     |
-| C-c m              | agent-shell-cycle-session-mode                   | Cycle through available session modes for the current `agent-shell' session. |
+| C-TAB or C-<tab>   | agent-shell-cycle-session-mode                   | Cycle through available session modes for the current `agent-shell' session. |
 |                    | agent-shell-delete-interaction-at-point          | Delete interaction (request and response) at point.                          |
 |                    | agent-shell-google-start-gemini                  | Start an interactive Gemini CLI agent shell.                                 |
 |                    | agent-shell-goose-start-agent                    | Start an interactive Goose agent shell.                                      |
@@ -485,7 +485,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 |                    | agent-shell-send-other-file                      | Prompt to send a file into `agent-shell'.                                    |
 |                    | agent-shell-send-region                          | Send region to last accessed shell buffer in project.                        |
 |                    | agent-shell-send-screenshot                      | Capture a screenshot and insert it into `agent-shell'.                       |
-| C-c M              | agent-shell-set-session-mode                     | Set session mode (if any available).                                         |
+| C-c m              | agent-shell-set-session-mode                     | Set session mode (if any available).                                         |
 | RET                | agent-shell-submit                               | Submit current input.                                                        |
 |                    | agent-shell-toggle                               | Toggle agent shell display.                                                  |
 |                    | agent-shell-toggle-logging                       | Toggle logging.                                                              |
