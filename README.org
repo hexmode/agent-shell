@@ -453,7 +453,7 @@ All of the above settings can be applied on a per-project basis using [[https://
 |                    | agent-shell-clear-buffer                         | Clear the current shell buffer.                                              |
 |                    | agent-shell-completion-mode                      | Toggle agent shell completion with @ or / prefix.                            |
 |                    | agent-shell-cursor-start-agent                   | Start an interactive Cursor agent shell.                                     |
-| C-TAB or C-<tab>   | agent-shell-cycle-session-mode                   | Cycle through available session modes for the current `agent-shell' session. |
+| C-TAB              | agent-shell-cycle-session-mode                   | Cycle through available session modes for the current `agent-shell' session. |
 |                    | agent-shell-delete-interaction-at-point          | Delete interaction (request and response) at point.                          |
 |                    | agent-shell-google-start-gemini                  | Start an interactive Gemini CLI agent shell.                                 |
 |                    | agent-shell-goose-start-agent                    | Start an interactive Goose agent shell.                                      |
