@@ -1522,7 +1522,8 @@ insert the character instead."
     (error "Not in a shell"))
   ;; Check if at prompt and inserting a character
   ;; (Ignore special keys like TAB/Shift-TAB).
-  (if (and (shell-maker-point-at-last-prompt-p)
+  (if (and (not (shell-maker-busy))
+           (shell-maker-point-at-last-prompt-p)
            (integerp last-command-event)
            (> (length (this-command-keys-vector)) 0)
            ;; Ensure invoked using a key binding.
@@ -1557,7 +1558,8 @@ insert the character instead."
     (error "Not in a shell"))
   ;; Check if at prompt and inserting a character
   ;; (Ignore special keys like TAB/Shift-TAB).
-  (if (and (shell-maker-point-at-last-prompt-p)
+  (if (and (not (shell-maker-busy))
+           (shell-maker-point-at-last-prompt-p)
            (integerp last-command-event)
            (> (length (this-command-keys-vector)) 0)
            ;; Ensure invoked using a key binding.
