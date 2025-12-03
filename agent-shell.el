@@ -3143,12 +3143,12 @@ Uses :eval so the mode updates automatically when state changes."
   "Format MODES for shell rendering.
 If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
   (let ((max-name-length (seq-reduce (lambda (acc mode)
-                                       (let ((name (map-elt mode 'name))
-                                             (is-current (and current-mode-id
-                                                              (string= (map-elt mode 'id) current-mode-id))))
-                                         (max acc (length (if is-current
-                                                              (concat name " (current)")
-                                                            name)))))
+                                       ;; Calculate col width by including
+                                       ;; "(current)" if applicable.
+                                       (max acc (length (if (and current-mode-id
+                                                                 (string= (map-elt mode 'id) current-mode-id))
+                                                            (concat (map-elt mode 'name) " (current)")
+                                                          (map-elt mode 'name)))))
                                      modes
                                      0)))
     (mapconcat
@@ -3156,7 +3156,11 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
        (when (map-elt mode 'name)
          (concat
           (propertize (format (format "%%-%ds" max-name-length)
-                              (map-elt mode 'name))
+                              ;; Mark name as "(current)" if applicable.
+                              (if (and current-mode-id
+                                       (string= (map-elt mode 'id) current-mode-id))
+                                  (concat (map-elt mode 'name) " (current)")
+                                (map-elt mode 'name)))
                       'font-lock-face 'font-lock-function-name-face)
           (when (map-elt mode 'description)
             (concat "  "
