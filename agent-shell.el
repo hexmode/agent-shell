@@ -496,7 +496,8 @@ When FORCE is non-nil, skip confirmation prompt."
   "S-TAB" #'agent-shell-previous-item
   "C-<tab>" #'agent-shell-cycle-session-mode
   "C-c C-c" #'agent-shell-interrupt
-  "C-c C-m" #'agent-shell-set-session-mode)
+  "C-c C-m" #'agent-shell-set-session-mode
+  "C-c C-v" #'agent-shell-set-session-model)
 
 (shell-maker-define-major-mode (agent-shell--make-shell-maker-config) agent-shell-mode-map)
 
@@ -1997,7 +1998,17 @@ Must provide ON-SESSION-INIT (lambda ())."
                  (map-put! agent-shell--state
                            :session (list (cons :id (map-elt response 'sessionId))
                                           (cons :mode-id (map-nested-elt response '(modes currentModeId)))
-                                          (cons :modes (map-nested-elt response '(modes availableModes)))))
+                                          (cons :modes (mapcar (lambda (mode)
+                                                                 `((:id . ,(map-elt mode 'id))
+                                                                   (:name . ,(map-elt mode 'name))
+                                                                   (:description . ,(map-elt mode 'description))))
+                                                               (map-nested-elt response '(modes availableModes))))
+                                          (cons :model-id (map-nested-elt response '(models currentModelId)))
+                                          (cons :models (mapcar (lambda (model)
+                                                                  `((:model-id . ,(map-elt model 'modelId))
+                                                                    (:name . ,(map-elt model 'name))
+                                                                    (:description . ,(map-elt model 'description))))
+                                                                (map-nested-elt response '(models availableModels))))))
                  (agent-shell--update-fragment
                   :state agent-shell--state
                   :block-id "starting"
@@ -2006,22 +2017,22 @@ Must provide ON-SESSION-INIT (lambda ())."
                                       (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
                   :body "\n\nReady"
                   :append t)
-                 (when (map-nested-elt response '(models availableModels))
+                 (when (map-nested-elt agent-shell--state '(:session :models))
                    (agent-shell--update-fragment
                     :state agent-shell--state
                     :block-id "available_models"
                     :label-left (propertize "Available models" 'font-lock-face 'font-lock-doc-markup-face)
                     :body (agent-shell--format-available-models
-                           (map-nested-elt response '(models availableModels))
-                           (map-nested-elt response '(models currentModelId)))))
-                 (when (map-nested-elt response '(modes availableModes))
+                           (map-nested-elt agent-shell--state '(:session :models))
+                           (map-nested-elt agent-shell--state '(:session :model-id)))))
+                 (when (map-nested-elt agent-shell--state '(:session :modes))
                    (agent-shell--update-fragment
                     :state agent-shell--state
                     :block-id "available_modes"
                     :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
                     :body (agent-shell--format-available-modes
-                           (map-nested-elt response '(modes availableModes))
-                           (map-nested-elt response '(modes currentModeId)))))
+                           (map-nested-elt agent-shell--state '(:session :modes))
+                           (map-nested-elt agent-shell--state '(:session :mode-id)))))
                  (agent-shell--update-header-and-mode-line)
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
@@ -3018,14 +3029,14 @@ When DEACTIVATE is non-nil, deactivate region/selection."
   "Get the name of the session mode with MODE-ID from AVAILABLE-SESSION-MODES.
 
 AVAILABLE-SESSION-MODES is the list of mode objects from the ACP
-session/new response.  Each mode has an `id' and `name' field.
+session/new response.  Each mode has an `:id' and `:name' field.
 We look up the mode by ID to get its display name.
 
 See https://agentclientprotocol.com/protocol/session-modes for details."
   (when-let ((mode (seq-find (lambda (m)
-                               (string= mode-id (map-elt m 'id)))
+                               (string= mode-id (map-elt m :id)))
                              available-session-modes)))
-    (map-elt mode 'name)))
+    (map-elt mode :name)))
 
 (defun agent-shell--status-frame ()
   "Return busy frame string or nil if not busy."
@@ -3067,7 +3078,7 @@ Uses :eval so the mode updates automatically when state changes."
   (unless (map-nested-elt (agent-shell--state) '(:session :modes))
     (user-error "No session modes available"))
   (let* ((mode-ids (mapcar (lambda (mode)
-                             (map-elt mode 'id))
+                             (map-elt mode :id))
                            (map-nested-elt (agent-shell--state) '(:session :modes))))
          (mode-idx (or (seq-position mode-ids
                                      (map-nested-elt (agent-shell--state) '(:session :mode-id))
@@ -3108,8 +3119,8 @@ Uses :eval so the mode updates automatically when state changes."
                                   current-mode-id
                                   (map-nested-elt (agent-shell--state) '(:session :modes)))))
          (mode-choices (mapcar (lambda (mode)
-                                 (cons (map-elt mode 'name)
-                                       (map-elt mode 'id)))
+                                 (cons (map-elt mode :name)
+                                       (map-elt mode :id)))
                                (map-nested-elt (agent-shell--state) '(:session :modes))))
          (selection (completing-read "Set session mode: "
                                      (mapcar #'car mode-choices)
@@ -3139,6 +3150,61 @@ Uses :eval so the mode updates automatically when state changes."
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change session mode: %s" error)))))
 
+(defun agent-shell-set-session-model ()
+  "Set session model."
+  (interactive)
+  (unless (derived-mode-p 'agent-shell-mode)
+    (user-error "Not in an agent-shell buffer"))
+  (unless (map-nested-elt (agent-shell--state) '(:session :id))
+    (user-error "No active session"))
+  (unless (map-nested-elt (agent-shell--state) '(:session :models))
+    (user-error "No session models available"))
+  (let* ((current-model-id (map-nested-elt (agent-shell--state) '(:session :model-id)))
+         (available-models (map-nested-elt (agent-shell--state) '(:session :models)))
+         (default-model-name (and current-model-id
+                                  (map-elt (seq-find (lambda (model)
+                                                       (string= (map-elt model :model-id) current-model-id))
+                                                     available-models)
+                                           :name)))
+         (model-choices (mapcar (lambda (model)
+                                  (cons (map-elt model :name)
+                                        (map-elt model :model-id)))
+                                available-models))
+         (selection (completing-read "Set model: "
+                                     (mapcar #'car model-choices)
+                                     nil t nil nil
+                                     (and default-model-name
+                                          (car (seq-find (lambda (choice)
+                                                           (string-prefix-p default-model-name (car choice)))
+                                                         model-choices)))))
+         (selected-model-id (cdr (seq-find (lambda (choice)
+                                             (string= selection (car choice)))
+                                           model-choices))))
+    (unless selected-model-id
+      (user-error "Unknown model: %s" selection))
+    (when (and current-model-id (string= selected-model-id current-model-id))
+      (error "Session model already %s" (map-elt (seq-find (lambda (model)
+                                                             (string= (map-elt model :model-id) selected-model-id))
+                                                           available-models)
+                                                 :name)))
+    (acp-send-request
+     :client (map-elt (agent-shell--state) :client)
+     :request (acp-make-session-set-model-request
+               :session-id (map-nested-elt (agent-shell--state) '(:session :id))
+               :model-id selected-model-id)
+     :on-success (lambda (_response)
+                   (let ((updated-session (map-elt (agent-shell--state) :session)))
+                     (map-put! updated-session :model-id selected-model-id)
+                     (map-put! (agent-shell--state) :session updated-session)
+                     (message "Model: %s"
+                              (map-elt (seq-find (lambda (model)
+                                                   (string= (map-elt model :model-id) selected-model-id))
+                                                 (map-nested-elt (agent-shell--state) '(:session :models)))
+                                       :name)))
+                   (agent-shell--update-header-and-mode-line))
+     :on-failure (lambda (error _raw-message)
+                   (message "Failed to change model: %s" error)))))
+
 (defun agent-shell--format-available-modes (modes &optional current-mode-id)
   "Format MODES for shell rendering.
 If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
@@ -3146,25 +3212,25 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
                                        ;; Calculate col width by including
                                        ;; "(current)" if applicable.
                                        (max acc (length (if (and current-mode-id
-                                                                 (string= (map-elt mode 'id) current-mode-id))
-                                                            (concat (map-elt mode 'name) " (current)")
-                                                          (map-elt mode 'name)))))
+                                                                 (string= (map-elt mode :id) current-mode-id))
+                                                            (concat (map-elt mode :name) " (current)")
+                                                          (map-elt mode :name)))))
                                      modes
                                      0)))
     (mapconcat
      (lambda (mode)
-       (when (map-elt mode 'name)
+       (when (map-elt mode :name)
          (concat
           (propertize (format (format "%%-%ds" max-name-length)
                               ;; Mark name as "(current)" if applicable.
                               (if (and current-mode-id
-                                       (string= (map-elt mode 'id) current-mode-id))
-                                  (concat (map-elt mode 'name) " (current)")
-                                (map-elt mode 'name)))
+                                       (string= (map-elt mode :id) current-mode-id))
+                                  (concat (map-elt mode :name) " (current)")
+                                (map-elt mode :name)))
                       'font-lock-face 'font-lock-function-name-face)
-          (when (map-elt mode 'description)
+          (when (map-elt mode :description)
             (concat "  "
-                    (propertize (map-elt mode 'description)
+                    (propertize (map-elt mode :description)
                                 'font-lock-face 'font-lock-comment-face))))))
      modes
      "\n")))
@@ -3177,25 +3243,25 @@ Mark model using CURRENT-MODEL-ID."
                                        ;; Calculate col width by including
                                        ;; "(current)" if applicable.
                                        (max acc (length (if (and current-model-id
-                                                                 (string= (map-elt model 'modelId) current-model-id))
-                                                            (concat (map-elt model 'name) " (current)")
-                                                          (map-elt model 'name)))))
+                                                                 (string= (map-elt model :model-id) current-model-id))
+                                                            (concat (map-elt model :name) " (current)")
+                                                          (map-elt model :name)))))
                                      models
                                      0)))
     (mapconcat
      (lambda (model)
-       (when (map-elt model 'name)
+       (when (map-elt model :name)
          (concat
           (propertize (format (format "%%-%ds" max-name-length)
                               ;; Mark name as "(current)" if applicable.
                               (if (and current-model-id
-                                       (string= (map-elt model 'modelId) current-model-id))
-                                  (concat (map-elt model 'name) " (current)")
-                                (map-elt model 'name)))
+                                       (string= (map-elt model :model-id) current-model-id))
+                                  (concat (map-elt model :name) " (current)")
+                                (map-elt model :name)))
                       'font-lock-face 'font-lock-function-name-face)
-          (when (map-elt model 'description)
+          (when (map-elt model :description)
             (concat "  "
-                    (propertize (map-elt model 'description)
+                    (propertize (map-elt model :description)
                                 'font-lock-face 'font-lock-comment-face))))))
      models
      "\n")))
@@ -3214,6 +3280,7 @@ Mark model using CURRENT-MODEL-ID."
   [["Session"
     ("m" "Cycle modes" agent-shell-cycle-session-mode :transient t)
     ("M" "Set mode" agent-shell-set-session-mode :transient t)
+    ("v" "Set model" agent-shell-set-session-model :transient t)
     ("C" "Interrupt" agent-shell-interrupt :transient t)]
    ["Shell"
     ("b" "Toggle" agent-shell-toggle :transient t)
