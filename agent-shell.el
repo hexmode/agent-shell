@@ -1642,9 +1642,24 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
 :session with :mode-id and :modes for displaying the current session mode."
   (unless state
     (error "STATE is required"))
-  (let* ((text-header (format " %s @ %s"
+  (let* ((model-name (map-elt (seq-find (lambda (model)
+                                          (string= (map-elt model :model-id)
+                                                   (map-nested-elt state '(:session :model-id))))
+                                        (map-nested-elt state '(:session :models)))
+                              :name))
+         (mode-name (when-let ((mode-id (map-nested-elt state '(:session :mode-id))))
+                      (agent-shell--resolve-session-mode-name
+                       mode-id
+                       (map-nested-elt state '(:session :modes)))))
+         (text-header (format " %s%s%s @ %s"
                               (propertize (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")
                                           'font-lock-face 'font-lock-variable-name-face)
+                              (if model-name
+                                  (concat " ➤ " (propertize model-name 'font-lock-face 'font-lock-negation-char-face))
+                                "")
+                              (if mode-name
+                                  (concat " ➤ " (propertize mode-name 'font-lock-face 'font-lock-type-face))
+                                "")
                               (propertize (string-remove-suffix "/" (abbreviate-file-name default-directory))
                                           'font-lock-face 'font-lock-string-face))))
     (pcase agent-shell-header-style
@@ -1685,6 +1700,20 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                                                   (dom-node 'tspan
                                                             `((fill . ,(face-attribute 'font-lock-variable-name-face :foreground)))
                                                             (concat (map-nested-elt state '(:agent-config :buffer-name)) " Agent")))
+                                ;; Model name (optional)
+                                (when model-name
+                                  ;; Add separator arrow
+                                  (dom-append-child text-node
+                                                    (dom-node 'tspan
+                                                              `((fill . ,(face-attribute 'default :foreground))
+                                                                (dx . "8"))
+                                                              "➤"))
+                                  ;; Add model name
+                                  (dom-append-child text-node
+                                                    (dom-node 'tspan
+                                                              `((fill . ,(face-attribute 'font-lock-negation-char-face :foreground))
+                                                                (dx . "8"))
+                                                              model-name)))
                                 ;; Session mode (optional)
                                 (when-let ((mode-id (map-nested-elt state '(:session :mode-id))))
                                   ;; Add separator arrow
@@ -3048,12 +3077,20 @@ See https://agentclientprotocol.com/protocol/session-modes for details."
 (defun agent-shell--mode-line-format ()
   "Return `agent-shell''s mode-line format.
 
-Typically includes the session mode and activity or nil if unavailable.
+Typically includes the model, session mode and activity or nil if unavailable.
 
-For example: \" [Accept Edits] ░░░ \"."
+For example: \" [Sonnet] [Accept Edits] ░░░ \"."
   (when-let* (((derived-mode-p 'agent-shell-mode))
               ((memq agent-shell-header-style '(text none nil))))
-    (concat (when-let ((mode-name (agent-shell--resolve-session-mode-name
+    (concat (when-let ((model-name (map-elt (seq-find (lambda (model)
+                                                         (string= (map-elt model :model-id)
+                                                                  (map-nested-elt (agent-shell--state) '(:session :model-id))))
+                                                       (map-nested-elt (agent-shell--state) '(:session :models)))
+                                            :name)))
+              (propertize (format " [%s]" model-name)
+                          'face 'font-lock-variable-name-face
+                          'help-echo (format "Model: %s" model-name)))
+            (when-let ((mode-name (agent-shell--resolve-session-mode-name
                                    (map-nested-elt (agent-shell--state) '(:session :mode-id))
                                    (map-nested-elt (agent-shell--state) '(:session :modes)))))
               (propertize (format " [%s]" mode-name)
