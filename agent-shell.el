@@ -2006,6 +2006,14 @@ Must provide ON-SESSION-INIT (lambda ())."
                                       (propertize "Starting agent" 'font-lock-face 'font-lock-doc-markup-face))
                   :body "\n\nReady"
                   :append t)
+                 (when (map-nested-elt response '(models availableModels))
+                   (agent-shell--update-fragment
+                    :state agent-shell--state
+                    :block-id "available_models"
+                    :label-left (propertize "Available models" 'font-lock-face 'font-lock-doc-markup-face)
+                    :body (agent-shell--format-available-models
+                           (map-nested-elt response '(models availableModels))
+                           (map-nested-elt response '(models currentModelId)))))
                  (when (map-nested-elt response '(modes availableModes))
                    (agent-shell--update-fragment
                     :state agent-shell--state
@@ -3155,6 +3163,37 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
                     (propertize (map-elt mode 'description)
                                 'font-lock-face 'font-lock-comment-face))))))
      modes
+     "\n")))
+
+(defun agent-shell--format-available-models (models &optional current-model-id)
+  "Format MODELS for shell rendering.
+
+Mark model using CURRENT-MODEL-ID."
+  (let ((max-name-length (seq-reduce (lambda (acc model)
+                                       ;; Calculate col width by including
+                                       ;; "(current)" if applicable.
+                                       (max acc (length (if (and current-model-id
+                                                                 (string= (map-elt model 'modelId) current-model-id))
+                                                            (concat (map-elt model 'name) " (current)")
+                                                          (map-elt model 'name)))))
+                                     models
+                                     0)))
+    (mapconcat
+     (lambda (model)
+       (when (map-elt model 'name)
+         (concat
+          (propertize (format (format "%%-%ds" max-name-length)
+                              ;; Mark name as "(current)" if applicable.
+                              (if (and current-model-id
+                                       (string= (map-elt model 'modelId) current-model-id))
+                                  (concat (map-elt model 'name) " (current)")
+                                (map-elt model 'name)))
+                      'font-lock-face 'font-lock-function-name-face)
+          (when (map-elt model 'description)
+            (concat "  "
+                    (propertize (map-elt model 'description)
+                                'font-lock-face 'font-lock-comment-face))))))
+     models
      "\n")))
 
 ;;; Transient
