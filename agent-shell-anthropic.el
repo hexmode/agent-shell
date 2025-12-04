@@ -125,8 +125,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
    :welcome-function #'agent-shell-anthropic--claude-code-welcome-message
    :client-maker (lambda (buffer)
                    (agent-shell-anthropic-make-claude-client :buffer buffer))
-   :default-model-id agent-shell-anthropic-default-model-id
-   :default-session-mode-id agent-shell-anthropic-default-session-mode-id
+   :default-model-id (lambda () agent-shell-anthropic-default-model-id)
+   :default-session-mode-id (lambda () agent-shell-anthropic-default-session-mode-id)
    :install-instructions "See https://github.com/zed-industries/claude-code-acp for installation."))
 
 (defun agent-shell-anthropic-start-claude-code ()

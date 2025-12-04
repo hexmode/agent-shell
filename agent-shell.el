@@ -4,10 +4,10 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.20.1
+;; Version: 0.20.2
 ;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.1") (acp "0.8.1"))
 
-(defconst agent-shell--version "0.20.1")
+(defconst agent-shell--version "0.20.2")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -224,22 +224,22 @@ Keyword arguments:
 - CLIENT-MAKER: Function to create the client
 - NEEDS-AUTHENTICATION: Non-nil authentication is required
 - AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
-- DEFAULT-MODEL-ID: Default model ID.
-- DEFAULT-SESSION-MODE-ID: Default session mode ID.
+- DEFAULT-MODEL-ID: Default model ID (function returning value).
+- DEFAULT-SESSION-MODE-ID: Default session mode ID (function returning value).
 - ICON-NAME: Name of the icon to use
 - INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
 
 Returns an alist with all specified values."
   `((:mode-line-name . ,mode-line-name)
-    (:welcome-function . ,welcome-function)
+    (:welcome-function . ,welcome-function)                     ;; function
     (:buffer-name . ,buffer-name)
     (:shell-prompt . ,shell-prompt)
     (:shell-prompt-regexp . ,shell-prompt-regexp)
-    (:client-maker . ,client-maker)
+    (:client-maker . ,client-maker)                             ;; function
     (:needs-authentication . ,needs-authentication)
-    (:authenticate-request-maker . ,authenticate-request-maker)
-    (:default-model-id . ,default-model-id)
-    (:default-session-mode-id . ,default-session-mode-id)
+    (:authenticate-request-maker . ,authenticate-request-maker) ;; function
+    (:default-model-id . ,default-model-id)                     ;; function
+    (:default-session-mode-id . ,default-session-mode-id)       ;; function
     (:icon-name . ,icon-name)
     (:install-instructions . ,install-instructions)))
 
@@ -560,18 +560,22 @@ Flow:
             :on-session-init (lambda ()
                                (agent-shell--handle :command command :shell shell))))
           ((and (map-nested-elt (agent-shell--state) '(:agent-config :default-model-id))
+                (funcall (map-nested-elt (agent-shell--state)
+                                         '(:agent-config :default-model-id)))
                 (not (map-elt (agent-shell--state) :set-model)))
            (agent-shell--set-default-model
             :shell shell
-            :model-id (map-nested-elt (agent-shell--state) '(:agent-config :default-model-id))
+            :model-id (funcall (map-nested-elt (agent-shell--state)
+                                               '(:agent-config :default-model-id)))
             :on-model-changed (lambda ()
                                 (map-put! (agent-shell--state) :set-model t)
                                 (agent-shell--handle :command command :shell shell))))
           ((and (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id))
+                (funcall (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id)))
                 (not (map-elt (agent-shell--state) :set-session-mode)))
            (agent-shell--set-default-session-mode
             :shell shell
-            :mode-id (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id))
+            :mode-id (funcall (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id)))
             :on-mode-changed (lambda ()
                                (map-put! (agent-shell--state) :set-session-mode t)
                                (agent-shell--handle :command command :shell shell))))
@@ -3165,9 +3169,9 @@ For example: \" [Sonnet] [Accept Edits] ░░░ \"."
   (when-let* (((derived-mode-p 'agent-shell-mode))
               ((memq agent-shell-header-style '(text none nil))))
     (concat (when-let ((model-name (map-elt (seq-find (lambda (model)
-                                                         (string= (map-elt model :model-id)
-                                                                  (map-nested-elt (agent-shell--state) '(:session :model-id))))
-                                                       (map-nested-elt (agent-shell--state) '(:session :models)))
+                                                        (string= (map-elt model :model-id)
+                                                                 (map-nested-elt (agent-shell--state) '(:session :model-id))))
+                                                      (map-nested-elt (agent-shell--state) '(:session :models)))
                                             :name)))
               (propertize (format " [%s]" model-name)
                           'face 'font-lock-variable-name-face
