@@ -209,6 +209,7 @@ Assume screenshot file path will be appended to this list."
                                               client-maker
                                               needs-authentication
                                               authenticate-request-maker
+                                              default-model-id
                                               icon-name
                                               install-instructions)
   "Create an agent configuration alist.
@@ -222,6 +223,7 @@ Keyword arguments:
 - CLIENT-MAKER: Function to create the client
 - NEEDS-AUTHENTICATION: Non-nil authentication is required
 - AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
+- DEFAULT-MODEL-ID: Default model ID.
 - ICON-NAME: Name of the icon to use
 - INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
 
@@ -234,6 +236,7 @@ Returns an alist with all specified values."
     (:client-maker . ,client-maker)
     (:needs-authentication . ,needs-authentication)
     (:authenticate-request-maker . ,authenticate-request-maker)
+    (:default-model-id . ,default-model-id)
     (:icon-name . ,icon-name)
     (:install-instructions . ,install-instructions)))
 
@@ -323,6 +326,7 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
         (cons :needs-authentication needs-authentication)
         (cons :authenticate-request-maker authenticate-request-maker)
         (cons :authenticated nil)
+        (cons :set-model nil)
         (cons :session (list (cons :id nil)
                              (cons :mode-id nil)
                              (cons :modes nil)))
@@ -551,6 +555,14 @@ Flow:
             :shell shell
             :on-session-init (lambda ()
                                (agent-shell--handle :command command :shell shell))))
+          ((and (map-nested-elt (agent-shell--state) '(:agent-config :default-model-id))
+                (not (map-elt (agent-shell--state) :set-model)))
+           (agent-shell--set-default-model
+            :shell shell
+            :model-id (map-nested-elt (agent-shell--state) '(:agent-config :default-model-id))
+            :on-model-changed (lambda ()
+                                (map-put! (agent-shell--state) :set-model t)
+                                (agent-shell--handle :command command :shell shell))))
           (t
            (agent-shell--send-command :prompt command :shell shell)))))
 
@@ -2005,6 +2017,36 @@ Must provide ON-AUTHENTICATED (lambda ())."
     (funcall (map-elt shell :write-output) "No :authenticate-request-maker")
     (funcall (map-elt shell :finish-output) nil)))
 
+(cl-defun agent-shell--set-default-model (&key shell model-id on-model-changed)
+  "Initiate ACP authentication with SHELL MODEL-ID and ON-MODEL-CHANGED."
+  (when-let ((session-id (map-nested-elt (agent-shell--state) '(:session :id))))
+    (with-current-buffer (map-elt agent-shell--state :buffer)
+      (agent-shell--update-fragment
+       :state (agent-shell--state)
+       :block-id "set-model"
+       :label-left (propertize "Setting model" 'font-lock-face 'font-lock-doc-markup-face)
+       :body (format "Requesting %s..." model-id)
+       :append t))
+    (acp-send-request
+     :client (map-elt (agent-shell--state) :client)
+     :request (acp-make-session-set-model-request
+               :session-id session-id
+               :model-id model-id)
+     :on-success (lambda (_response)
+                   (agent-shell--update-fragment
+                    :state (agent-shell--state)
+                    :block-id "set-model"
+                    :body "\n\nDone"
+                    :append t)
+                   (let ((updated-session (map-elt (agent-shell--state) :session)))
+                     (map-put! updated-session :model-id model-id)
+                     (map-put! (agent-shell--state) :session updated-session))
+                   (agent-shell--update-header-and-mode-line)
+                   (when on-model-changed
+                     (funcall on-model-changed)))
+     :on-failure (agent-shell--make-error-handler
+                  :state (agent-shell--state) :shell shell))))
+
 (cl-defun agent-shell--initiate-session (&key shell on-session-init)
   "Initiate ACP session creation with SHELL.
 
@@ -2052,16 +2094,14 @@ Must provide ON-SESSION-INIT (lambda ())."
                     :block-id "available_models"
                     :label-left (propertize "Available models" 'font-lock-face 'font-lock-doc-markup-face)
                     :body (agent-shell--format-available-models
-                           (map-nested-elt agent-shell--state '(:session :models))
-                           (map-nested-elt agent-shell--state '(:session :model-id)))))
+                           (map-nested-elt agent-shell--state '(:session :models)))))
                  (when (map-nested-elt agent-shell--state '(:session :modes))
                    (agent-shell--update-fragment
                     :state agent-shell--state
                     :block-id "available_modes"
                     :label-left (propertize "Available modes" 'font-lock-face 'font-lock-doc-markup-face)
                     :body (agent-shell--format-available-modes
-                           (map-nested-elt agent-shell--state '(:session :modes))
-                           (map-nested-elt agent-shell--state '(:session :mode-id)))))
+                           (map-nested-elt agent-shell--state '(:session :modes)))))
                  (agent-shell--update-header-and-mode-line)
                  (funcall on-session-init))
    :on-failure (agent-shell--make-error-handler
@@ -3242,16 +3282,13 @@ Uses :eval so the mode updates automatically when state changes."
      :on-failure (lambda (error _raw-message)
                    (message "Failed to change model: %s" error)))))
 
-(defun agent-shell--format-available-modes (modes &optional current-mode-id)
+(defun agent-shell--format-available-modes (modes)
   "Format MODES for shell rendering.
 If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
   (let ((max-name-length (seq-reduce (lambda (acc mode)
-                                       ;; Calculate col width by including
-                                       ;; "(current)" if applicable.
-                                       (max acc (length (if (and current-mode-id
-                                                                 (string= (map-elt mode :id) current-mode-id))
-                                                            (concat (map-elt mode :name) " (current)")
-                                                          (map-elt mode :name)))))
+                                       (max acc (length (format "%s (%s)"
+                                                                (map-elt mode :name)
+                                                                (map-elt mode :id)))))
                                      modes
                                      0)))
     (mapconcat
@@ -3259,11 +3296,9 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
        (when (map-elt mode :name)
          (concat
           (propertize (format (format "%%-%ds" max-name-length)
-                              ;; Mark name as "(current)" if applicable.
-                              (if (and current-mode-id
-                                       (string= (map-elt mode :id) current-mode-id))
-                                  (concat (map-elt mode :name) " (current)")
-                                (map-elt mode :name)))
+                              (format "%s (%s)"
+                                      (map-elt mode :name)
+                                      (map-elt mode :id)))
                       'font-lock-face 'font-lock-function-name-face)
           (when (map-elt mode :description)
             (concat "  "
@@ -3272,17 +3307,15 @@ If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
      modes
      "\n")))
 
-(defun agent-shell--format-available-models (models &optional current-model-id)
+(defun agent-shell--format-available-models (models)
   "Format MODELS for shell rendering.
 
 Mark model using CURRENT-MODEL-ID."
   (let ((max-name-length (seq-reduce (lambda (acc model)
-                                       ;; Calculate col width by including
-                                       ;; "(current)" if applicable.
-                                       (max acc (length (if (and current-model-id
-                                                                 (string= (map-elt model :model-id) current-model-id))
-                                                            (concat (map-elt model :name) " (current)")
-                                                          (map-elt model :name)))))
+                                       (max acc (length
+                                                 (format "%s (%s)"
+                                                         (map-elt model :name)
+                                                         (map-elt model :model-id)))))
                                      models
                                      0)))
     (mapconcat
@@ -3290,11 +3323,9 @@ Mark model using CURRENT-MODEL-ID."
        (when (map-elt model :name)
          (concat
           (propertize (format (format "%%-%ds" max-name-length)
-                              ;; Mark name as "(current)" if applicable.
-                              (if (and current-model-id
-                                       (string= (map-elt model :model-id) current-model-id))
-                                  (concat (map-elt model :name) " (current)")
-                                (map-elt model :name)))
+                              (format "%s (%s)"
+                                      (map-elt model :name)
+                                      (map-elt model :model-id)))
                       'font-lock-face 'font-lock-function-name-face)
           (when (map-elt model :description)
             (concat "  "
