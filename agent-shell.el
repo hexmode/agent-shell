@@ -974,22 +974,16 @@ https://agentclientprotocol.com/protocol/schema#param-stop-reason"
 
 (defun agent-shell--format-available-commands (commands)
   "Format COMMANDS for shell rendering."
-  (let ((max-name-length (seq-reduce (lambda (acc cmd)
-                                       (max acc (length (map-elt cmd 'name))))
-                                     commands
-                                     0)))
-    (mapconcat
-     (lambda (cmd)
-       (let ((name (map-elt cmd 'name))
-             (desc (map-elt cmd 'description)))
-         (concat
-          ;; For commands to be executable, they start with /
-          (propertize (format (format "/%%-%ds" max-name-length) name)
-                      'font-lock-face 'font-lock-function-name-face)
-          "  "
-          (propertize desc 'font-lock-face 'font-lock-comment-face))))
-     commands
-     "\n")))
+  (agent-shell--align-alist
+   :data commands
+   :columns (list
+             (lambda (cmd)
+               (propertize (concat "/" (map-elt cmd 'name))
+                           'font-lock-face 'font-lock-function-name-face))
+             (lambda (cmd)
+               (propertize (map-elt cmd 'description)
+                           'font-lock-face 'font-lock-comment-face)))
+   :joiner "\n"))
 
 (defun agent-shell--format-agent-capabilities (capabilities)
   "Format agent CAPABILITIES for shell rendering.
@@ -1043,23 +1037,18 @@ Example output:
                                  ;; Top-level boolean capabilities (loadSession)
                                  ((eq value t)
                                   (cons (downcase group-name) nil)))))
-                            capabilities)))
-         (max-name-length (seq-reduce (lambda (acc pair)
-                                        (max acc (length (car pair))))
-                                      categories
-                                      0)))
-    (mapconcat
-     (lambda (pair)
-       (let ((category (car pair))
-             (tags (cdr pair)))
-         (concat
-          (propertize (format (format "%%-%ds" max-name-length) category)
-                      'font-lock-face 'font-lock-function-name-face)
-          (when tags
-            (concat "  "
-                    (propertize tags 'font-lock-face 'font-lock-comment-face))))))
-     categories
-     "\n")))
+                            capabilities))))
+    (agent-shell--align-alist
+     :data categories
+     :columns (list
+               (lambda (pair)
+                 (propertize (car pair)
+                             'font-lock-face 'font-lock-function-name-face))
+               (lambda (pair)
+                 (when (cdr pair)
+                   (propertize (cdr pair)
+                               'font-lock-face 'font-lock-comment-face))))
+     :joiner "\n")))
 
 (defun agent-shell--make-diff-info (acp-content)
   "Make diff information from ACP's tool_call_update's ACP-CONTENT.
@@ -3119,6 +3108,41 @@ Available values:
         (:line-end . ,(save-excursion (goto-char end) (line-number-at-pos)))
         (:content . ,content)))))
 
+(cl-defun agent-shell--align-alist (&key data columns (separator "  ") joiner)
+  "Align COLUMNS from DATA.
+
+DATA is a list of alists.  COLUMNS is a list of extractor functions,
+where each extractor takes one alist and returns a string for that
+column.  SEPARATOR is the string used to join columns (defaults to
+two spaces).  JOINER, when provided, wraps the result with
+string-join using JOINER as the separator.
+
+Returns a list of strings with spaced-aligned columns, or a single
+joined string if JOINER is provided."
+  (let* ((rows (mapcar
+                (lambda (item)
+                  (mapcar (lambda (extractor) (funcall extractor item))
+                          columns))
+                data))
+         (widths (seq-reduce
+                  (lambda (acc row)
+                    (seq-mapn #'max
+                              acc
+                              (mapcar (lambda (cell) (length (or cell ""))) row)))
+                  rows
+                  (make-list (length columns) 0)))
+         (result (mapcar (lambda (row)
+                           (string-join
+                            (seq-mapn (lambda (cell width)
+                                        (format (format "%%-%ds" width) (or cell "")))
+                                      row
+                                      widths)
+                            separator))
+                         rows)))
+    (if joiner
+        (string-join result joiner)
+      result)))
+
 (cl-defun agent-shell--get-decorated-region (&key deactivate)
   "Get the active region decorated with file path and Markdown code block.
 
@@ -3291,10 +3315,16 @@ Uses :eval so the mode updates automatically when state changes."
                                                        (string= (map-elt model :model-id) current-model-id))
                                                      available-models)
                                            :name)))
-         (model-choices (mapcar (lambda (model)
-                                  (cons (map-elt model :name)
-                                        (map-elt model :model-id)))
-                                available-models))
+         (model-choices (seq-mapn (lambda (title model)
+                                    (cons title (map-elt model :model-id)))
+                                  (agent-shell--align-alist
+                                   :data available-models
+                                   :columns (list
+                                             (lambda (model)
+                                               (map-elt model :name))
+                                             (lambda (model)
+                                               (format "(%s)" (map-elt model :model-id)))))
+                                  available-models))
          (selection (completing-read "Set model: "
                                      (mapcar #'car model-choices)
                                      nil t nil nil
@@ -3333,54 +3363,38 @@ Uses :eval so the mode updates automatically when state changes."
 (defun agent-shell--format-available-modes (modes)
   "Format MODES for shell rendering.
 If CURRENT-MODE-ID is provided, append \"(current)\" to the matching mode name."
-  (let ((max-name-length (seq-reduce (lambda (acc mode)
-                                       (max acc (length (format "%s (%s)"
-                                                                (map-elt mode :name)
-                                                                (map-elt mode :id)))))
-                                     modes
-                                     0)))
-    (mapconcat
-     (lambda (mode)
-       (when (map-elt mode :name)
-         (concat
-          (propertize (format (format "%%-%ds" max-name-length)
-                              (format "%s (%s)"
-                                      (map-elt mode :name)
-                                      (map-elt mode :id)))
-                      'font-lock-face 'font-lock-function-name-face)
-          (when (map-elt mode :description)
-            (concat "  "
-                    (propertize (map-elt mode :description)
-                                'font-lock-face 'font-lock-comment-face))))))
-     modes
-     "\n")))
+  (agent-shell--align-alist
+   :data modes
+   :columns (list
+             (lambda (mode)
+               (when (map-elt mode :name)
+                 (propertize (format "%s (%s)"
+                                     (map-elt mode :name)
+                                     (map-elt mode :id))
+                             'font-lock-face 'font-lock-function-name-face)))
+             (lambda (mode)
+               (when (map-elt mode :description)
+                 (propertize (map-elt mode :description)
+                             'font-lock-face 'font-lock-comment-face))))
+   :joiner "\n"))
 
 (defun agent-shell--format-available-models (models)
   "Format MODELS for shell rendering.
 
 Mark model using CURRENT-MODEL-ID."
-  (let ((max-name-length (seq-reduce (lambda (acc model)
-                                       (max acc (length
-                                                 (format "%s (%s)"
-                                                         (map-elt model :name)
-                                                         (map-elt model :model-id)))))
-                                     models
-                                     0)))
-    (mapconcat
-     (lambda (model)
-       (when (map-elt model :name)
-         (concat
-          (propertize (format (format "%%-%ds" max-name-length)
-                              (format "%s (%s)"
-                                      (map-elt model :name)
-                                      (map-elt model :model-id)))
-                      'font-lock-face 'font-lock-function-name-face)
-          (when (map-elt model :description)
-            (concat "  "
-                    (propertize (map-elt model :description)
-                                'font-lock-face 'font-lock-comment-face))))))
-     models
-     "\n")))
+  (agent-shell--align-alist
+   :data models
+   :columns (list
+             (lambda (model)
+               (map-elt model :name)
+               (when (map-elt model :name)
+                 (propertize (map-elt model :name)
+                             'font-lock-face 'font-lock-function-name-face)))
+             (lambda (model)
+               (when (map-elt model :description)
+                 (propertize (map-elt model :description)
+                             'font-lock-face 'font-lock-comment-face))))
+   :joiner "\n"))
 
 ;;; Transient
 
