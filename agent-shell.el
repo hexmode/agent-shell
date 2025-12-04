@@ -210,6 +210,7 @@ Assume screenshot file path will be appended to this list."
                                               needs-authentication
                                               authenticate-request-maker
                                               default-model-id
+                                              default-session-mode-id
                                               icon-name
                                               install-instructions)
   "Create an agent configuration alist.
@@ -224,6 +225,7 @@ Keyword arguments:
 - NEEDS-AUTHENTICATION: Non-nil authentication is required
 - AUTHENTICATE-REQUEST-MAKER: Function to create authentication requests
 - DEFAULT-MODEL-ID: Default model ID.
+- DEFAULT-SESSION-MODE-ID: Default session mode ID.
 - ICON-NAME: Name of the icon to use
 - INSTALL-INSTRUCTIONS: Instructions to show when executable is not found
 
@@ -237,6 +239,7 @@ Returns an alist with all specified values."
     (:needs-authentication . ,needs-authentication)
     (:authenticate-request-maker . ,authenticate-request-maker)
     (:default-model-id . ,default-model-id)
+    (:default-session-mode-id . ,default-session-mode-id)
     (:icon-name . ,icon-name)
     (:install-instructions . ,install-instructions)))
 
@@ -327,6 +330,7 @@ HEARTBEAT, and AUTHENTICATE-REQUEST-MAKER."
         (cons :authenticate-request-maker authenticate-request-maker)
         (cons :authenticated nil)
         (cons :set-model nil)
+        (cons :set-session-mode nil)
         (cons :session (list (cons :id nil)
                              (cons :mode-id nil)
                              (cons :modes nil)))
@@ -563,6 +567,14 @@ Flow:
             :on-model-changed (lambda ()
                                 (map-put! (agent-shell--state) :set-model t)
                                 (agent-shell--handle :command command :shell shell))))
+          ((and (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id))
+                (not (map-elt (agent-shell--state) :set-session-mode)))
+           (agent-shell--set-default-session-mode
+            :shell shell
+            :mode-id (map-nested-elt (agent-shell--state) '(:agent-config :default-session-mode-id))
+            :on-mode-changed (lambda ()
+                               (map-put! (agent-shell--state) :set-session-mode t)
+                               (agent-shell--handle :command command :shell shell))))
           (t
            (agent-shell--send-command :prompt command :shell shell)))))
 
@@ -2044,6 +2056,36 @@ Must provide ON-AUTHENTICATED (lambda ())."
                    (agent-shell--update-header-and-mode-line)
                    (when on-model-changed
                      (funcall on-model-changed)))
+     :on-failure (agent-shell--make-error-handler
+                  :state (agent-shell--state) :shell shell))))
+
+(cl-defun agent-shell--set-default-session-mode (&key shell mode-id on-mode-changed)
+  "Set default session mode with SHELL MODE-ID and ON-MODE-CHANGED."
+  (when-let ((session-id (map-nested-elt (agent-shell--state) '(:session :id))))
+    (with-current-buffer (map-elt agent-shell--state :buffer)
+      (agent-shell--update-fragment
+       :state (agent-shell--state)
+       :block-id "set-session-mode"
+       :label-left (propertize "Setting session mode" 'font-lock-face 'font-lock-doc-markup-face)
+       :body (format "Requesting %s..." mode-id)
+       :append t))
+    (acp-send-request
+     :client (map-elt (agent-shell--state) :client)
+     :request (acp-make-session-set-mode-request
+               :session-id session-id
+               :mode-id mode-id)
+     :on-success (lambda (_response)
+                   (agent-shell--update-fragment
+                    :state (agent-shell--state)
+                    :block-id "set-session-mode"
+                    :body "\n\nDone"
+                    :append t)
+                   (let ((updated-session (map-elt (agent-shell--state) :session)))
+                     (map-put! updated-session :mode-id mode-id)
+                     (map-put! (agent-shell--state) :session updated-session))
+                   (agent-shell--update-header-and-mode-line)
+                   (when on-mode-changed
+                     (funcall on-mode-changed)))
      :on-failure (agent-shell--make-error-handler
                   :state (agent-shell--state) :shell shell))))
 
