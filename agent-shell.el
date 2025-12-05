@@ -1315,25 +1315,15 @@ Returns propertized labels in :status and :title propertized."
 
 (defun agent-shell--format-plan (entries)
   "Format plan ENTRIES for shell rendering."
-  (let* ((max-label-width
-          (apply #'max (cons 0 (mapcar (lambda (entry)
-                                         (length (agent-shell--status-label
-                                                  (map-elt entry 'status))))
-                                       entries)))))
-    (mapconcat
-     (lambda (entry)
-       (let-alist entry
-         (let* ((status-label (agent-shell--status-label .status))
-                (label-length (length status-label))
-                (padding (make-string
-                          (max 1 (- max-label-width label-length))
-                          ?\s)))
-           (concat
-            status-label
-            padding
-            .content))))
-     entries
-     "\n")))
+  (agent-shell--align-alist
+   :data entries
+   :columns (list
+             (lambda (entry)
+               (agent-shell--status-label (map-elt entry 'status)))
+             (lambda (entry)
+               (map-elt entry 'content)))
+   :separator "  "
+   :joiner "\n"))
 
 (cl-defun agent-shell--make-button (&key text help kind action keymap)
   "Make button with TEXT, HELP text, KIND, KEYMAP, and ACTION."
