@@ -167,7 +167,7 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
                  (color (agent-shell--interpolate-gradient gradient-colors progress)))
             (setq propertized-line
                   (concat propertized-line
-                          (propertize char 'font-lock-face `(:foreground ,color))))))
+                          (propertize char 'font-lock-face `(:foreground ,color :inherit fixed-pitch))))))
         (setq result (concat result propertized-line "\n"))))
     (string-trim-right result)))
 

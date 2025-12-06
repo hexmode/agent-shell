@@ -103,8 +103,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
   ╚═════╝  ╚═════╝  ╚═╝  ╚═╝ ╚══════╝  ╚═════╝  ╚═╝  ╚═╝
 " "\n")))
     (propertize text 'font-lock-face (if is-dark
-                                         '(:foreground "#00d4ff")
-                                       '(:foreground "#0066cc")))))
+                                         '(:foreground "#00d4ff" :inherit fixed-pitch)
+                                       '(:foreground "#0066cc" :inherit fixed-pitch)))))
 
 (provide 'agent-shell-cursor)
 

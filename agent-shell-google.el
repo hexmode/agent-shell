@@ -225,7 +225,7 @@ Uses `agent-shell-google-authentication' for authentication configuration."
                  (color (agent-shell--interpolate-gradient gradient-colors progress)))
             (setq propertized-line
                   (concat propertized-line
-                          (propertize char 'font-lock-face `(:foreground ,color))))))
+                          (propertize char 'font-lock-face `(:foreground ,color :inherit fixed-pitch))))))
         (setq result (concat result propertized-line "\n"))))
     (string-trim-right result)))
 
@@ -240,7 +240,7 @@ Uses `agent-shell-google-authentication' for authentication configuration."
     (dotimes (i (length text))
       (setq result (concat result
                            (propertize (substring text i (1+ i))
-                                       'font-lock-face `(:foreground ,(nth (mod i (length colors)) colors))))))
+                                       'font-lock-face `(:foreground ,(nth (mod i (length colors)) colors) :inherit fixed-pitch)))))
     result))
 
 (defun agent-shell-google-key ()

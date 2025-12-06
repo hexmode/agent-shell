@@ -165,8 +165,8 @@ Uses `agent-shell-opencode-authentication' for authentication configuration."
   ╚═════╝  ╚═╝      ╚══════╝ ╚═╝  ╚═══╝  ╚═════╝  ╚═════╝  ╚═════╝  ╚══════╝
 " "\n")))
     (propertize text 'font-lock-face (if is-dark
-                                         '(:foreground "#4a9eff")
-                                       '(:foreground "#2563eb")))))
+                                         '(:foreground "#4a9eff" :inherit fixed-pitch)
+                                       '(:foreground "#2563eb" :inherit fixed-pitch)))))
 
 (provide 'agent-shell-opencode)
 

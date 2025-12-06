@@ -165,8 +165,8 @@ Uses `agent-shell-goose-authentication' for authentication configuration."
 ╰───╮ │ ╰─────╯ ╰─────╯ ╰─────╯ ╰─────╯
     ╰─╯" "\n")))
     (propertize text 'font-lock-face (if is-dark
-                                         '(:foreground "#a0a0a0")
-                                       '(:foreground "#505050")))))
+                                         '(:foreground "#a0a0a0" :inherit fixed-pitch)
+                                       '(:foreground "#505050" :inherit fixed-pitch)))))
 
 (provide 'agent-shell-goose)
 
