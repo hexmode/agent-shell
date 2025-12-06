@@ -62,6 +62,7 @@
 (require 'agent-shell-opencode)
 (require 'agent-shell-qwen)
 (require 'agent-shell-heartbeat)
+(require 'agent-shell-prompt-compose)
 
 (declare-function projectile-current-project-files "projectile")
 (declare-function projectile-project-root "projectile")
@@ -401,6 +402,12 @@ With prefix argument NEW-SHELL, force start a new shell."
 Always prompts for agent selection, even if existing shells are available."
   (interactive)
   (agent-shell t))
+
+;;;###autoload
+(defun agent-shell-prompt-compose ()
+  "Compose an `agent-shell' prompt in a dedicated buffer."
+  (interactive)
+  (agent-shell-prompt-compose--show-buffer))
 
 (cl-defun agent-shell-start (&key config)
   "Programmatically start shell with CONFIG.
