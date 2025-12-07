@@ -1755,17 +1755,27 @@ BINDINGS is a list of alists defining key bindings to display, each with:
       ('text text-header)
       ('graphical
        (if (display-graphic-p)
-           ;; Bindings row (optional, first row)
+           ;; Qualifier row (optional, first row)
            ;; +------+
            ;; | icon | Top text line
            ;; |      | Bottom text line
            ;; +------+
+           ;; Bindings row (optional, last row)
            (let* ((image-height (* 3 (default-font-height)))
                   (image-width image-height)
                   (text-height 25)
-                  (bindings-height (if bindings text-height 0))
-                  (y-offset bindings-height)
-                  (svg (svg-create (frame-pixel-width) (+ image-height bindings-height 10)))
+                  (row-spacing 5)  ; Consistent spacing between rows
+                  (qualifier-row-height (if qualifier (+ text-height row-spacing) 0))
+                  (icon-text-row-height image-height)
+                  (bindings-row-height (if bindings text-height 0))
+                  (total-height (+ qualifier-row-height icon-text-row-height bindings-row-height 10))
+                  ;; Y positions for each row (baseline positions for text)
+                  (qualifier-y text-height)
+                  (icon-y qualifier-row-height)
+                  (icon-text-y (+ qualifier-row-height text-height))
+                  ;; Bindings positioned right after the bottom text (2 text lines) plus spacing
+                  (bindings-y (+ qualifier-row-height (* 3 text-height) row-spacing))
+                  (svg (svg-create (frame-pixel-width) total-height))
                   (icon-filename
                    (if (map-nested-elt state '(:agent-config :icon-name))
                        (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name)))
@@ -1778,47 +1788,22 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                                  ((member ext '("webp" "WEBP")) "image/webp")
                                  ((member ext '("svg" "SVG")) "image/svg+xml")
                                  (t "image/png")))))
-             ;; Bindings row (first row if bindings present)
-             (when bindings
-               (svg--append svg (let ((text-node (dom-node 'text
-                                                           `((x . 0)
-                                                             (y . ,text-height))))
-                                      (first t))
-                                  ;; Add qualifier if present
-                                  (when qualifier
-                                    (dom-append-child text-node
-                                                      (dom-node 'tspan
-                                                                `((fill . ,(face-attribute 'font-lock-regexp-grouping-backslash :foreground)))
-                                                                qualifier))
-                                    (setq first nil))
-                                  (dolist (binding bindings)
-                                    (when (map-elt binding :description)
-                                      ;; Add key (XML-escape angle brackets)
-                                      (dom-append-child text-node
-                                                        (dom-node 'tspan
-                                                                  `((fill . ,(face-attribute 'help-key-binding :foreground))
-                                                                    ,@(unless first '((dx . "8"))))
-                                                                  (replace-regexp-in-string
-                                                                   "<" "&lt;"
-                                                                   (replace-regexp-in-string
-                                                                    ">" "&gt;"
-                                                                    (map-elt binding :key)))))
-                                      (setq first nil)
-                                      ;; Add space and description
-                                      (dom-append-child text-node
-                                                        (dom-node 'tspan
-                                                                  `((fill . ,(face-attribute 'default :foreground))
-                                                                    (dx . "8"))
-                                                                  (map-elt binding :description)))))
-                                  text-node)))
+             ;; Qualifier row (first row if qualifier present)
+             (when qualifier
+               (svg--append svg (dom-node 'text
+                                          `((x . 0)
+                                            (y . ,qualifier-y)
+                                            (fill . ,(face-attribute 'font-lock-regexp-grouping-backslash :foreground)))
+                                          qualifier)))
+             ;; Icon
              (when (and icon-filename image-type)
                (svg-embed svg icon-filename
                           image-type nil
-                          :x 0 :y y-offset :width image-width :height image-height))
+                          :x 0 :y icon-y :width image-width :height image-height))
              ;; Top text line
              (svg--append svg (let ((text-node (dom-node 'text
                                                          `((x . ,(+ image-width 10))
-                                                           (y . ,(+ y-offset text-height))))))
+                                                           (y . ,icon-text-y)))))
                                 ;; Agent name
                                 (dom-append-child text-node
                                                   (dom-node 'tspan
@@ -1862,8 +1847,34 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                                 text-node))
              ;; Bottom text line
              (svg-text svg (string-remove-suffix "/" (abbreviate-file-name default-directory))
-                       :x (+ image-width 10) :y (+ y-offset (* 2 text-height))
+                       :x (+ image-width 10) :y (+ icon-text-y text-height)
                        :fill (face-attribute 'font-lock-string-face :foreground))
+             ;; Bindings row (last row if bindings present)
+             (when bindings
+               (svg--append svg (let ((text-node (dom-node 'text
+                                                           `((x . 0)
+                                                             (y . ,bindings-y))))
+                                      (first t))
+                                  (dolist (binding bindings)
+                                    (when (map-elt binding :description)
+                                      ;; Add key (XML-escape angle brackets)
+                                      (dom-append-child text-node
+                                                        (dom-node 'tspan
+                                                                  `((fill . ,(face-attribute 'help-key-binding :foreground))
+                                                                    ,@(unless first '((dx . "8"))))
+                                                                  (replace-regexp-in-string
+                                                                   "<" "&lt;"
+                                                                   (replace-regexp-in-string
+                                                                    ">" "&gt;"
+                                                                    (map-elt binding :key)))))
+                                      (setq first nil)
+                                      ;; Add space and description
+                                      (dom-append-child text-node
+                                                        (dom-node 'tspan
+                                                                  `((fill . ,(face-attribute 'default :foreground))
+                                                                    (dx . "8"))
+                                                                  (map-elt binding :description)))))
+                                  text-node)))
              (format " %s" (with-temp-buffer
                              (svg-insert-image svg)
                              (buffer-string))))
