@@ -30,6 +30,7 @@
 (require 'cursor-sensor)
 (require 'seq)
 (require 'subr-x)
+(require 'window)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -52,7 +53,9 @@
       ;; TODO: Do we need to get prompt and partial response,
       ;; in case compose buffer is created for the first time
       ;; on an ongoing/busy shell session?
-      (unless shell-maker--busy
+      (if shell-maker--busy
+          (with-current-buffer compose-buffer
+            (agent-shell-prompt-compose-view-mode))
         (with-current-buffer compose-buffer
           (agent-shell-prompt-compose-edit-mode)
           (agent-shell-prompt-compose--initialize))))))
@@ -186,6 +189,28 @@ Optionally set its PROMPT and RESPONSE."
                 (end (next-single-property-change start 'agent-shell-prompt-compose-prompt)))
       (buffer-substring end (point-max)))))
 
+(defun agent-shell-prompt-compose--prompt-start ()
+  "Return the start position of the prompt, or nil if no prompt."
+  (save-excursion
+    (goto-char (point-min))
+    (when-let ((start (if (get-text-property (point-min) 'agent-shell-prompt-compose-prompt)
+                          (point-min)
+                        (next-single-property-change (point-min) 'agent-shell-prompt-compose-prompt))))
+      (when (get-text-property start 'agent-shell-prompt-compose-prompt)
+        start))))
+
+(defun agent-shell-prompt-compose--response-start ()
+  "Return the start position of the response, or nil if no response."
+  (save-excursion
+    (goto-char (point-min))
+    (when-let* ((start (if (get-text-property (point-min) 'agent-shell-prompt-compose-prompt)
+                           (point-min)
+                         (next-single-property-change (point-min) 'agent-shell-prompt-compose-prompt)))
+                (found (get-text-property start 'agent-shell-prompt-compose-prompt))
+                (end (next-single-property-change start 'agent-shell-prompt-compose-prompt)))
+      (when (< end (point-max))
+        end))))
+
 (defun agent-shell-prompt-compose-cancel ()
   "Cancel prompt composition."
   (interactive)
@@ -198,13 +223,26 @@ Optionally set its PROMPT and RESPONSE."
   (interactive)
   (unless (derived-mode-p 'agent-shell-prompt-compose-view-mode)
     (error "Not in a compose buffer"))
-  (let* ((block-pos (save-mark-and-excursion
+  (let* ((current-pos (point))
+         (prompt-start (agent-shell-prompt-compose--prompt-start))
+         (response-start (agent-shell-prompt-compose--response-start))
+         (block-pos (save-mark-and-excursion
                       (agent-shell-ui-forward-block)))
          (button-pos (save-mark-and-excursion
                        (agent-shell-next-permission-button)))
-         (next-pos (when (or block-pos button-pos)
-                     (apply #'min (delq nil (list block-pos
-                                                  button-pos))))))
+         ;; Filter positions to only those after current position
+         (candidates (delq nil (list
+                                (when (and prompt-start (> prompt-start current-pos))
+                                  prompt-start)
+                                (when (and response-start (> response-start current-pos))
+                                  response-start)
+                                block-pos
+                                button-pos)))
+         (next-pos (if candidates
+                       (apply #'min candidates)
+                     ;; Fall back to point-max if no candidates
+                     (when (< current-pos (point-max))
+                       (point-max)))))
     (when next-pos
       (deactivate-mark)
       (goto-char next-pos))))
@@ -215,6 +253,8 @@ Optionally set its PROMPT and RESPONSE."
   (unless (derived-mode-p 'agent-shell-prompt-compose-view-mode)
     (error "Not in a compose buffer"))
   (let* ((current-pos (point))
+         (prompt-start (agent-shell-prompt-compose--prompt-start))
+         (response-start (agent-shell-prompt-compose--response-start))
          (block-pos (save-mark-and-excursion
                       (let ((pos (agent-shell-ui-backward-block)))
                         (when (and pos (< pos current-pos))
@@ -223,10 +263,16 @@ Optionally set its PROMPT and RESPONSE."
                        (let ((pos (agent-shell-previous-permission-button)))
                          (when (and pos (< pos current-pos))
                            pos))))
-         (positions (delq nil (list block-pos
-                                    button-pos)))
-         (next-pos (when positions
-                     (apply #'max positions))))
+         ;; Filter positions to only those before current position
+         (candidates (delq nil (list
+                                (when (and prompt-start (< prompt-start current-pos))
+                                  prompt-start)
+                                (when (and response-start (< response-start current-pos))
+                                  response-start)
+                                block-pos
+                                button-pos)))
+         (next-pos (when candidates
+                     (apply #'max candidates))))
     (when next-pos
       (deactivate-mark)
       (goto-char next-pos))))
@@ -309,6 +355,7 @@ With NO-ERROR, return nil instead of raising an error."
     (define-key map (kbd "<tab>") #'agent-shell-prompt-compose-next-item)
     (define-key map (kbd "<backtab>") #'agent-shell-prompt-compose-previous-item)
     (define-key map (kbd "r") #'agent-shell-prompt-compose-reply)
+    (define-key map (kbd "q") #'bury-buffer)
     map)
   "Keymap for `agent-shell-prompt-compose-view-mode'.")
 
