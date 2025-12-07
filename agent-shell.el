@@ -1763,7 +1763,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
            (let* ((image-height (* 3 (default-font-height)))
                   (image-width image-height)
                   (text-height 25)
-                  (row-spacing 5)  ; Consistent spacing between rows
+                  (row-spacing 0)  ; Spacing between icon/text rows and bindings row
                   (icon-text-row-height image-height)
                   (bindings-row-height (if (or bindings qualifier) text-height 0))
                   (total-height (+ icon-text-row-height bindings-row-height 10))
