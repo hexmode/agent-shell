@@ -1717,11 +1717,15 @@ Returns:
           (when inherit-env
             process-environment)))
 
-(defun agent-shell--make-header (state)
+(cl-defun agent-shell--make-header (state &key qualifier bindings)
   "Return header text for current STATE.
 
 STATE should contain :agent-config with :icon-name, :buffer-name, and
-:session with :mode-id and :modes for displaying the current session mode."
+:session with :mode-id and :modes for displaying the current session mode.
+
+BINDINGS is a list of alists defining key bindings to display, each with:
+  :key         - Key string (e.g., \"n\")
+  :description - Description to display (e.g., \"next hunk\")"
   (unless state
     (error "STATE is required"))
   (let* ((model-name (or (map-elt (seq-find (lambda (model)
@@ -1751,6 +1755,7 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
       ('text text-header)
       ('graphical
        (if (display-graphic-p)
+           ;; Bindings row (optional, first row)
            ;; +------+
            ;; | icon | Top text line
            ;; |      | Bottom text line
@@ -1758,7 +1763,9 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
            (let* ((image-height (* 3 (default-font-height)))
                   (image-width image-height)
                   (text-height 25)
-                  (svg (svg-create (frame-pixel-width) (+ image-height 10)))
+                  (bindings-height (if bindings text-height 0))
+                  (y-offset bindings-height)
+                  (svg (svg-create (frame-pixel-width) (+ image-height bindings-height 10)))
                   (icon-filename
                    (if (map-nested-elt state '(:agent-config :icon-name))
                        (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name)))
@@ -1771,14 +1778,47 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                                  ((member ext '("webp" "WEBP")) "image/webp")
                                  ((member ext '("svg" "SVG")) "image/svg+xml")
                                  (t "image/png")))))
+             ;; Bindings row (first row if bindings present)
+             (when bindings
+               (svg--append svg (let ((text-node (dom-node 'text
+                                                           `((x . 0)
+                                                             (y . ,text-height))))
+                                      (first t))
+                                  ;; Add qualifier if present
+                                  (when qualifier
+                                    (dom-append-child text-node
+                                                      (dom-node 'tspan
+                                                                `((fill . ,(face-attribute 'font-lock-regexp-grouping-backslash :foreground)))
+                                                                qualifier))
+                                    (setq first nil))
+                                  (dolist (binding bindings)
+                                    (when (map-elt binding :description)
+                                      ;; Add key (XML-escape angle brackets)
+                                      (dom-append-child text-node
+                                                        (dom-node 'tspan
+                                                                  `((fill . ,(face-attribute 'help-key-binding :foreground))
+                                                                    ,@(unless first '((dx . "8"))))
+                                                                  (replace-regexp-in-string
+                                                                   "<" "&lt;"
+                                                                   (replace-regexp-in-string
+                                                                    ">" "&gt;"
+                                                                    (map-elt binding :key)))))
+                                      (setq first nil)
+                                      ;; Add space and description
+                                      (dom-append-child text-node
+                                                        (dom-node 'tspan
+                                                                  `((fill . ,(face-attribute 'default :foreground))
+                                                                    (dx . "8"))
+                                                                  (map-elt binding :description)))))
+                                  text-node)))
              (when (and icon-filename image-type)
                (svg-embed svg icon-filename
                           image-type nil
-                          :x 0 :y 0 :width image-width :height image-height))
+                          :x 0 :y y-offset :width image-width :height image-height))
              ;; Top text line
              (svg--append svg (let ((text-node (dom-node 'text
                                                          `((x . ,(+ image-width 10))
-                                                           (y . ,text-height)))))
+                                                           (y . ,(+ y-offset text-height))))))
                                 ;; Agent name
                                 (dom-append-child text-node
                                                   (dom-node 'tspan
@@ -1822,7 +1862,7 @@ STATE should contain :agent-config with :icon-name, :buffer-name, and
                                 text-node))
              ;; Bottom text line
              (svg-text svg (string-remove-suffix "/" (abbreviate-file-name default-directory))
-                       :x (+ image-width 10) :y (* 2 text-height)
+                       :x (+ image-width 10) :y (+ y-offset (* 2 text-height))
                        :fill (face-attribute 'font-lock-string-face :foreground))
              (format " %s" (with-temp-buffer
                              (svg-insert-image svg)
