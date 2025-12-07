@@ -363,7 +363,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
   (cursor-intangible-mode +1)
   (setq buffer-read-only nil)
   (agent-shell-prompt-compose--update-header
-   :qualifier "Composing prompt"
+   :qualifier "[compose]"
    :bindings
    (list
     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-send agent-shell-prompt-compose-edit-mode-map t)))
@@ -389,7 +389,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
 \\{agent-shell-prompt-compose-view-mode-map}"
   (cursor-intangible-mode +1)
   (agent-shell-prompt-compose--update-header
-   :qualifier "Viewing response"
+   :qualifier "[view]"
    :bindings
    (list
     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-next-item agent-shell-prompt-compose-view-mode-map t)))
