@@ -27,6 +27,7 @@
 
 ;;; Code:
 
+(require 'cursor-sensor)
 (require 'seq)
 (require 'subr-x)
 
@@ -44,9 +45,17 @@
 
 (defun agent-shell-prompt-compose--show-buffer ()
   "Show a compose buffer for the agent shell."
-  (let ((compose-buffer (agent-shell-prompt-compose--buffer)))
+  (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
+             (shell-buffer (agent-shell-prompt-compose--shell-buffer)))
     (pop-to-buffer compose-buffer)
-    (agent-shell-prompt-compose-edit-mode)))
+    (with-current-buffer shell-buffer
+      ;; TODO: Do we need to get prompt and partial response,
+      ;; in case compose buffer is created for the first time
+      ;; on an ongoing/busy shell session?
+      (unless shell-maker--busy
+        (with-current-buffer compose-buffer
+          (agent-shell-prompt-compose-edit-mode)
+          (agent-shell-prompt-compose--initialize))))))
 
 (defun agent-shell-prompt-compose-send ()
   "Send the composed prompt to the agent shell."
@@ -134,6 +143,12 @@ Optionally set its PROMPT and RESPONSE."
     (user-error "Not in a shell compose buffer"))
   (let ((inhibit-read-only t))
     (erase-buffer)
+    ;; Insert read-only newline at the beginning
+    (insert (propertize "\n"
+                        'read-only t
+                        'cursor-intangible t
+                        'front-sticky '(read-only cursor-intangible)
+                        'rear-nonsticky '(read-only cursor-intangible)))
     (when prompt
       (insert
        (if (derived-mode-p 'agent-shell-prompt-compose-view-mode)
@@ -256,7 +271,7 @@ With NO-ERROR, return nil instead of raising an error."
                                         (error "No agent config found"))
                             :no-focus t
                             :new-session t)
-      (when no-error
+      (unless no-error
         (error "No shell to compose on"))))))
 
 (defvar agent-shell-prompt-compose-edit-mode-map
@@ -270,6 +285,7 @@ With NO-ERROR, return nil instead of raising an error."
   "Major mode for composing agent shell prompts.
 
 \\{agent-shell-prompt-compose-edit-mode-map}"
+  (cursor-intangible-mode +1)
   (setq buffer-read-only nil)
   (setq-local header-line-format
               (concat
@@ -300,6 +316,7 @@ With NO-ERROR, return nil instead of raising an error."
   "Major mode for viewing agent shell prompts (read-only).
 
 \\{agent-shell-prompt-compose-view-mode-map}"
+  (cursor-intangible-mode +1)
   (setq-local header-line-format
               (concat
                " "
