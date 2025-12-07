@@ -503,12 +503,10 @@ When FORCE is non-nil, skip confirmation prompt."
 (defvar-keymap agent-shell-mode-map
   :parent shell-maker-mode-map
   :doc "Keymap for `agent-shell-mode'."
-  "TAB" #'agent-shell-next-item
   "<tab>" #'agent-shell-next-item
   "<backtab>" #'agent-shell-previous-item
   "n" #'agent-shell-next-item
   "p" #'agent-shell-previous-item
-  "S-TAB" #'agent-shell-previous-item
   "C-<tab>" #'agent-shell-cycle-session-mode
   "C-c C-c" #'agent-shell-interrupt
   "C-c C-m" #'agent-shell-set-session-mode
@@ -541,6 +539,15 @@ Flow:
               ;; TODO: Make public in shell-maker.
               (shell-maker--current-request-id))
     (cond ((not (map-elt (agent-shell--state) :client))
+           (when-let ((_ (map-elt shell :buffer))
+                      (compose-buffer (agent-shell-prompt-compose--buffer
+                                       :shell-buffer (map-elt shell :buffer)
+                                       :existing-only t)))
+             (with-current-buffer compose-buffer
+               (agent-shell-prompt-compose-view-mode)
+               (agent-shell-prompt-compose--initialize
+                :prompt  command
+                :response (agent-shell-prompt-compose--response))))
            (when (agent-shell--initialize-client :shell shell)
              (agent-shell--handle :command command :shell shell)))
           ((or (not (map-nested-elt (agent-shell--state) '(:client :request-handlers)))
@@ -808,6 +815,12 @@ Flow:
             :expanded t
             :navigation 'never)
            (agent-shell-jump-to-latest-permission-button-row)
+           (when-let ((_ (map-elt state :buffer))
+                      (compose-buffer (agent-shell-prompt-compose--buffer
+                                       :shell-buffer (map-elt state :buffer)
+                                       :existing-only t)))
+             (with-current-buffer compose-buffer
+               (agent-shell-jump-to-latest-permission-button-row)))
            (map-put! state :last-entry-type "session/request_permission"))
           ((equal .method "fs/read_text_file")
            (agent-shell--on-fs-read-text-file-request
@@ -1216,7 +1229,12 @@ For example, shut down ACP client."
   (unless (derived-mode-p 'agent-shell-mode)
     (error "Not in a shell"))
   (when (map-elt (agent-shell--state) :client)
-    (acp-shutdown :client (map-elt (agent-shell--state) :client))))
+    (acp-shutdown :client (map-elt (agent-shell--state) :client)))
+  (when-let ((_ (map-elt (agent-shell--state) :buffer))
+             (compose-buffer (agent-shell-prompt-compose--buffer
+                              :shell-buffer (map-elt (agent-shell--state) :buffer)
+                              :existing-only t)))
+    (kill-buffer compose-buffer)))
 
 (cl-defun agent-shell--capture-screenshot (&key destination-dir)
   "Capture a screenshot and save it to DESTINATION-DIR.
@@ -1445,6 +1463,13 @@ Set NEW-SESSION to start a separate new session."
 
 (cl-defun agent-shell--delete-fragment (&key state block-id)
   "Delete fragment with STATE and BLOCK-ID."
+  (when-let ((_ (map-elt state :buffer))
+             (compose-buffer (agent-shell-prompt-compose--buffer
+                              :shell-buffer (map-elt state :buffer)
+                              :existing-only t)))
+    (with-current-buffer compose-buffer
+      (let ((inhibit-read-only t))
+        (agent-shell-ui-delete-fragment :namespace-id (map-elt state :request-count) :block-id block-id))))
   (with-current-buffer (map-elt state :buffer)
     (unless (and (derived-mode-p 'agent-shell-mode)
                  (equal (current-buffer)
@@ -1463,6 +1488,49 @@ Dialog can have LABEL-LEFT, LABEL-RIGHT, and BODY.
 Optional flags: APPEND text to existing content, CREATE-NEW block,
 NAVIGATION for navigation style, EXPANDED to show block expanded
 by default."
+  (when-let ((_ (map-elt state :buffer))
+             (compose-buffer (agent-shell-prompt-compose--buffer
+                              :shell-buffer (map-elt state :buffer)
+                              :existing-only t)))
+    (with-current-buffer compose-buffer
+      (let ((inhibit-read-only t))
+        ;; TODO: Investigate why save-restriction isn't enough
+        ;; to save point. Saving (point) for now.
+        (when-let* ((saved-point (point))
+                    (range (agent-shell-ui-update-fragment
+                            (agent-shell-ui-make-fragment-model
+                             :namespace-id (map-elt state :request-count)
+                             :block-id block-id
+                             :label-left label-left
+                             :label-right label-right
+                             :body body)
+                            :navigation navigation
+                            :append append
+                            :create-new create-new
+                            :expanded expanded))
+                    (padding-start (map-nested-elt range '(:padding :start)))
+                    (padding-end (map-nested-elt range '(:padding :end)))
+                    (block-start (map-nested-elt range '(:block :start)))
+                    (block-end (map-nested-elt range '(:block :end))))
+          ;; Apply markdown overlay to body.
+          (save-restriction
+            (when-let ((body-start (map-nested-elt range '(:body :start)))
+                       (body-end (map-nested-elt range '(:body :end))))
+              (narrow-to-region body-start body-end)
+              (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+                (markdown-overlays-put))))
+          ;; Note: For now, we're skipping applying markdown overlays
+          ;; on left labels as they currently carry propertized text
+          ;; for statuses (ie. boxed).
+          ;;
+          ;; Apply markdown overlay to right label.
+          (save-restriction
+            (when-let ((label-right-start (map-nested-elt range '(:label-right :start)))
+                       (label-right-end (map-nested-elt range '(:label-right :end))))
+              (narrow-to-region label-right-start label-right-end)
+              (let ((markdown-overlays-highlight-blocks agent-shell-highlight-blocks))
+                (markdown-overlays-put))))
+          (goto-char saved-point)))))
   (with-current-buffer (map-elt state :buffer)
     (unless (and (derived-mode-p 'agent-shell-mode)
                  (equal (current-buffer)
@@ -2946,8 +3014,6 @@ Returns nil if the ACP-OPTION kind is not recognized."
 (defun agent-shell-jump-to-latest-permission-button-row ()
   "Jump to the latest permission button row."
   (interactive)
-  (unless (derived-mode-p 'agent-shell-mode)
-    (error "Not in a shell"))
   (when-let ((found (save-mark-and-excursion
                       (goto-char (point-max))
                       (agent-shell-previous-permission-button))))
@@ -2988,10 +3054,12 @@ Returns nil if the ACP-OPTION kind is not recognized."
 
 ;;; Region
 
-(cl-defun agent-shell-insert (&key text submit)
+(cl-defun agent-shell-insert (&key text submit no-focus)
   "Insert TEXT into the agent shell at `point-max'.
 
 SUBMIT, when non-nil, submits the shell buffer after insertion.
+
+NO-FOCUS, when non-nil, avoid focusing shell on insertion.
 
 Returns an alist with insertion details or nil otherwise:
 
@@ -3007,8 +3075,11 @@ Returns an alist with insertion details or nil otherwise:
                          ;; Displaying before with-current-buffer below
                          ;; ensures window is selected, thus window-point
                          ;; is also updated after insertion.
-                         (agent-shell--display-buffer shell-buffer)
-                         (point-max)))
+                         (if no-focus
+                             (with-current-buffer shell-buffer
+                               (point-max))
+                           (agent-shell--display-buffer shell-buffer)
+                           (point-max))))
          (insert-end nil))
     (with-current-buffer shell-buffer
       (when (shell-maker-busy)
@@ -3112,7 +3183,7 @@ DATA is a list of alists.  COLUMNS is a list of extractor functions,
 where each extractor takes one alist and returns a string for that
 column.  SEPARATOR is the string used to join columns (defaults to
 two spaces).  JOINER, when provided, wraps the result with
-string-join using JOINER as the separator.
+`string-join' using JOINER as the separator.
 
 Returns a list of strings with spaced-aligned columns, or a single
 joined string if JOINER is provided."
