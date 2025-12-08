@@ -219,7 +219,9 @@ Optionally set its PROMPT and RESPONSE."
     (kill-buffer (current-buffer))))
 
 (defun agent-shell-prompt-compose-next-item ()
-  "Go to next item."
+  "Go to next item.
+
+If at point-max, attempt to switch to next interaction."
   (interactive)
   (unless (derived-mode-p 'agent-shell-prompt-compose-view-mode)
     (error "Not in a compose buffer"))
@@ -240,15 +242,24 @@ Optionally set its PROMPT and RESPONSE."
                                 button-pos)))
          (next-pos (if candidates
                        (apply #'min candidates)
-                     ;; Fall back to point-max if no candidates
+                     ;; No more items, try point-max if not already there
                      (when (< current-pos (point-max))
                        (point-max)))))
-    (when next-pos
-      (deactivate-mark)
-      (goto-char next-pos))))
+    (if next-pos
+        (progn
+          (deactivate-mark)
+          (goto-char next-pos))
+      ;; At point-max with no more items, try next interaction
+      (condition-case nil
+          (agent-shell-prompt-compose-next-interaction)
+        (error
+         ;; At the end of all interactions, stay at point-max
+         nil)))))
 
 (defun agent-shell-prompt-compose-previous-item ()
-  "Go to previous item."
+  "Go to previous item.
+
+If at the first item, attempt to switch to previous interaction."
   (interactive)
   (unless (derived-mode-p 'agent-shell-prompt-compose-view-mode)
     (error "Not in a compose buffer"))
@@ -273,9 +284,18 @@ Optionally set its PROMPT and RESPONSE."
                                 button-pos)))
          (next-pos (when candidates
                      (apply #'max candidates))))
-    (when next-pos
-      (deactivate-mark)
-      (goto-char next-pos))))
+    (if next-pos
+        (progn
+          (deactivate-mark)
+          (goto-char next-pos))
+      ;; No more items before current position, try previous interaction
+      (condition-case nil
+          ;; Switch to previous page and stop at point-max (call next-interaction directly)
+          (agent-shell-prompt-compose-next-interaction :backwards t)
+        (error
+         ;; At the beginning of all interactions, stay at first item
+         (when prompt-start
+           (goto-char prompt-start)))))))
 
 (cl-defun agent-shell-prompt-compose--buffer (&key shell-buffer existing-only)
   "Get the compose buffer associated with a SHELL-BUFFER.
@@ -307,12 +327,13 @@ With EXISTING-ONLY, only return existing buffers without creating."
 (defun agent-shell-prompt-compose-previous-interaction ()
   "Show previous interaction (request / response)."
   (interactive)
-  (agent-shell-prompt-compose-next-interaction t))
+  (agent-shell-prompt-compose-next-interaction :backwards t :start-at-top t))
 
-(defun agent-shell-prompt-compose-next-interaction (&optional backwards)
+(cl-defun agent-shell-prompt-compose-next-interaction (&key backwards start-at-top)
   "Show next interaction (request / response).
 
-If BACKWARDS is non-nil, go to previous interaction."
+If BACKWARDS is non-nil, go to previous interaction.
+If START-AT-TOP is non-nil, position at point-min regardless of direction."
   (interactive)
   (unless (derived-mode-p 'agent-shell-prompt-compose-view-mode)
     (error "Not in a compose buffer"))
@@ -335,8 +356,28 @@ If BACKWARDS is non-nil, go to previous interaction."
                      (shell-maker-next-command-and-response backwards))))
     (agent-shell-prompt-compose--initialize
      :prompt (car next) :response (cdr next))
-    (goto-char (point-min))
+    (goto-char (if start-at-top
+                   (point-min)
+                 (if backwards (point-max) (point-min))))
+    (agent-shell-prompt-compose--update-header)
     next))
+
+(defun agent-shell-prompt-compose--position ()
+  "Return the position in history of the shell buffer."
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+    (user-error "Not in a shell compose buffer"))
+  (let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+         (current (with-current-buffer shell-buffer
+                    (shell-maker--command-and-response-at-point)))
+         (history (with-current-buffer shell-buffer
+                    (shell-maker-history)))
+         (pos (seq-position history current)))
+    (cond ((and current history pos)
+           (cons (1+ pos) (length history)))
+          (history
+           (cons (1+ (length history))
+                 (1+ (length history)))))))
 
 (cl-defun agent-shell-prompt-compose--shell-buffer (&key no-error)
   "Get an `agent-shell' buffer (create one if needed).
@@ -368,35 +409,38 @@ Automatically determines qualifier and bindings based on current major mode."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (let ((qualifier (cond
-                    ((agent-shell-prompt-compose--busy-p)
-                     "[busy]")
+  (let* ((pos (or (agent-shell-prompt-compose--position)
+                  (cons 1 1)))
+         (pos-label (format "%d/%d" (car pos) (cdr pos)))
+         (qualifier (cond
+                     ((agent-shell-prompt-compose--busy-p)
+                      (format "[%s][busy]" pos-label))
+                     ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+                      (format "[%s][edit]" pos-label))
+                     ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                      (format "[%s][view]" pos-label))))
+         (bindings (cond
                     ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
-                     "[edit]")
-                    ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
-                     "[view]")))
-        (bindings (cond
-                   ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
-                    (list
-                     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-send agent-shell-prompt-compose-edit-mode-map t)))
-                       (:description . "send"))
-                     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-cancel agent-shell-prompt-compose-edit-mode-map t)))
-                       (:description . "cancel"))))
-                   ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
-                    (append
                      (list
-                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-next-item agent-shell-prompt-compose-view-mode-map t)))
-                        (:description . "next"))
-                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-previous-item agent-shell-prompt-compose-view-mode-map t)))
-                        (:description . "previous")))
-                     (unless (agent-shell-prompt-compose--busy-p)
-                       (list
-                        `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
-                          (:description . "reply"))))
-                     (when (agent-shell-prompt-compose--busy-p)
-                       (list
-                        `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
-                          (:description . "interrupt")))))))))
+                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-send agent-shell-prompt-compose-edit-mode-map t)))
+                        (:description . "send"))
+                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-cancel agent-shell-prompt-compose-edit-mode-map t)))
+                        (:description . "cancel"))))
+                    ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                     (append
+                      (list
+                       `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-next-item agent-shell-prompt-compose-view-mode-map t)))
+                         (:description . "next"))
+                       `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-previous-item agent-shell-prompt-compose-view-mode-map t)))
+                         (:description . "previous")))
+                      (unless (agent-shell-prompt-compose--busy-p)
+                        (list
+                         `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
+                           (:description . "reply"))))
+                      (when (agent-shell-prompt-compose--busy-p)
+                        (list
+                         `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
+                           (:description . "interrupt")))))))))
     (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
                 (header (with-current-buffer shell-buffer
                           (cond
