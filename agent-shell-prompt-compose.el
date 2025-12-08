@@ -62,7 +62,7 @@
   (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
              (shell-buffer (agent-shell-prompt-compose--shell-buffer))
              (text (or (agent-shell--relevant-text) "")))
-    (pop-to-buffer compose-buffer)
+    (agent-shell--display-buffer compose-buffer)
     ;; TODO: Do we need to get prompt and partial response,
     ;; in case compose buffer is created for the first time
     ;; on an ongoing/busy shell session?
