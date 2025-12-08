@@ -2773,6 +2773,7 @@ For example:
   (let* ((tool-call-id (map-nested-elt request '(params toolCall toolCallId)))
          (diff (map-nested-elt state `(:tool-calls ,tool-call-id :diff)))
          (actions (agent-shell--make-permission-actions (map-nested-elt request '(params options))))
+         (shell-buffer (map-elt state :buffer))
          (keymap (let ((map (make-sparse-keymap)))
                    (dolist (action actions)
                      (when-let ((char (map-elt action :char)))
@@ -2791,7 +2792,8 @@ For example:
                                        ;; the agent continue (it doesn't know why you
                                        ;; have rejected the change).
                                        ;; May as well interrupt so you can course-correct.
-                                       (agent-shell-interrupt t))))))
+                                       (with-current-buffer shell-buffer
+                                         (agent-shell-interrupt t)))))))
                    ;; Add diff keybinding if diff info is available
                    (when diff
                      (define-key map "v" (agent-shell--make-diff-viewing-function
@@ -2802,7 +2804,11 @@ For example:
                                           :state state
                                           :tool-call-id tool-call-id)))
                    ;; Add interrupt keybinding
-                   (define-key map (kbd "C-c C-c") #'agent-shell-interrupt)
+                   (define-key map (kbd "C-c C-c")
+                               (lambda ()
+                                 (interactive)
+                                 (with-current-buffer shell-buffer
+                                   (agent-shell-interrupt t))))
                    map))
          (diff-button (when diff
                         (agent-shell--make-permission-button
@@ -2859,7 +2865,8 @@ For example:
                                       ;; the agent continue (it doesn't know why you
                                       ;; have rejected the change).
                                       ;; May as well interrupt so you can course-correct.
-                                      (agent-shell-interrupt t)))
+                                      (with-current-buffer shell-buffer
+                                        (agent-shell-interrupt t))))
                           :keymap keymap
                           :char (map-elt action :char)
                           :option (map-elt action :option)
@@ -2989,7 +2996,8 @@ ACTIONS as per `agent-shell--make-permission-action'."
                           ;; the agent continue (it doesn't know why you
                           ;; have rejected the change).
                           ;; May as well interrupt so you can course-correct.
-                          (agent-shell-interrupt t)))
+                          (with-current-buffer shell-buffer
+                            (agent-shell-interrupt t))))
                     (message "Ignored")))))))
 
 (cl-defun agent-shell--make-permission-button (&key text help action keymap navigatable char option)
