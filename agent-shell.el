@@ -1445,7 +1445,13 @@ Set NEW-SESSION to start a separate new session."
                                                   (lambda (_heartbeat _status)
                                                     (when (get-buffer-window shell-buffer)
                                                       (with-current-buffer shell-buffer
-                                                        (agent-shell--update-header-and-mode-line)))))
+                                                        (agent-shell--update-header-and-mode-line)))
+                                                    (when-let* ((compose-buffer (agent-shell-prompt-compose--buffer
+                                                                                 :shell-buffer shell-buffer
+                                                                                 :existing-only t))
+                                                                (_ (get-buffer-window compose-buffer)))
+                                                      (with-current-buffer compose-buffer
+                                                        (agent-shell-prompt-compose--update-header)))))
                                       :client-maker (map-elt config :client-maker)
                                       :needs-authentication (map-elt config :needs-authentication)
                                       :authenticate-request-maker (map-elt config :authenticate-request-maker)
