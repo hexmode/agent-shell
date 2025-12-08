@@ -214,9 +214,46 @@ Optionally set its PROMPT and RESPONSE."
 (defun agent-shell-prompt-compose-cancel ()
   "Cancel prompt composition."
   (interactive)
-  (when (or (string-empty-p (string-trim (buffer-string)))
-            (y-or-n-p "Discard compose buffer? "))
-    (kill-buffer (current-buffer))))
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+    (user-error "Not in a shell compose buffer"))
+  (if (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+          (with-current-buffer (agent-shell-prompt-compose--shell-buffer)
+            (not (shell-maker-history))))
+      (kill-buffer (current-buffer))
+    ;; Edit mode
+    (when (or (string-empty-p (string-trim (buffer-string)))
+              (y-or-n-p "Discard compose buffer? "))
+      (agent-shell-prompt-compose-view-last))))
+
+(defun agent-shell-prompt-compose-view-last ()
+  "Display the last request/response interaction."
+  (interactive)
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+    (user-error "Not in a shell compose buffer"))
+  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+    (with-current-buffer shell-buffer
+      (goto-char comint-last-input-start)))
+  (agent-shell-prompt-compose-view-mode)
+  (agent-shell-prompt-compose-refresh))
+
+(defun agent-shell-prompt-compose-refresh ()
+  "Refresh compose buffer content with current item from shell."
+  (interactive)
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+    (user-error "Not in a shell compose buffer"))
+  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+             (compose-buffer (agent-shell-prompt-compose--buffer))
+             (current (with-current-buffer shell-buffer
+                        (or (shell-maker--command-and-response-at-point)
+                            (shell-maker-next-command-and-response t)))))
+    (agent-shell-prompt-compose--initialize
+     :prompt (car current)
+     :response (cdr current))
+    (goto-char (point-min))
+    current))
 
 (defun agent-shell-prompt-compose-next-item ()
   "Go to next item.
