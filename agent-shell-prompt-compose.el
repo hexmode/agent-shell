@@ -31,6 +31,7 @@
 (require 'seq)
 (require 'subr-x)
 (require 'window)
+(require 'flymake)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -47,15 +48,26 @@
 (defun agent-shell-prompt-compose--show-buffer ()
   "Show a compose buffer for the agent shell."
   (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
-             (shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+             (shell-buffer (agent-shell-prompt-compose--shell-buffer))
+             (text (or (agent-shell--relevant-text) "")))
     (pop-to-buffer compose-buffer)
     ;; TODO: Do we need to get prompt and partial response,
     ;; in case compose buffer is created for the first time
     ;; on an ongoing/busy shell session?
     (if (agent-shell-prompt-compose--busy-p)
         (agent-shell-prompt-compose-view-mode)
-      (agent-shell-prompt-compose-edit-mode)
-      (agent-shell-prompt-compose--initialize))))
+      (if (and (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+               (not (string-empty-p text)))
+          (save-excursion
+            (goto-char (point-max))
+            (unless (string-empty-p text)
+              (insert "\n\n" text)))
+        (agent-shell-prompt-compose-edit-mode)
+        (agent-shell-prompt-compose--initialize)
+        (save-excursion
+          (goto-char (point-max))
+          (unless (string-empty-p text)
+            (insert "\n\n" text)))))))
 
 (defun agent-shell-prompt-compose-send ()
   "Send the composed prompt to the agent shell."
@@ -348,7 +360,9 @@ With EXISTING-ONLY, only return existing buffers without creating."
             compose-buffer
           (if existing-only
               nil
-            (get-buffer-create compose-buffer-name)))))))
+            (with-current-buffer (get-buffer-create compose-buffer-name)
+              (agent-shell-prompt-compose-edit-mode)
+              (current-buffer))))))))
 
 (defun agent-shell-prompt-compose-reply ()
   "Reply as a follow-up and compose another query."

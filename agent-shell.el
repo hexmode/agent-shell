@@ -1731,6 +1731,8 @@ Returns:
 STATE should contain :agent-config with :icon-name, :buffer-name, and
 :session with :mode-id and :modes for displaying the current session mode.
 
+QUALIFIER: Any text to prefix BINDINGS row with.
+
 BINDINGS is a list of alists defining key bindings to display, each with:
   :key         - Key string (e.g., \"n\")
   :description - Description to display (e.g., \"next hunk\")"
@@ -3171,48 +3173,144 @@ Returns an alist with insertion details or nil otherwise:
 (cl-defun agent-shell-send-region ()
   "Send region to last accessed shell buffer in project."
   (interactive)
-  (let* ((region (or (agent-shell--get-region :deactivate t)
-                     (user-error "No region selected")))
-         (text (if (map-elt region :file)
-                   (agent-shell-ui-add-action-to-text
-                    (format "%s:%d-%d"
-                            (file-relative-name (map-elt region :file)
-                                                (agent-shell-cwd))
-                            (map-elt region :line-start)
-                            (map-elt region :line-end))
-                    (lambda ()
-                      (interactive)
-                      (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
-                          (if-let ((window (when (get-file-buffer (map-elt region :file))
-                                             (get-buffer-window (get-file-buffer (map-elt region :file))))))
-                              (progn
-                                (select-window window)
-                                (goto-char (point-min))
-                                (forward-line (1- (map-elt region :line-start)))
-                                (beginning-of-line)
-                                (push-mark (save-excursion
-                                             (goto-char (point-min))
-                                             (forward-line (1- (map-elt region :line-end)))
-                                             (end-of-line)
-                                             (point))
-                                           t t))
-                            (find-file (map-elt region :file))
-                            (goto-char (point-min))
-                            (forward-line (1- (map-elt region :line-start)))
-                            (beginning-of-line)
-                            (push-mark (save-excursion
-                                         (goto-char (point-min))
-                                         (forward-line (1- (map-elt region :line-end)))
-                                         (end-of-line)
-                                         (point))
-                                       t t))
-                        (message "File not found")))
-                    (lambda ()
-                      (message "Press RET to open file"))
-                    'link)
-                 (or (map-elt region :content)
-                     "???"))))
-    (agent-shell-insert :text text)))
+  (agent-shell-insert
+   :text (agent-shell--get-processed-region :deactivate t :no-error t)))
+
+(cl-defun agent-shell-send-dwim ()
+  "Send region or error at point to last accessed shell buffer in project."
+  (interactive)
+  (agent-shell-insert :text (agent-shell--relevant-text)))
+
+(cl-defun agent-shell--get-processed-region (&key deactivate no-error)
+  "Get region as insertable text, ready for sending to agent.
+
+When DEACTIVATE is non-nil, deactivate region.
+
+When NO-ERROR is non-nil, return nil and continue without error."
+  (let* ((region (or (agent-shell--get-region :deactivate deactivate)
+                     (unless no-error
+                       (user-error "No region selected"))))
+         (processed-text (if (map-elt region :file)
+                             (agent-shell-ui-add-action-to-text
+                              (format "%s:%d-%d"
+                                      (file-relative-name (map-elt region :file)
+                                                          (agent-shell-cwd))
+                                      (map-elt region :line-start)
+                                      (map-elt region :line-end))
+                              (lambda ()
+                                (interactive)
+                                (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
+                                    (if-let ((window (when (get-file-buffer (map-elt region :file))
+                                                       (get-buffer-window (get-file-buffer (map-elt region :file))))))
+                                        (progn
+                                          (select-window window)
+                                          (goto-char (point-min))
+                                          (forward-line (1- (map-elt region :line-start)))
+                                          (beginning-of-line)
+                                          (push-mark (save-excursion
+                                                       (goto-char (point-min))
+                                                       (forward-line (1- (map-elt region :line-end)))
+                                                       (end-of-line)
+                                                       (point))
+                                                     t t))
+                                      (find-file (map-elt region :file))
+                                      (goto-char (point-min))
+                                      (forward-line (1- (map-elt region :line-start)))
+                                      (beginning-of-line)
+                                      (push-mark (save-excursion
+                                                   (goto-char (point-min))
+                                                   (forward-line (1- (map-elt region :line-end)))
+                                                   (end-of-line)
+                                                   (point))
+                                                 t t))
+                                  (message "File not found")))
+                              (lambda ()
+                                (message "Press RET to open file"))
+                              'link)
+                           (map-elt region :content))))
+    processed-text))
+
+(defun agent-shell--get-processed-flymake-error-at-point ()
+  "Get flymake error at point, ready for sending to agent."
+  (when-let ((diagnostics (flymake-diagnostics (point))))
+    (mapconcat
+     (lambda (diagnostic)
+       (let* ((buffer (flymake-diagnostic-buffer diagnostic))
+              (beg (flymake-diagnostic-beg diagnostic))
+              (end (flymake-diagnostic-end diagnostic))
+              (type (flymake-diagnostic-type diagnostic))
+              (text (flymake-diagnostic-text diagnostic))
+              (file (agent-shell--shorten-paths (buffer-file-name buffer) t))
+              (line (with-current-buffer buffer
+                      (line-number-at-pos beg)))
+              (col (with-current-buffer buffer
+                     (save-excursion
+                       (goto-char beg)
+                       (current-column))))
+              (code (with-current-buffer buffer
+                      (buffer-substring beg end)))
+              (context-lines 3)
+              (context (with-current-buffer buffer
+                         (save-excursion
+                           (goto-char beg)
+                           (let* ((start-line (max 1 (- line context-lines)))
+                                  (end-line (+ line context-lines))
+                                  (lines '())
+                                  (current-line start-line))
+                             (goto-char (point-min))
+                             (forward-line (1- start-line))
+                             (while (<= current-line end-line)
+                               (let ((line-content (buffer-substring
+                                                    (line-beginning-position)
+                                                    (line-end-position))))
+                                 (push (if (= current-line line)
+                                           (format "-> %d: %s" current-line line-content)
+                                         (format "   %d: %s" current-line line-content))
+                                       lines))
+                               (forward-line 1)
+                               (setq current-line (1+ current-line)))
+                             ;; Reverse the lines and trim empty lines from start and end
+                             (let ((reversed-lines (nreverse lines)))
+                               ;; Trim empty lines from the beginning
+                               (while (and reversed-lines
+                                           (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
+                                 (setq reversed-lines (cdr reversed-lines)))
+                               ;; Trim empty lines from the end
+                               (setq reversed-lines (nreverse reversed-lines))
+                               (while (and reversed-lines
+                                           (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
+                                 (setq reversed-lines (cdr reversed-lines)))
+                               (string-join (nreverse reversed-lines) "\n")))))))
+         (format (if (string-empty-p (string-trim code))
+                     "%s:%d:%d: %s: %s
+
+Context:
+
+%s"
+                   "%s:%d:%d: %s: %s
+
+Context:
+
+%s
+
+Code at error: %s")
+                 (or file (buffer-name buffer))
+                 line
+                 col
+                 type
+                 text
+                 context
+                 code)))
+     diagnostics
+     "\n\n")))
+
+(defun agent-shell--relevant-text ()
+  "Return relevant text (if available).  Nil otherwise.
+
+Relevant text could be either a region or error at point."
+  (or (agent-shell--get-processed-region
+       :deactivate t :no-error t)
+      (agent-shell--get-processed-flymake-error-at-point)))
 
 (cl-defun agent-shell--get-region (&key deactivate)
   "Get the active region as an alist.
