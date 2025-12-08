@@ -1230,6 +1230,8 @@ For example, shut down ACP client."
     (error "Not in a shell"))
   (when (map-elt (agent-shell--state) :client)
     (acp-shutdown :client (map-elt (agent-shell--state) :client)))
+  (agent-shell-heartbeat-stop
+   :heartbeat (map-elt (agent-shell--state) :heartbeat))
   (when-let ((_ (map-elt (agent-shell--state) :buffer))
              (compose-buffer (agent-shell-prompt-compose--buffer
                               :shell-buffer (map-elt (agent-shell--state) :buffer)
