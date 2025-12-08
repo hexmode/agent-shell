@@ -4,10 +4,10 @@
 
 ;; Author: Alvaro Ramirez https://xenodium.com
 ;; URL: https://github.com/xenodium/agent-shell
-;; Version: 0.21.1
-;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.1") (acp "0.8.1"))
+;; Version: 0.22.1
+;; Package-Requires: ((emacs "29.1") (shell-maker "0.84.2") (acp "0.8.1"))
 
-(defconst agent-shell--version "0.21.1")
+(defconst agent-shell--version "0.22.1")
 
 ;; This package is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@
 (require 'json)
 (require 'map)
 (unless (require 'markdown-overlays nil 'noerror)
-  (error "Please update 'shell-maker' to v0.84.1 or newer"))
+  (error "Please update 'shell-maker' to v0.84.2 or newer"))
 (require 'shell-maker)
 (require 'markdown-overlays)
 (require 'project)
@@ -1411,8 +1411,8 @@ See `agent-shell-make-agent-config' for config format.
 
 Set NO-FOCUS to start in background.
 Set NEW-SESSION to start a separate new session."
-  (unless (version<= "0.84.1" shell-maker-version)
-    (error "Please update shell-maker to version 0.84.1 or newer"))
+  (unless (version<= "0.84.2" shell-maker-version)
+    (error "Please update shell-maker to version 0.84.2 or newer"))
   (unless (version<= "0.8.1" acp-package-version)
     (error "Please update acp.el to version 0.8.1 or newer"))
   (with-temp-buffer ;; client-maker needs a buffer (use a temp one)
