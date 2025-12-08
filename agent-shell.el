@@ -2497,9 +2497,13 @@ If FILE-PATH is not an image, returns nil."
                    (let ((success (equal (map-elt response 'stopReason)
                                          "end_turn")))
                      (unless success
-                       (funcall (map-elt shell :write-output)
-                                (agent-shell--stop-reason-description
-                                 (map-elt response 'stopReason))))
+                       (agent-shell--update-fragment
+                        :state (agent-shell--state)
+                        :block-id (format "%s-stop-reason"
+                                          (map-elt (agent-shell--state) :request-count))
+                        :body (agent-shell--stop-reason-description
+                               (map-elt response 'stopReason))
+                        :create-new t))
                      (funcall (map-elt shell :finish-output) t))
                    (agent-shell-heartbeat-stop
                     :heartbeat (map-elt agent-shell--state :heartbeat)))

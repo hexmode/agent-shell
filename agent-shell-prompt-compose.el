@@ -121,17 +121,13 @@
   "Interrupt active agent shell request."
   (interactive)
   (catch 'exit
-    (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
-          (compose-buffer (agent-shell-prompt-compose--buffer)))
+    (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
       (unless (agent-shell-prompt-compose--busy-p)
         (user-error "No pending request"))
       (unless (y-or-n-p "Interrupt?")
         (throw 'exit nil))
       (with-current-buffer shell-buffer
         (agent-shell-interrupt t))
-      (with-current-buffer compose-buffer
-        (agent-shell-prompt-compose-edit-mode)
-        (agent-shell-prompt-compose--initialize))
       (user-error "Aborted"))))
 
 (cl-defun agent-shell-prompt-compose--initialize (&key prompt response)
