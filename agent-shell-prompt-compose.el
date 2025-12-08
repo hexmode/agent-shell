@@ -327,27 +327,60 @@ With NO-ERROR, return nil instead of raising an error."
       (unless no-error
         (error "No shell to compose on"))))))
 
-(cl-defun agent-shell-prompt-compose--update-header (&key qualifier bindings)
+(defun agent-shell-prompt-compose--update-header ()
   "Update header and mode line based on `agent-shell-header-style'.
 
-BINDINGS is a list of alists defining key bindings to display, each with:
-  :key         - Key string (e.g., \"n\")
-  :description - Description to display (e.g., \"next hunk\")"
+Automatically determines qualifier and bindings based on current major mode."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
-              (header (with-current-buffer shell-buffer
-                        (cond
-                         ((eq agent-shell-header-style 'graphical)
-                          (agent-shell--make-header (agent-shell--state)
-                                                    :qualifier qualifier
-                                                    :bindings bindings))
-                         ((memq agent-shell-header-style '(text none nil))
-                          (agent-shell--make-header (agent-shell--state)
-                                                    :qualifier qualifier
-                                                    :bindings bindings))))))
-    (setq-local header-line-format header)))
+  (let ((qualifier (cond
+                    ((when-let (shell-buffer (agent-shell-prompt-compose--shell-buffer))
+                       (with-current-buffer shell-buffer
+                         shell-maker--busy))
+                     "[busy]")
+                    ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+                     "[edit]")
+                    ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                     "[view]")))
+        (bindings (cond
+                   ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+                    (list
+                     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-send agent-shell-prompt-compose-edit-mode-map t)))
+                       (:description . "send"))
+                     `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-cancel agent-shell-prompt-compose-edit-mode-map t)))
+                       (:description . "cancel"))))
+                   ((derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                    (append
+                     (list
+                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-next-item agent-shell-prompt-compose-view-mode-map t)))
+                        (:description . "next"))
+                      `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-previous-item agent-shell-prompt-compose-view-mode-map t)))
+                        (:description . "previous")))
+                     (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+                       (unless (with-current-buffer shell-buffer
+                                 shell-maker--busy)
+                         (list
+                          `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
+                            (:description . "reply")))))
+                     (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+                                 (busy (with-current-buffer shell-buffer
+                                         shell-maker--busy)))
+                       (list
+                        `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
+                          (:description . "interrupt")))))))))
+    (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+                (header (with-current-buffer shell-buffer
+                          (cond
+                           ((eq agent-shell-header-style 'graphical)
+                            (agent-shell--make-header (agent-shell--state)
+                                                      :qualifier qualifier
+                                                      :bindings bindings))
+                           ((memq agent-shell-header-style '(text none nil))
+                            (agent-shell--make-header (agent-shell--state)
+                                                      :qualifier qualifier
+                                                      :bindings bindings))))))
+      (setq-local header-line-format header))))
 
 (defvar agent-shell-prompt-compose-edit-mode-map
   (let ((map (make-sparse-keymap)))
@@ -362,14 +395,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
 \\{agent-shell-prompt-compose-edit-mode-map}"
   (cursor-intangible-mode +1)
   (setq buffer-read-only nil)
-  (agent-shell-prompt-compose--update-header
-   :qualifier "[compose]"
-   :bindings
-   (list
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-send agent-shell-prompt-compose-edit-mode-map t)))
-      (:description . "send"))
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-cancel agent-shell-prompt-compose-edit-mode-map t)))
-      (:description . "cancel"))))
+  (agent-shell-prompt-compose--update-header)
   (let ((inhibit-read-only t))
     (erase-buffer)))
 
@@ -388,18 +414,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
 
 \\{agent-shell-prompt-compose-view-mode-map}"
   (cursor-intangible-mode +1)
-  (agent-shell-prompt-compose--update-header
-   :qualifier "[view]"
-   :bindings
-   (list
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-next-item agent-shell-prompt-compose-view-mode-map t)))
-      (:description . "next"))
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-previous-item agent-shell-prompt-compose-view-mode-map t)))
-      (:description . "previous"))
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
-      (:description . "reply"))
-    `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
-      (:description . "interrupt"))))
+  (agent-shell-prompt-compose--update-header)
   (setq buffer-read-only t))
 
 (provide 'agent-shell-prompt-compose)

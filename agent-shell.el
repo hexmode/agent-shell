@@ -1855,7 +1855,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                                   (when qualifier
                                     (dom-append-child text-node
                                                       (dom-node 'tspan
-                                                                `((fill . ,(face-attribute 'font-lock-regexp-grouping-backslash :foreground)))
+                                                                `((fill . ,(face-attribute 'font-lock-constant-face :foreground)))
                                                                 qualifier))
                                     (setq first nil))
                                   (dolist (binding bindings)
