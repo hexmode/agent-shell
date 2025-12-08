@@ -49,16 +49,13 @@
   (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
              (shell-buffer (agent-shell-prompt-compose--shell-buffer)))
     (pop-to-buffer compose-buffer)
-    (with-current-buffer shell-buffer
-      ;; TODO: Do we need to get prompt and partial response,
-      ;; in case compose buffer is created for the first time
-      ;; on an ongoing/busy shell session?
-      (if shell-maker--busy
-          (with-current-buffer compose-buffer
-            (agent-shell-prompt-compose-view-mode))
-        (with-current-buffer compose-buffer
-          (agent-shell-prompt-compose-edit-mode)
-          (agent-shell-prompt-compose--initialize))))))
+    ;; TODO: Do we need to get prompt and partial response,
+    ;; in case compose buffer is created for the first time
+    ;; on an ongoing/busy shell session?
+    (if (agent-shell-prompt-compose--busy-p)
+        (agent-shell-prompt-compose-view-mode)
+      (agent-shell-prompt-compose-edit-mode)
+      (agent-shell-prompt-compose--initialize))))
 
 (defun agent-shell-prompt-compose-send ()
   "Send the composed prompt to the agent shell."
@@ -88,16 +85,16 @@
     (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
           (compose-buffer (agent-shell-prompt-compose--buffer))
           (prompt (string-trim (buffer-string))))
-      (with-current-buffer shell-buffer
-        (when shell-maker--busy
-          (unless (y-or-n-p "Interrupt?")
-            (throw 'exit nil))
-          (agent-shell-interrupt t)
-          (with-current-buffer compose-buffer
-            (agent-shell-prompt-compose-view-mode)
-            (agent-shell-prompt-compose--initialize
-             :prompt prompt))
-          (user-error "Aborted")))
+      (when (agent-shell-prompt-compose--busy-p)
+        (unless (y-or-n-p "Interrupt?")
+          (throw 'exit nil))
+        (with-current-buffer shell-buffer
+          (agent-shell-interrupt t))
+        (with-current-buffer compose-buffer
+          (agent-shell-prompt-compose-view-mode)
+          (agent-shell-prompt-compose--initialize
+           :prompt prompt))
+        (user-error "Aborted"))
       (when (string-empty-p (string-trim prompt))
         (agent-shell-prompt-compose--initialize)
         (user-error "Nothing to send"))
@@ -126,11 +123,11 @@
   (catch 'exit
     (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
           (compose-buffer (agent-shell-prompt-compose--buffer)))
+      (unless (agent-shell-prompt-compose--busy-p)
+        (user-error "No pending request"))
+      (unless (y-or-n-p "Interrupt?")
+        (throw 'exit nil))
       (with-current-buffer shell-buffer
-        (unless shell-maker--busy
-          (user-error "No pending request"))
-        (unless (y-or-n-p "Interrupt?")
-          (throw 'exit nil))
         (agent-shell-interrupt t))
       (with-current-buffer compose-buffer
         (agent-shell-prompt-compose-edit-mode)
@@ -303,9 +300,9 @@ With EXISTING-ONLY, only return existing buffers without creating."
 (defun agent-shell-prompt-compose-reply ()
   "Reply as a follow-up and compose another query."
   (interactive)
+  (when (agent-shell-prompt-compose--busy-p)
+    (user-error "Busy, please wait"))
   (with-current-buffer (agent-shell-prompt-compose--shell-buffer)
-    (when shell-maker--busy
-      (user-error "Busy, please wait"))
     (goto-char (point-max)))
   (agent-shell-prompt-compose-edit-mode)
   (agent-shell-prompt-compose--initialize))
@@ -327,6 +324,12 @@ With NO-ERROR, return nil instead of raising an error."
       (unless no-error
         (error "No shell to compose on"))))))
 
+(defun agent-shell-prompt-compose--busy-p ()
+  "Return non-nil if the associated shell buffer is busy."
+  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer :no-error t)))
+    (with-current-buffer shell-buffer
+      shell-maker--busy)))
+
 (defun agent-shell-prompt-compose--update-header ()
   "Update header and mode line based on `agent-shell-header-style'.
 
@@ -335,9 +338,7 @@ Automatically determines qualifier and bindings based on current major mode."
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
   (let ((qualifier (cond
-                    ((when-let (shell-buffer (agent-shell-prompt-compose--shell-buffer))
-                       (with-current-buffer shell-buffer
-                         shell-maker--busy))
+                    ((agent-shell-prompt-compose--busy-p)
                      "[busy]")
                     ((derived-mode-p 'agent-shell-prompt-compose-edit-mode)
                      "[edit]")
@@ -357,15 +358,11 @@ Automatically determines qualifier and bindings based on current major mode."
                         (:description . "next"))
                       `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-previous-item agent-shell-prompt-compose-view-mode-map t)))
                         (:description . "previous")))
-                     (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
-                       (unless (with-current-buffer shell-buffer
-                                 shell-maker--busy)
-                         (list
-                          `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
-                            (:description . "reply")))))
-                     (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
-                                 (busy (with-current-buffer shell-buffer
-                                         shell-maker--busy)))
+                     (unless (agent-shell-prompt-compose--busy-p)
+                       (list
+                        `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-reply agent-shell-prompt-compose-view-mode-map t)))
+                          (:description . "reply"))))
+                     (when (agent-shell-prompt-compose--busy-p)
                        (list
                         `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
                           (:description . "interrupt")))))))))
