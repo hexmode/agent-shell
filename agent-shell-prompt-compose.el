@@ -541,7 +541,11 @@ For example, offer to kill associated shell session."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (if agent-shell-prompt-compose--clean-up
+  (if (and agent-shell-prompt-compose--clean-up
+           ;; Only offer to kill shell buffers when compose buffer
+           ;; is explicitly being killed from a compose buffer.
+           (eq (current-buffer)
+               (window-buffer (selected-window))))
       ;; Temporarily disable cleaning up to avoid multiple clean-ups
       ;; triggered by shell buffers attempting to kill compose buffer.
       (let ((agent-shell-prompt-compose--clean-up nil))
