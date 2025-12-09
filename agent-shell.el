@@ -1899,7 +1899,7 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                                   (when qualifier
                                     (dom-append-child text-node
                                                       (dom-node 'tspan
-                                                                `((fill . ,(face-attribute 'font-lock-constant-face :foreground)))
+                                                                `((fill . ,(face-attribute 'default :foreground)))
                                                                 qualifier))
                                     (setq first nil))
                                   (dolist (binding bindings)

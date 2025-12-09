@@ -558,11 +558,11 @@ Automatically determines qualifier and bindings based on current major mode."
          (pos-label (format "%d/%d" (car pos) (cdr pos)))
          (qualifier (cond
                      ((agent-shell-viewport--busy-p)
-                      (format "[%s][busy]" pos-label))
+                      (format "[%s][Busy]" pos-label))
                      ((derived-mode-p 'agent-shell-viewport-edit-mode)
-                      (format "[%s][edit]" pos-label))
+                      (format "[%s][Edit]" pos-label))
                      ((derived-mode-p 'agent-shell-viewport-view-mode)
-                      (format "[%s][view]" pos-label))))
+                      (format "[%s][View]" pos-label))))
          (bindings (cond
                     ((derived-mode-p 'agent-shell-viewport-edit-mode)
                      (list
