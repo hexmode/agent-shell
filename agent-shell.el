@@ -594,8 +594,8 @@ Flow:
     (cond ((not (map-elt (agent-shell--state) :client))
            (when-let ((_ (map-elt shell :buffer))
                       (viewport-buffer (agent-shell-viewport--buffer
-                                       :shell-buffer (map-elt shell :buffer)
-                                       :existing-only t)))
+                                        :shell-buffer (map-elt shell :buffer)
+                                        :existing-only t)))
              (with-current-buffer viewport-buffer
                (agent-shell-viewport-view-mode)
                (agent-shell-viewport--initialize
@@ -870,8 +870,8 @@ Flow:
            (agent-shell-jump-to-latest-permission-button-row)
            (when-let ((_ (map-elt state :buffer))
                       (viewport-buffer (agent-shell-viewport--buffer
-                                       :shell-buffer (map-elt state :buffer)
-                                       :existing-only t)))
+                                        :shell-buffer (map-elt state :buffer)
+                                        :existing-only t)))
              (with-current-buffer viewport-buffer
                (agent-shell-jump-to-latest-permission-button-row)))
            (map-put! state :last-entry-type "session/request_permission"))
@@ -1287,8 +1287,8 @@ For example, shut down ACP client."
    :heartbeat (map-elt (agent-shell--state) :heartbeat))
   (when-let ((_ (map-elt (agent-shell--state) :buffer))
              (viewport-buffer (agent-shell-viewport--buffer
-                              :shell-buffer (map-elt (agent-shell--state) :buffer)
-                              :existing-only t))
+                               :shell-buffer (map-elt (agent-shell--state) :buffer)
+                               :existing-only t))
              (buffer-live-p viewport-buffer))
     (kill-buffer viewport-buffer)))
 
@@ -1503,8 +1503,8 @@ Set NEW-SESSION to start a separate new session."
                                                       (with-current-buffer shell-buffer
                                                         (agent-shell--update-header-and-mode-line)))
                                                     (when-let* ((viewport-buffer (agent-shell-viewport--buffer
-                                                                                 :shell-buffer shell-buffer
-                                                                                 :existing-only t))
+                                                                                  :shell-buffer shell-buffer
+                                                                                  :existing-only t))
                                                                 (_ (get-buffer-window viewport-buffer)))
                                                       (with-current-buffer viewport-buffer
                                                         (agent-shell-viewport--update-header)))))
@@ -1527,8 +1527,8 @@ Set NEW-SESSION to start a separate new session."
   "Delete fragment with STATE and BLOCK-ID."
   (when-let ((_ (map-elt state :buffer))
              (viewport-buffer (agent-shell-viewport--buffer
-                              :shell-buffer (map-elt state :buffer)
-                              :existing-only t)))
+                               :shell-buffer (map-elt state :buffer)
+                               :existing-only t)))
     (with-current-buffer viewport-buffer
       (let ((inhibit-read-only t))
         (agent-shell-ui-delete-fragment :namespace-id (map-elt state :request-count) :block-id block-id))))
@@ -1552,8 +1552,8 @@ NAVIGATION for navigation style, EXPANDED to show block expanded
 by default."
   (when-let ((_ (map-elt state :buffer))
              (viewport-buffer (agent-shell-viewport--buffer
-                              :shell-buffer (map-elt state :buffer)
-                              :existing-only t)))
+                               :shell-buffer (map-elt state :buffer)
+                               :existing-only t)))
     (with-current-buffer viewport-buffer
       (let ((inhibit-read-only t))
         ;; TODO: Investigate why save-restriction isn't enough
@@ -2455,13 +2455,8 @@ Returns an alist with:
   :base64-p - t if content is base64-encoded (binary image), nil otherwise
   :content - file content (omitted when SHALLOW is non-nil)"
   (let* ((ext (downcase (or (file-name-extension file-path) "")))
-         (mime-type (cond
-                     ((member ext '("png")) "image/png")
-                     ((member ext '("jpg" "jpeg")) "image/jpeg")
-                     ((member ext '("gif")) "image/gif")
-                     ((member ext '("webp")) "image/webp")
-                     ((member ext '("svg")) "image/svg+xml")
-                     (t "text/plain")))
+         (mime-type (or (agent-shell--image-type-to-mime file-path)
+                        "text/plain"))
          ;; Only treat supported binary image formats as binary
          ;; SVG is XML/text and should not be base64-encoded
          ;; API only supports: image/png, image/jpeg, image/gif, image/webp
@@ -2708,6 +2703,18 @@ inserted into the shell buffer prompt."
 
 ;;; Completion
 
+(cl-defun agent-shell--processed-files (&key files)
+  "Process FILES into sendable text with image preview if applicable."
+  (mapconcat (lambda (file)
+               (let ((text (concat "@" file)))
+                 (if-let ((image-display (agent-shell--load-image :file-path file :max-width 200)))
+                     ;; Propertize text to display the image
+                     (propertize text 'display image-display)
+                   ;; Not an image, insert as normal text
+                   text)))
+             files
+             "\n\n"))
+
 (defun agent-shell-send-file (&optional prompt-for-file)
   "Insert a file into `agent-shell'.
 
@@ -2728,18 +2735,16 @@ With prefix argument PROMPT-FOR-FILE, always prompt for file selection."
                     (or (agent-shell--buffer-files)
                         (list (completing-read "Send file: " (agent-shell--project-files)))
                         (user-error "No file to send")))))
-      (mapc (lambda (file)
-              (let ((text (concat "@" file)))
-                (if-let ((image-display (agent-shell--load-image :file-path file :max-width 200)))
-                    ;; Propertize text to display the image
-                    (agent-shell-insert :text (propertize text 'display image-display))
-                  ;; Not an image, insert as normal text
-                  (agent-shell-insert :text text))))
-            files))))
+      (agent-shell--insert-to-shell-buffer
+       :text (agent-shell--processed-files :files files)))))
 
-(defun agent-shell--buffer-files ()
-  "Return buffer file(s) or `dired' selected file(s)."
-  (if (buffer-file-name)
+(cl-defun agent-shell--buffer-files (&key obvious)
+  "Return buffer file(s) or `dired' selected file(s).
+
+Buffer filename is OBVIOUS if its an image."
+  (if (and obvious
+           (buffer-file-name)
+           (image-supported-file-p (buffer-file-name)))
       (list (buffer-file-name))
     (or
      (agent-shell--dired-paths-in-region)
@@ -2783,10 +2788,8 @@ The captured screenshot file path is then inserted into the shell prompt."
   (interactive)
   (let* ((screenshots-dir (expand-file-name ".agent-shell/screenshots" (agent-shell-cwd)))
          (screenshot-path (agent-shell--capture-screenshot :destination-dir screenshots-dir)))
-    (if-let ((image-display (agent-shell--load-image :file-path screenshot-path :max-width 200)))
-        (agent-shell-insert :text (propertize (concat "@" screenshot-path)
-                                              'display image-display))
-      (agent-shell-insert :text (concat "@" screenshot-path)))))
+    (agent-shell-insert
+     :text (agent-shell--processed-files :files (list screenshot-path)))))
 
 (defun agent-shell--project-files ()
   "Get project files using projectile or project.el."
@@ -3466,8 +3469,10 @@ If CAP is non-nil, truncate at CAP."
 (defun agent-shell--relevant-text ()
   "Return relevant text (if available).  Nil otherwise.
 
-Relevant text could be either a region or error at point."
-  (or (agent-shell--get-processed-region
+Relevant text could be either a region or error at point or files."
+  (or (agent-shell--processed-files
+       :files (agent-shell--buffer-files :obvious t))
+      (agent-shell--get-processed-region
        :deactivate t :no-error t)
       (agent-shell--get-processed-flymake-error-at-point)))
 
