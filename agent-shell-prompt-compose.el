@@ -194,6 +194,8 @@ Optionally set its PROMPT and RESPONSE."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
+  ;; Recalculate and cache position
+  (agent-shell-prompt-compose--position :force-refresh t)
   (let ((inhibit-read-only t)
         (compose-buffer (current-buffer)))
     (erase-buffer)
@@ -514,22 +516,28 @@ If START-AT-TOP is non-nil, position at point-min regardless of direction."
            (with-current-buffer compose-buffer
              (agent-shell-prompt-compose--update-header))))))))
 
-(defun agent-shell-prompt-compose--position ()
-  "Return the position in history of the shell buffer."
+(cl-defun agent-shell-prompt-compose--position (&key force-refresh)
+  "Return the position in history of the shell buffer.
+
+When FORCE-REFRESH is non-nil, recalculate and update cache."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (let* ((shell-buffer (agent-shell--shell-buffer))
-         (current (with-current-buffer shell-buffer
-                    (shell-maker--command-and-response-at-point)))
-         (history (with-current-buffer shell-buffer
-                    (shell-maker-history)))
-         (pos (seq-position history current)))
-    (cond ((and current history pos)
-           (cons (1+ pos) (length history)))
-          (history
-           (cons (1+ (length history))
-                 (1+ (length history)))))))
+  (if (and (not force-refresh) agent-shell-prompt-compose--position-cache)
+      agent-shell-prompt-compose--position-cache
+    (let* ((shell-buffer (agent-shell--shell-buffer))
+           (current (with-current-buffer shell-buffer
+                      (shell-maker--command-and-response-at-point)))
+           (history (with-current-buffer shell-buffer
+                      (shell-maker-history)))
+           (pos (seq-position history current))
+           (position (cond ((and current history pos)
+                            (cons (1+ pos) (length history)))
+                           (history
+                            (cons (1+ (length history))
+                                  (1+ (length history)))))))
+      (setq agent-shell-prompt-compose--position-cache position)
+      position)))
 
 (defun agent-shell-prompt-compose--busy-p ()
   "Return non-nil if the associated shell buffer is busy."
@@ -590,6 +598,10 @@ Automatically determines qualifier and bindings based on current major mode."
       (setq-local header-line-format header))))
 
 (defvar-local agent-shell-prompt-compose--clean-up t)
+
+;; Continuously fetching position can get expensive. Cache it.
+(defvar-local agent-shell-prompt-compose--position-cache nil
+  "Cached position value (CURRENT . TOTAL).")
 
 (defun agent-shell-prompt-compose--clean-up ()
   "Clean up resources.

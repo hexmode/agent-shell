@@ -2867,7 +2867,7 @@ For example:
          (keymap (let ((map (make-sparse-keymap)))
                    (dolist (action actions)
                      (when-let ((char (map-elt action :char)))
-                       (define-key map (vector char)
+                       (define-key map (kbd char)
                                    (lambda ()
                                      (interactive)
                                      (agent-shell--send-permission-response
@@ -3117,7 +3117,7 @@ CHAR and OPTION are used for cursor sensor messages."
                          'cursor-sensor-functions
                          (list (lambda (_window _old-pos sensor-action)
                                  (when (eq sensor-action 'entered)
-                                   (message "Press RET or %c to %s"
+                                   (message "Press RET or %s to %s"
                                             char option))))
                          button))
     button))
@@ -3153,14 +3153,17 @@ Returns an alist of the form:
    (:option-id . ...))
 
 Returns nil if the ACP-OPTION kind is not recognized."
-  (let* ((char-map '(("allow_always" . ?!)
-                     ("allow_once" . ?y)
-                     ("reject_once" . ?n)))
+  (let* ((char-map `(("allow_always" . "!")
+                     ("allow_once" . "y")
+                     ("reject_once" . ,(or (ignore-errors
+                                             (key-description (where-is-internal 'agent-shell-interrupt
+                                                                                 agent-shell-mode-map t)))
+                                           "n"))))
          (kind (map-elt acp-option 'kind))
          (char (map-elt char-map kind))
          (name (map-elt acp-option 'name)))
     (when char
-      (map-into `((:label . ,(format "%s (%c)" name char))
+      (map-into `((:label . ,(format "%s (%s)" name char))
                   (:option . ,name)
                   (:char . ,char)
                   (:kind . ,kind)
