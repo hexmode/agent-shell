@@ -1841,14 +1841,8 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                    (if (map-nested-elt state '(:agent-config :icon-name))
                        (agent-shell--fetch-agent-icon (map-nested-elt state '(:agent-config :icon-name)))
                      (agent-shell--make-agent-fallback-icon (map-nested-elt state '(:agent-config :buffer-name)) 100)))
-                  (image-type (let ((ext (file-name-extension icon-filename)))
-                                (cond
-                                 ((member ext '("png" "PNG")) "image/png")
-                                 ((member ext '("jpg" "jpeg" "JPG" "JPEG")) "image/jpeg")
-                                 ((member ext '("gif" "GIF")) "image/gif")
-                                 ((member ext '("webp" "WEBP")) "image/webp")
-                                 ((member ext '("svg" "SVG")) "image/svg+xml")
-                                 (t "image/png")))))
+                  (image-type (or (agent-shell--image-type-to-mime icon-filename)
+                                  "image/png")))
              ;; Icon
              (when (and icon-filename image-type)
                (svg-embed svg icon-filename
@@ -1941,6 +1935,14 @@ BINDINGS is a list of alists defining key bindings to display, each with:
                              (buffer-string))))
          text-header))
       (_ text-header))))
+
+(defun agent-shell--image-type-to-mime (filename)
+  "Convert image type from FILENAME to MIME type string.
+Returns a MIME type like \"image/png\" or \"image/jpeg\"."
+  (when-let ((type (image-supported-file-p filename)))
+    (pcase type
+      ('svg "image/svg+xml")
+      (_ (format "image/%s" type)))))
 
 (defun agent-shell--update-header-and-mode-line ()
   "Update header and mode line based on `agent-shell-header-style'."
