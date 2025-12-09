@@ -369,32 +369,46 @@ If already in a shell, invoke `agent-shell-toggle'.
 
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
-  (if new-shell
-      (agent-shell-start :config (or agent-shell-preferred-agent-config
-                                     (agent-shell-select-config
-                                      :prompt "Start new agent: ")
-                                     (error "No agent config found")))
-    (if (derived-mode-p 'agent-shell-mode)
-        (agent-shell-toggle)
-      (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
-          (agent-shell--display-buffer existing-shell)
-        (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
-            (if (y-or-n-p "No shells in project.  Start a new one? ")
-                (agent-shell-start :config (or agent-shell-preferred-agent-config
-                                               (agent-shell-select-config
-                                                :prompt "Start new agent: ")
-                                               (error "No agent config found")))
-              (agent-shell--display-buffer other-project-shell))
-          (agent-shell-start :config (or agent-shell-preferred-agent-config
-                                         (agent-shell-select-config
-                                          :prompt "Start new agent: ")
-                                         (error "No agent config found"))))))))
+  (if agent-shell-prefer-compose-buffer
+      (if (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+          (agent-shell-toggle)
+        (agent-shell-prompt-compose--show-buffer
+         :shell-buffer (when new-shell
+                         (agent-shell--start :config (or agent-shell-preferred-agent-config
+                                                         (agent-shell-select-config
+                                                          :prompt "Start new agent: ")
+                                                         (error "No agent config found"))
+                                             :no-focus t
+                                             :new-session t))))
+    (if new-shell
+        (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                       (agent-shell-select-config
+                                        :prompt "Start new agent: ")
+                                       (error "No agent config found")))
+      (if (derived-mode-p 'agent-shell-mode)
+          (agent-shell-toggle)
+        (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
+            (agent-shell--display-buffer existing-shell)
+          (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
+              (if (y-or-n-p "No shells in project.  Start a new one? ")
+                  (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                                 (agent-shell-select-config
+                                                  :prompt "Start new agent: ")
+                                                 (error "No agent config found")))
+                (agent-shell--display-buffer other-project-shell))
+            (agent-shell-start :config (or agent-shell-preferred-agent-config
+                                           (agent-shell-select-config
+                                            :prompt "Start new agent: ")
+                                           (error "No agent config found")))))))))
 
 ;;;###autoload
 (defun agent-shell-toggle ()
   "Toggle agent shell display."
   (interactive)
-  (let ((shell-buffer (seq-first (agent-shell-project-buffers))))
+  (let ((shell-buffer (if agent-shell-prefer-compose-buffer
+                          (agent-shell-prompt-compose--buffer)
+                        (agent-shell-prompt-compose--shell-buffer))))
     (unless shell-buffer
       (user-error "No agent shell buffers available for current project"))
     (if-let ((window (get-buffer-window shell-buffer)))

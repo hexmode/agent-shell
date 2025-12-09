@@ -56,12 +56,13 @@
 (defvar agent-shell-prefer-compose-buffer)
 (defvar agent-shell-preferred-agent-config)
 
-(cl-defun agent-shell-prompt-compose--show-buffer (&key text submit no-focus)
+(cl-defun agent-shell-prompt-compose--show-buffer (&key text submit no-focus shell-buffer)
   "Show a compose buffer for the agent shell.
 
 TEXT is inserted into the compose buffer.
 SUBMIT, when non-nil, submits after insertion.
 NO-FOCUS, when non-nil, avoids focusing the compose buffer.
+NEW-SHELL, create a new shell (no history).
 
 Returns an alist with insertion details or nil otherwise:
 
@@ -72,8 +73,13 @@ Returns an alist with insertion details or nil otherwise:
     (error "Not yet supported"))
   (when no-focus
     (error "Not yet supported"))
-  (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
-             (shell-buffer (agent-shell-prompt-compose--shell-buffer))
+  (when shell-buffer
+    ;; Momentarily set buffer to same window, so it's recent in stack.
+    (let ((current (current-buffer)))
+      (pop-to-buffer-same-window shell-buffer)
+      (pop-to-buffer-same-window current)))
+  (when-let ((shell-buffer (or shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+             (compose-buffer (agent-shell-prompt-compose--buffer :shell-buffer shell-buffer))
              (text (or text (agent-shell--relevant-text) "")))
     (let ((insert-start nil)
           (insert-end nil))
@@ -83,15 +89,16 @@ Returns an alist with insertion details or nil otherwise:
       ;; on an ongoing/busy shell session?
       (if (agent-shell-prompt-compose--busy-p)
           (agent-shell-prompt-compose-view-mode)
-        (if (and (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
-                 (not (string-empty-p text)))
-            (save-excursion
-              (goto-char (point-max))
-              (setq insert-start (point))
-              (unless (string-empty-p text)
-                (insert "\n\n" text))
-              (setq insert-end (point)))
+        (if (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+            (unless (string-empty-p text)
+              (save-excursion
+                (goto-char (point-max))
+                (setq insert-start (point))
+                (unless (string-empty-p text)
+                  (insert "\n\n" text))
+                (setq insert-end (point))))
           (agent-shell-prompt-compose-edit-mode)
+          ;; Transitioned to edit mode. Start empty.
           (agent-shell-prompt-compose--initialize)
           (save-excursion
             (goto-char (point-max))
