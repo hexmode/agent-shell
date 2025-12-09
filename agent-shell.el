@@ -169,6 +169,15 @@ See `display-buffer' for the format of display actions."
   :type 'boolean
   :group 'agent-shell)
 
+(defcustom agent-shell-prefer-compose-buffer nil
+  "Non-nil makes `agent-shell' prefer compose buffers over shell buffers.
+
+For example, `agent-shell-send*' will insert text into the compose
+buffer instead of the shell buffer.  If no compose buffer exists, one
+will be created."
+  :type 'boolean
+  :group 'agent-shell)
+
 (defcustom agent-shell-embed-file-size-limit 102400
   "Maximum file size in bytes for embedding with ContentBlock::Resource.
 Files larger than this will use ContentBlock::ResourceLink instead.
@@ -450,11 +459,10 @@ Returns an empty string if no icon should be displayed."
 
 (defun agent-shell-buffers ()
   "Return all shell buffers."
-  (seq-map #'buffer-name
-           (seq-filter (lambda (buffer)
-                         (with-current-buffer buffer
-                           (derived-mode-p 'agent-shell-mode)))
-                       (buffer-list))))
+  (seq-filter (lambda (buffer)
+                (with-current-buffer buffer
+                  (derived-mode-p 'agent-shell-mode)))
+              (buffer-list)))
 
 (defun agent-shell-version ()
   "Show `agent-shell' mode version."
@@ -3124,8 +3132,8 @@ Returns nil if the ACP-OPTION kind is not recognized."
 
 ;;; Region
 
-(cl-defun agent-shell-insert (&key text submit no-focus)
-  "Insert TEXT into the agent shell at `point-max'.
+(cl-defun agent-shell--insert-to-shell-buffer (&key text submit no-focus)
+  "Insert TEXT into the agent shell buffer at `point-max'.
 
 SUBMIT, when non-nil, submits the shell buffer after insertion.
 
@@ -3141,15 +3149,14 @@ Returns an alist with insertion details or nil otherwise:
   (let* ((shell-buffer (or (seq-first (agent-shell-project-buffers))
                            (user-error "No agent shell buffers available for current project")))
          (inhibit-read-only t)
-         (insert-start (progn
-                         ;; Displaying before with-current-buffer below
-                         ;; ensures window is selected, thus window-point
-                         ;; is also updated after insertion.
-                         (if no-focus
-                             (with-current-buffer shell-buffer
-                               (point-max))
-                           (agent-shell--display-buffer shell-buffer)
-                           (point-max))))
+         ;; Displaying before with-current-buffer below
+         ;; ensures window is selected, thus window-point
+         ;; is also updated after insertion.
+         (insert-start (if no-focus
+                           (with-current-buffer shell-buffer
+                             (point-max))
+                         (agent-shell--display-buffer shell-buffer)
+                         (point-max)))
          (insert-end nil))
     (with-current-buffer shell-buffer
       (when (shell-maker-busy)
@@ -3169,6 +3176,26 @@ Returns an alist with insertion details or nil otherwise:
     `((:buffer . ,shell-buffer)
       (:start . ,insert-start)
       (:end . ,insert-end))))
+
+(cl-defun agent-shell-insert (&key text submit no-focus)
+  "Insert TEXT into the agent shell at `point-max'.
+
+SUBMIT, when non-nil, submits the shell buffer after insertion.
+
+NO-FOCUS, when non-nil, avoid focusing shell on insertion.
+
+When `agent-shell-prefer-compose-buffer' is non-nil, prefer inserting
+into the compose buffer instead of the shell buffer.  If no compose
+buffer exists, one will be created.
+
+Returns an alist with insertion details or nil otherwise:
+
+  ((:buffer . BUFFER)
+   (:start . START)
+   (:end . END))"
+  (if agent-shell-prefer-compose-buffer
+      (agent-shell-prompt-compose--show-buffer :text text :submit submit :no-focus no-focus)
+    (agent-shell--insert-to-shell-buffer :text text :submit submit :no-focus no-focus)))
 
 (cl-defun agent-shell-send-region ()
   "Send region to last accessed shell buffer in project."

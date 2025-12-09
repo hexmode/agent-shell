@@ -38,53 +38,75 @@
 (eval-when-compile
   (require 'cl-lib))
 
-(declare-function agent-shell-project-buffers "agent-shell")
-(declare-function agent-shell--start "agent-shell")
-(declare-function agent-shell-select-config "agent-shell")
-(declare-function agent-shell-insert "agent-shell")
+(declare-function agent-shell--insert-to-shell-buffer "agent-shell")
 (declare-function agent-shell--make-header "agent-shell")
 (declare-function agent-shell--relevant-text "agent-shell")
+(declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell--state "agent-shell")
 (declare-function agent-shell-interrupt "agent-shell")
 (declare-function agent-shell-next-permission-button "agent-shell")
 (declare-function agent-shell-previous-permission-button "agent-shell")
+(declare-function agent-shell-project-buffers "agent-shell")
+(declare-function agent-shell-select-config "agent-shell")
 (declare-function agent-shell-ui-backward-block "agent-shell")
 (declare-function agent-shell-ui-forward-block "agent-shell")
 (declare-function agent-shell-ui-mode "agent-shell")
 
-(defvar agent-shell-preferred-agent-config)
 (defvar agent-shell-header-style)
+(defvar agent-shell-prefer-compose-buffer)
+(defvar agent-shell-preferred-agent-config)
 
-(defvar agent-shell-prompt-compose--experimental-compose nil)
+(cl-defun agent-shell-prompt-compose--show-buffer (&key text submit no-focus)
+  "Show a compose buffer for the agent shell.
 
-(defun agent-shell-prompt-compose--show-buffer ()
-  "Show a compose buffer for the agent shell."
+TEXT is inserted into the compose buffer.
+SUBMIT, when non-nil, submits after insertion.
+NO-FOCUS, when non-nil, avoids focusing the compose buffer.
+
+Returns an alist with insertion details or nil otherwise:
+
+  ((:buffer . BUFFER)
+   (:start . START)
+   (:end . END))"
+  (when submit
+    (error "Not yet supported"))
+  (when no-focus
+    (error "Not yet supported"))
   (when-let ((compose-buffer (agent-shell-prompt-compose--buffer))
              (shell-buffer (agent-shell-prompt-compose--shell-buffer))
-             (text (or (agent-shell--relevant-text) "")))
-    (agent-shell--display-buffer compose-buffer)
-    ;; TODO: Do we need to get prompt and partial response,
-    ;; in case compose buffer is created for the first time
-    ;; on an ongoing/busy shell session?
-    (if (agent-shell-prompt-compose--busy-p)
-        (agent-shell-prompt-compose-view-mode)
-      (if (and (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
-               (not (string-empty-p text)))
+             (text (or text (agent-shell--relevant-text) "")))
+    (let ((insert-start nil)
+          (insert-end nil))
+      (agent-shell--display-buffer compose-buffer)
+      ;; TODO: Do we need to get prompt and partial response,
+      ;; in case compose buffer is created for the first time
+      ;; on an ongoing/busy shell session?
+      (if (agent-shell-prompt-compose--busy-p)
+          (agent-shell-prompt-compose-view-mode)
+        (if (and (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+                 (not (string-empty-p text)))
+            (save-excursion
+              (goto-char (point-max))
+              (setq insert-start (point))
+              (unless (string-empty-p text)
+                (insert "\n\n" text))
+              (setq insert-end (point)))
+          (agent-shell-prompt-compose-edit-mode)
+          (agent-shell-prompt-compose--initialize)
           (save-excursion
             (goto-char (point-max))
+            (setq insert-start (point))
             (unless (string-empty-p text)
-              (insert "\n\n" text)))
-        (agent-shell-prompt-compose-edit-mode)
-        (agent-shell-prompt-compose--initialize)
-        (save-excursion
-          (goto-char (point-max))
-          (unless (string-empty-p text)
-            (insert "\n\n" text)))))))
+              (insert "\n\n" text))
+            (setq insert-end (point)))))
+      `((:buffer . ,compose-buffer)
+        (:start . ,insert-start)
+        (:end . ,insert-end)))))
 
 (defun agent-shell-prompt-compose-send ()
   "Send the composed prompt to the agent shell."
   (interactive)
-  (if agent-shell-prompt-compose--experimental-compose
+  (if agent-shell-prefer-compose-buffer
       (agent-shell-prompt-compose-send-and-wait-for-response)
     (agent-shell-prompt-compose-send-and-kill)))
 
@@ -95,8 +117,9 @@
         (compose-buffer (current-buffer))
         (prompt (buffer-string)))
     (with-current-buffer shell-buffer
-      (agent-shell-insert :text prompt
-                          :submit t))
+      (agent-shell--insert-to-shell-buffer
+       :text prompt
+       :submit t))
     (kill-buffer compose-buffer)
     (pop-to-buffer shell-buffer)))
 
@@ -134,9 +157,10 @@
         (when (string-equal prompt "clear")
           (agent-shell-prompt-compose-edit-mode)
           (agent-shell-prompt-compose--initialize))
-        (agent-shell-insert :text prompt
-                            :submit t
-                            :no-focus t)
+        (agent-shell--insert-to-shell-buffer
+         :text prompt
+         :submit t
+         :no-focus t)
         ;; TODO: Point should go to beginning of response after submission.
         (let ((inhibit-read-only t))
           (markdown-overlays-put))))))
