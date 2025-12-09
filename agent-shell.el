@@ -2589,6 +2589,19 @@ If in a project, use project root."
        default-directory
        (error "No CWD available"))))
 
+(defun agent-shell--current-shell ()
+  "Current shell for compose buffer or shell buffer."
+  (cond ((derived-mode-p 'agent-shell-mode)
+         (current-buffer))
+        ((or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+             (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+         (seq-first (seq-filter (lambda (shell-buffer)
+                                  (equal (agent-shell-prompt-compose--buffer
+                                          :shell-buffer shell-buffer
+                                          :existing-only t)
+                                         (current-buffer)))
+                                (agent-shell-buffers))))))
+
 ;;; Shell
 
 (defun agent-shell-insert-shell-command-output ()
@@ -2597,12 +2610,22 @@ If in a project, use project root."
 The command executes asynchronously.  When finished, the output is
 inserted into the shell buffer prompt."
   (interactive)
-  (unless (derived-mode-p 'agent-shell-mode)
-    (error "Not in a shell"))
-  (when (shell-maker-busy)
-    (user-error "Busy, try later"))
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
+              (derived-mode-p 'agent-shell-mode))
+    (user-error "Not in an `agent-shell' buffer"))
   (let* ((command (read-string "insert command output: "))
-         (shell-buffer (current-buffer))
+         (shell-buffer (or (agent-shell--current-shell)
+                           (user-error "No shell available")))
+         (destination-buffer (progn
+                               (when (with-current-buffer shell-buffer
+                                       (shell-maker-busy))
+                                 (user-error "Busy, try later"))
+                               (if (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                                       (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+                                   (agent-shell-prompt-compose--buffer
+                                    :shell-buffer shell-buffer)
+                                 shell-buffer)))
          (output-buffer (with-current-buffer (generate-new-buffer (format "*%s*" command))
                           (insert "$ " command "\n\n")
                           (setq-local buffer-read-only t)
@@ -2637,7 +2660,7 @@ inserted into the shell buffer prompt."
                     (set-window-configuration window-config)
                     (save-excursion
                       (goto-char (point-max))
-                      (with-current-buffer shell-buffer
+                      (with-current-buffer destination-buffer
                         (insert "\n\n" (format "```shell
 %s
 ```" (with-current-buffer output-buffer
