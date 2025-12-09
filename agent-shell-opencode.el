@@ -33,7 +33,7 @@
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
-(declare-function agent-shell-start "agent-shell")
+(declare-function agent-shell--dwim "agent-shell")
 
 (cl-defun agent-shell-opencode-make-authentication (&key api-key none)
   "Create OpenCode authentication configuration.
@@ -111,8 +111,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-opencode-start-agent ()
   "Start an interactive OpenCode agent shell."
   (interactive)
-  (agent-shell-start
-   :config (agent-shell-opencode-make-agent-config)))
+  (agent-shell--dwim :config (agent-shell-opencode-make-agent-config)
+                     :new-shell t))
 
 (cl-defun agent-shell-opencode-make-client (&key buffer)
   "Create an OpenCode client using BUFFER as context.

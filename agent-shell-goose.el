@@ -33,7 +33,7 @@
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
-(declare-function agent-shell-start "agent-shell")
+(declare-function agent-shell--dwim "agent-shell")
 
 (cl-defun agent-shell-make-goose-authentication (&key openai-api-key none)
   "Create Goose authentication configuration.
@@ -111,8 +111,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-goose-start-agent ()
   "Start an interactive Goose agent shell."
   (interactive)
-  (agent-shell-start
-   :config (agent-shell-goose-make-agent-config)))
+  (agent-shell--dwim :config (agent-shell-goose-make-agent-config)
+                     :new-shell t))
 
 (cl-defun agent-shell-goose-make-client (&key buffer)
   "Create a Goose client using configured authentication with BUFFER as context.

@@ -34,7 +34,7 @@
 (declare-function agent-shell--interpolate-gradient "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
-(declare-function agent-shell-start "agent-shell")
+(declare-function agent-shell--dwim "agent-shell")
 
 (cl-defun agent-shell-google-make-authentication (&key api-key login vertex-ai)
   "Create Google authentication configuration.
@@ -154,8 +154,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-google-start-gemini ()
   "Start an interactive Gemini CLI agent shell."
   (interactive)
-  (agent-shell-start
-   :config (agent-shell-google-make-gemini-config)))
+  (agent-shell--dwim :config (agent-shell-google-make-gemini-config)
+                     :new-shell t))
 
 (cl-defun agent-shell-google-make-gemini-client (&key buffer)
   "Create a Gemini client using configured authentication with BUFFER as context.

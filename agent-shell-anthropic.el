@@ -33,7 +33,7 @@
 (declare-function agent-shell--indent-string "agent-shell")
 (declare-function agent-shell--make-acp-client "agent-shell")
 (declare-function agent-shell-make-agent-config "agent-shell")
-(declare-function agent-shell-start "agent-shell")
+(declare-function agent-shell--dwim "agent-shell")
 
 (cl-defun agent-shell-anthropic-make-authentication (&key api-key login)
   "Create anthropic authentication configuration.
@@ -132,8 +132,8 @@ Returns an agent configuration alist using `agent-shell-make-agent-config'."
 (defun agent-shell-anthropic-start-claude-code ()
   "Start an interactive Claude Code agent shell."
   (interactive)
-  (agent-shell-start
-   :config (agent-shell-anthropic-make-claude-code-config)))
+  (agent-shell--dwim :config (agent-shell-anthropic-make-claude-code-config)
+                     :new-shell t))
 
 (cl-defun agent-shell-anthropic-make-claude-client (&key buffer)
   "Create a Claude Code ACP client with BUFFER as context.

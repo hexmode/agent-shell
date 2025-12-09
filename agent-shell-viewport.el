@@ -433,7 +433,9 @@ With EXISTING-ONLY, only return existing buffers without creating."
           (agent-shell-viewport--initialize :prompt block-quoted-text)
           (goto-char (point-max)))
       (agent-shell-viewport--initialize)
-      (goto-char (point-min)))))
+      (goto-char (point-min)))
+    ;; Setting point isn't enough at times. Force scrolling.
+    (set-window-start (selected-window) (point-min))))
 
 (defun agent-shell-viewport-previous-page ()
   "Show previous interaction (request / response)."

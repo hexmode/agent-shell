@@ -369,6 +369,16 @@ If already in a shell, invoke `agent-shell-toggle'.
 
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
+  (agent-shell--dwim :new-shell new-shell))
+
+(cl-defun agent-shell--dwim (&key config new-shell)
+  "Start or reuse an agent shell with DWIM behavior.
+
+CONFIG is the agent configuration to use.
+NEW-SHELL when non-nil forces starting a new shell.
+
+This function respects `agent-shell-prefer-viewport-interaction' and
+handles viewport mode detection, existing shell reuse, and project context."
   (if agent-shell-prefer-viewport-interaction
       (if (and (not new-shell)
                (or (derived-mode-p 'agent-shell-viewport-view-mode)
@@ -376,14 +386,16 @@ With prefix argument NEW-SHELL, force start a new shell."
           (agent-shell-toggle)
         (agent-shell-viewport--show-buffer
          :shell-buffer (when new-shell
-                         (agent-shell--start :config (or agent-shell-preferred-agent-config
+                         (agent-shell--start :config (or config
+                                                         agent-shell-preferred-agent-config
                                                          (agent-shell-select-config
                                                           :prompt "Start new agent: ")
                                                          (error "No agent config found"))
                                              :no-focus t
                                              :new-session t))))
     (if new-shell
-        (agent-shell-start :config (or agent-shell-preferred-agent-config
+        (agent-shell-start :config (or config
+                                       agent-shell-preferred-agent-config
                                        (agent-shell-select-config
                                         :prompt "Start new agent: ")
                                        (error "No agent config found")))
@@ -394,12 +406,14 @@ With prefix argument NEW-SHELL, force start a new shell."
             (agent-shell--display-buffer existing-shell)
           (if-let ((other-project-shell (seq-first (agent-shell-buffers))))
               (if (y-or-n-p "No shells in project.  Start a new one? ")
-                  (agent-shell-start :config (or agent-shell-preferred-agent-config
+                  (agent-shell-start :config (or config
+                                                 agent-shell-preferred-agent-config
                                                  (agent-shell-select-config
                                                   :prompt "Start new agent: ")
                                                  (error "No agent config found")))
                 (agent-shell--display-buffer other-project-shell))
-            (agent-shell-start :config (or agent-shell-preferred-agent-config
+            (agent-shell-start :config (or config
+                                           agent-shell-preferred-agent-config
                                            (agent-shell-select-config
                                             :prompt "Start new agent: ")
                                            (error "No agent config found")))))))))
