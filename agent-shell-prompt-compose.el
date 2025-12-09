@@ -41,6 +41,7 @@
 (declare-function agent-shell--insert-to-shell-buffer "agent-shell")
 (declare-function agent-shell--make-header "agent-shell")
 (declare-function agent-shell--relevant-text "agent-shell")
+(declare-function agent-shell--shell-buffer "agent-shell")
 (declare-function agent-shell--start "agent-shell")
 (declare-function agent-shell--state "agent-shell")
 (declare-function agent-shell-interrupt "agent-shell")
@@ -78,7 +79,7 @@ Returns an alist with insertion details or nil otherwise:
     (let ((current (current-buffer)))
       (pop-to-buffer-same-window shell-buffer)
       (pop-to-buffer-same-window current)))
-  (when-let ((shell-buffer (or shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+  (when-let ((shell-buffer (or shell-buffer (agent-shell--shell-buffer)))
              (compose-buffer (agent-shell-prompt-compose--buffer :shell-buffer shell-buffer))
              (text (or text (agent-shell--relevant-text) "")))
     (let ((insert-start nil)
@@ -120,7 +121,7 @@ Returns an alist with insertion details or nil otherwise:
 (defun agent-shell-prompt-compose-send-and-kill ()
   "Send the composed prompt to the agent shell and kill compose buffer."
   (interactive)
-  (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+  (let ((shell-buffer (agent-shell--shell-buffer))
         (compose-buffer (current-buffer))
         (prompt (buffer-string)))
     (with-current-buffer shell-buffer
@@ -136,7 +137,7 @@ Returns an alist with insertion details or nil otherwise:
   (catch 'exit
     (unless (derived-mode-p 'agent-shell-prompt-compose-edit-mode)
       (user-error "Not in a shell compose buffer"))
-    (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+    (let ((shell-buffer (agent-shell--shell-buffer))
           (compose-buffer (agent-shell-prompt-compose--buffer))
           (prompt (string-trim (buffer-string))))
       (when (agent-shell-prompt-compose--busy-p)
@@ -176,7 +177,7 @@ Returns an alist with insertion details or nil otherwise:
   "Interrupt active agent shell request."
   (interactive)
   (catch 'exit
-    (let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+    (let ((shell-buffer (agent-shell--shell-buffer)))
       (unless (agent-shell-prompt-compose--busy-p)
         (user-error "No pending request"))
       (unless (y-or-n-p "Interrupt?")
@@ -195,7 +196,7 @@ Optionally set its PROMPT and RESPONSE."
   (let ((inhibit-read-only t)
         (compose-buffer (current-buffer)))
     (erase-buffer)
-    (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+    (when-let ((shell-buffer (agent-shell--shell-buffer)))
       (with-current-buffer shell-buffer
         (unless (eq agent-shell-header-style 'graphical)
           ;; Insert read-only newline at the point-min
@@ -273,9 +274,9 @@ Optionally set its PROMPT and RESPONSE."
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
   (if (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
-          (with-current-buffer (agent-shell-prompt-compose--shell-buffer)
+          (with-current-buffer (agent-shell--shell-buffer)
             (not (shell-maker-history))))
-      (kill-buffer (current-buffer))
+      (bury-buffer)
     ;; Edit mode
     (when (or (string-empty-p (string-trim (buffer-string)))
               (y-or-n-p "Discard compose buffer? "))
@@ -287,7 +288,7 @@ Optionally set its PROMPT and RESPONSE."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer)))
+  (when-let ((shell-buffer (agent-shell--shell-buffer)))
     (with-current-buffer shell-buffer
       (goto-char comint-last-input-start)))
   (agent-shell-prompt-compose-view-mode)
@@ -299,7 +300,7 @@ Optionally set its PROMPT and RESPONSE."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+  (when-let ((shell-buffer (agent-shell--shell-buffer))
              (compose-buffer (agent-shell-prompt-compose--buffer))
              (current (with-current-buffer shell-buffer
                         (or (shell-maker--command-and-response-at-point)
@@ -394,7 +395,7 @@ If at the first item, attempt to switch to previous interaction."
 
 With EXISTING-ONLY, only return existing buffers without creating."
   (when-let ((shell-buffer (or shell-buffer
-                               (agent-shell-prompt-compose--shell-buffer))))
+                               (agent-shell--shell-buffer))))
     (with-current-buffer shell-buffer
       (let* ((compose-buffer-name (concat (buffer-name shell-buffer)
                                           " [compose]"))
@@ -412,7 +413,7 @@ With EXISTING-ONLY, only return existing buffers without creating."
   (interactive)
   (when (agent-shell-prompt-compose--busy-p)
     (user-error "Busy, please wait"))
-  (with-current-buffer (agent-shell-prompt-compose--shell-buffer)
+  (with-current-buffer (agent-shell--shell-buffer)
     (goto-char (point-max)))
   (agent-shell-prompt-compose-edit-mode)
   (agent-shell-prompt-compose--initialize)
@@ -433,7 +434,7 @@ If START-AT-TOP is non-nil, position at point-min regardless of direction."
     (error "Not in a compose buffer"))
   (when (agent-shell-prompt-compose--busy-p)
     (user-error "Busy... please wait"))
-  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+  (when-let ((shell-buffer (agent-shell--shell-buffer))
              (compose-buffer (agent-shell-prompt-compose--buffer))
              (next (with-current-buffer shell-buffer
                      (if backwards
@@ -461,7 +462,7 @@ If START-AT-TOP is non-nil, position at point-min regardless of direction."
   (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
               (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
     (user-error "Not in a shell compose buffer"))
-  (let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+  (let* ((shell-buffer (agent-shell--shell-buffer))
          (current (with-current-buffer shell-buffer
                     (shell-maker--command-and-response-at-point)))
          (history (with-current-buffer shell-buffer
@@ -473,26 +474,9 @@ If START-AT-TOP is non-nil, position at point-min regardless of direction."
            (cons (1+ (length history))
                  (1+ (length history)))))))
 
-(cl-defun agent-shell-prompt-compose--shell-buffer (&key no-error)
-  "Get an `agent-shell' buffer (create one if needed).
-
-With NO-ERROR, return nil instead of raising an error."
-  (get-buffer
-   (or
-    (seq-first (agent-shell-project-buffers))
-    (if (y-or-n-p "No shells in project.  Start a new one? ")
-        (agent-shell--start :config (or agent-shell-preferred-agent-config
-                                        (agent-shell-select-config
-                                         :prompt "Start new agent: ")
-                                        (error "No agent config found"))
-                            :no-focus t
-                            :new-session t)
-      (unless no-error
-        (error "No shell to compose on"))))))
-
 (defun agent-shell-prompt-compose--busy-p ()
   "Return non-nil if the associated shell buffer is busy."
-  (when-let ((shell-buffer (agent-shell-prompt-compose--shell-buffer :no-error t)))
+  (when-let ((shell-buffer (agent-shell--shell-buffer :no-error t)))
     (with-current-buffer shell-buffer
       shell-maker--busy)))
 
@@ -535,7 +519,7 @@ Automatically determines qualifier and bindings based on current major mode."
                         (list
                          `((:key . ,(key-description (where-is-internal 'agent-shell-prompt-compose-interrupt agent-shell-prompt-compose-view-mode-map t)))
                            (:description . "interrupt")))))))))
-    (when-let* ((shell-buffer (agent-shell-prompt-compose--shell-buffer))
+    (when-let* ((shell-buffer (agent-shell--shell-buffer))
                 (header (with-current-buffer shell-buffer
                           (cond
                            ((eq agent-shell-header-style 'graphical)
@@ -547,6 +531,30 @@ Automatically determines qualifier and bindings based on current major mode."
                                                       :qualifier qualifier
                                                       :bindings bindings))))))
       (setq-local header-line-format header))))
+
+(defvar-local agent-shell-prompt-compose--clean-up t)
+
+(defun agent-shell-prompt-compose--clean-up ()
+  "Clean up resources.
+
+For example, offer to kill associated shell session."
+  (unless (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+    (user-error "Not in a shell compose buffer"))
+  (if agent-shell-prompt-compose--clean-up
+      ;; Temporarily disable cleaning up to avoid multiple clean-ups
+      ;; triggered by shell buffers attempting to kill compose buffer.
+      (let ((agent-shell-prompt-compose--clean-up nil))
+        (when-let ((shell-buffers (seq-filter (lambda (shell-buffer)
+                                                (equal (agent-shell-prompt-compose--buffer
+                                                        :shell-buffer shell-buffer
+                                                        :existing-only t)
+                                                       (current-buffer)))
+                                              (agent-shell-buffers)))
+                   (_ (y-or-n-p "Kill shell session too?")))
+          (mapc (lambda (shell-buffer)
+                  (kill-buffer shell-buffer))
+                shell-buffers)))))
 
 (defvar agent-shell-prompt-compose-edit-mode-map
   (let ((map (make-sparse-keymap)))
@@ -563,7 +571,8 @@ Automatically determines qualifier and bindings based on current major mode."
   (setq buffer-read-only nil)
   (agent-shell-prompt-compose--update-header)
   (let ((inhibit-read-only t))
-    (erase-buffer)))
+    (erase-buffer))
+  (add-hook 'kill-buffer-hook #'agent-shell-prompt-compose--clean-up nil t))
 
 (defvar agent-shell-prompt-compose-view-mode-map
   (let ((map (make-sparse-keymap)))
@@ -584,7 +593,8 @@ Automatically determines qualifier and bindings based on current major mode."
   (cursor-intangible-mode +1)
   (agent-shell-ui-mode +1)
   (agent-shell-prompt-compose--update-header)
-  (setq buffer-read-only t))
+  (setq buffer-read-only t)
+  (add-hook 'kill-buffer-hook #'agent-shell-prompt-compose--clean-up nil t))
 
 (provide 'agent-shell-prompt-compose)
 

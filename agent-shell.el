@@ -370,8 +370,9 @@ If already in a shell, invoke `agent-shell-toggle'.
 With prefix argument NEW-SHELL, force start a new shell."
   (interactive "P")
   (if agent-shell-prefer-compose-buffer
-      (if (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
-              (derived-mode-p 'agent-shell-prompt-compose-edit-mode))
+      (if (and (not new-shell)
+               (or (derived-mode-p 'agent-shell-prompt-compose-view-mode)
+                   (derived-mode-p 'agent-shell-prompt-compose-edit-mode)))
           (agent-shell-toggle)
         (agent-shell-prompt-compose--show-buffer
          :shell-buffer (when new-shell
@@ -386,7 +387,8 @@ With prefix argument NEW-SHELL, force start a new shell."
                                        (agent-shell-select-config
                                         :prompt "Start new agent: ")
                                        (error "No agent config found")))
-      (if (derived-mode-p 'agent-shell-mode)
+      (if (and (not new-shell)
+               (derived-mode-p 'agent-shell-mode))
           (agent-shell-toggle)
         (if-let ((existing-shell (seq-first (agent-shell-project-buffers))))
             (agent-shell--display-buffer existing-shell)
@@ -1257,7 +1259,8 @@ For example, shut down ACP client."
   (when-let ((_ (map-elt (agent-shell--state) :buffer))
              (compose-buffer (agent-shell-prompt-compose--buffer
                               :shell-buffer (map-elt (agent-shell--state) :buffer)
-                              :existing-only t)))
+                              :existing-only t))
+             (buffer-live-p compose-buffer))
     (kill-buffer compose-buffer)))
 
 (cl-defun agent-shell--capture-screenshot (&key destination-dir)
@@ -2550,6 +2553,29 @@ If FILE-PATH is not an image, returns nil."
                                      (expand-file-name default-directory))))
                 (agent-shell-buffers))))
 
+(cl-defun agent-shell--shell-buffer (&key no-error no-create)
+  "Get an `agent-shell' buffer for the current project.
+
+When NO-CREATE is nil (default), prompt to create a new shell if none exists.
+When NO-CREATE is non-nil, return existing shell or nil/error if none exists.
+When NO-ERROR is non-nil, return nil instead of raising an error.
+
+Returns a buffer object or nil."
+  (let ((shell-buffer (seq-first (agent-shell-project-buffers))))
+    (if shell-buffer
+        shell-buffer
+      (if no-create
+          (unless no-error
+            (user-error "No agent shell buffers available for current project"))
+        (when (y-or-n-p "No shells in project.  Start a new one? ")
+          (get-buffer
+           (agent-shell--start :config (or agent-shell-preferred-agent-config
+                                           (agent-shell-select-config
+                                            :prompt "Start new agent: ")
+                                           (error "No agent config found"))
+                               :no-focus t
+                               :new-session t)))))))
+
 (defun agent-shell-cwd ()
   "Return the CWD for this shell.
 
@@ -3160,8 +3186,7 @@ Returns an alist with insertion details or nil otherwise:
    (:end . END))"
   (unless text
     (user-error "No text provided to insert"))
-  (let* ((shell-buffer (or (seq-first (agent-shell-project-buffers))
-                           (user-error "No agent shell buffers available for current project")))
+  (let* ((shell-buffer (agent-shell--shell-buffer :no-create t))
          (inhibit-read-only t)
          ;; Displaying before with-current-buffer below
          ;; ensures window is selected, thus window-point
