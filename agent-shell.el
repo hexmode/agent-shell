@@ -3295,44 +3295,98 @@ When NO-ERROR is non-nil, return nil and continue without error."
                      (unless no-error
                        (user-error "No region selected"))))
          (processed-text (if (map-elt region :file)
-                             (agent-shell-ui-add-action-to-text
-                              (format "%s:%d-%d"
-                                      (file-relative-name (map-elt region :file)
-                                                          (agent-shell-cwd))
-                                      (map-elt region :line-start)
-                                      (map-elt region :line-end))
-                              (lambda ()
-                                (interactive)
-                                (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
-                                    (if-let ((window (when (get-file-buffer (map-elt region :file))
-                                                       (get-buffer-window (get-file-buffer (map-elt region :file))))))
-                                        (progn
-                                          (select-window window)
-                                          (goto-char (point-min))
-                                          (forward-line (1- (map-elt region :line-start)))
-                                          (beginning-of-line)
-                                          (push-mark (save-excursion
+                             (let ((file-link (agent-shell-ui-add-action-to-text
+                                               (format "%s:%d-%d"
+                                                       (file-relative-name (map-elt region :file)
+                                                                           (agent-shell-cwd))
+                                                       (map-elt region :line-start)
+                                                       (map-elt region :line-end))
+                                               (lambda ()
+                                                 (interactive)
+                                                 (if (and (map-elt region :file) (file-exists-p (map-elt region :file)))
+                                                     (if-let ((window (when (get-file-buffer (map-elt region :file))
+                                                                        (get-buffer-window (get-file-buffer (map-elt region :file))))))
+                                                         (progn
+                                                           (select-window window)
+                                                           (goto-char (point-min))
+                                                           (forward-line (1- (map-elt region :line-start)))
+                                                           (beginning-of-line)
+                                                           (push-mark (save-excursion
+                                                                        (goto-char (point-min))
+                                                                        (forward-line (1- (map-elt region :line-end)))
+                                                                        (end-of-line)
+                                                                        (point))
+                                                                      t t))
+                                                       (find-file (map-elt region :file))
                                                        (goto-char (point-min))
-                                                       (forward-line (1- (map-elt region :line-end)))
-                                                       (end-of-line)
-                                                       (point))
-                                                     t t))
-                                      (find-file (map-elt region :file))
-                                      (goto-char (point-min))
-                                      (forward-line (1- (map-elt region :line-start)))
-                                      (beginning-of-line)
-                                      (push-mark (save-excursion
-                                                   (goto-char (point-min))
-                                                   (forward-line (1- (map-elt region :line-end)))
-                                                   (end-of-line)
-                                                   (point))
-                                                 t t))
-                                  (message "File not found")))
-                              (lambda ()
-                                (message "Press RET to open file"))
-                              'link)
+                                                       (forward-line (1- (map-elt region :line-start)))
+                                                       (beginning-of-line)
+                                                       (push-mark (save-excursion
+                                                                    (goto-char (point-min))
+                                                                    (forward-line (1- (map-elt region :line-end)))
+                                                                    (end-of-line)
+                                                                    (point))
+                                                                  t t))
+                                                   (message "File not found")))
+                                               (lambda ()
+                                                 (message "Press RET to open file"))
+                                               'link))
+                                   (numbered-preview
+                                    (when-let ((buffer (get-file-buffer (map-elt region :file))))
+                                      (let ((char-start (map-elt region :char-start))
+                                            (char-end (map-elt region :char-end))
+                                            (max-preview-lines 5))
+                                        (agent-shell--get-numbered-region
+                                         :buffer buffer
+                                         :from char-start
+                                         :to char-end
+                                         :cap max-preview-lines)))))
+                               (if numbered-preview
+                                   (concat file-link "\n\n" numbered-preview)
+                                 file-link))
                            (map-elt region :content))))
     processed-text))
+
+(cl-defun agent-shell--get-numbered-region (&key buffer from to cap)
+  "Get region from BUFFER between FROM and TO locations.
+
+Expands to include entire lines.  Trims empty lines from beginning and end.
+
+If CAP is non-nil, truncate at CAP."
+  (with-current-buffer buffer
+    (save-excursion
+      (goto-char from)
+      (let* ((start-line (line-number-at-pos from))
+             (end-line (line-number-at-pos to))
+             (lines '())
+             (current-line start-line))
+        (goto-char (point-min))
+        (forward-line (1- start-line))
+        (while (<= current-line end-line)
+          (let ((line-content (buffer-substring
+                               (line-beginning-position)
+                               (line-end-position))))
+            (push (format "   %d: %s" current-line line-content)
+                  lines))
+          (forward-line 1)
+          (setq current-line (1+ current-line)))
+        ;; Reverse the lines and trim empty lines from start and end
+        (let ((reversed-lines (nreverse lines)))
+          ;; Trim empty lines from the beginning
+          (while (and reversed-lines
+                      (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
+            (setq reversed-lines (cdr reversed-lines)))
+          ;; Trim empty lines from the end
+          (setq reversed-lines (nreverse reversed-lines))
+          (while (and reversed-lines
+                      (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
+            (setq reversed-lines (cdr reversed-lines)))
+          ;; Reverse back to correct order and apply cap before final join
+          (let ((final-lines (nreverse reversed-lines)))
+            ;; Apply cap if specified
+            (when (and cap (> (length final-lines) cap))
+              (setq final-lines (append (seq-take final-lines cap) '("   ..."))))
+            (string-join final-lines "\n")))))))
 
 (defun agent-shell--get-processed-flymake-error-at-point ()
   "Get flymake error at point, ready for sending to agent."
@@ -3358,53 +3412,35 @@ When NO-ERROR is non-nil, return nil and continue without error."
                          (save-excursion
                            (goto-char beg)
                            (let* ((start-line (max 1 (- line context-lines)))
-                                  (end-line (+ line context-lines))
-                                  (lines '())
-                                  (current-line start-line))
-                             (goto-char (point-min))
-                             (forward-line (1- start-line))
-                             (while (<= current-line end-line)
-                               (let ((line-content (buffer-substring
-                                                    (line-beginning-position)
-                                                    (line-end-position))))
-                                 (push (if (= current-line line)
-                                           (format "-> %d: %s" current-line line-content)
-                                         (format "   %d: %s" current-line line-content))
-                                       lines))
-                               (forward-line 1)
-                               (setq current-line (1+ current-line)))
-                             ;; Reverse the lines and trim empty lines from start and end
-                             (let ((reversed-lines (nreverse lines)))
-                               ;; Trim empty lines from the beginning
-                               (while (and reversed-lines
-                                           (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
-                                 (setq reversed-lines (cdr reversed-lines)))
-                               ;; Trim empty lines from the end
-                               (setq reversed-lines (nreverse reversed-lines))
-                               (while (and reversed-lines
-                                           (string-match-p "^   [0-9]+:[[:space:]]*$" (car reversed-lines)))
-                                 (setq reversed-lines (cdr reversed-lines)))
-                               (string-join (nreverse reversed-lines) "\n")))))))
+                                  (context-beg (progn
+                                                 (goto-char (point-min))
+                                                 (forward-line (1- start-line))
+                                                 (point)))
+                                  (context-end (progn
+                                                 (forward-line (+ context-lines context-lines 1))
+                                                 (point)))
+                                  (numbered-region (agent-shell--get-numbered-region
+                                                    :buffer buffer
+                                                    :from context-beg
+                                                    :to context-end))
+                                  ;; Replace the line number prefix for the error line
+                                  (error-line-prefix (format "   %d:" line))
+                                  (highlight-prefix (format "-> %d:" line)))
+                             (replace-regexp-in-string
+                              (regexp-quote error-line-prefix)
+                              highlight-prefix
+                              numbered-region
+                              nil 'literal))))))
          (format (if (string-empty-p (string-trim code))
                      "%s:%d:%d: %s: %s
 
-Context:
-
-%s"
-                   "%s:%d:%d: %s: %s
-
-Context:
-
-%s
-
-Code at error: %s")
+%s")
                  (or file (buffer-name buffer))
                  line
                  col
                  type
                  text
-                 context
-                 code)))
+                 context)))
      diagnostics
      "\n\n")))
 
