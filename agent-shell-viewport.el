@@ -653,7 +653,7 @@ For example, offer to kill associated shell session."
     map)
   "Keymap for `agent-shell-viewport-edit-mode'.")
 
-(define-derived-mode agent-shell-viewport-edit-mode text-mode "Agent Viewport (edit)"
+(define-derived-mode agent-shell-viewport-edit-mode text-mode "Agent Shell Viewport (Edit)"
   "Major mode for composing agent shell prompts.
 
 \\{agent-shell-viewport-edit-mode-map}"
@@ -667,6 +667,8 @@ For example, offer to kill associated shell session."
 (defvar agent-shell-viewport-view-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'agent-shell-viewport-interrupt)
+    (define-key map (kbd "n") #'agent-shell-viewport-next-item)
+    (define-key map (kbd "p") #'agent-shell-viewport-previous-item)
     (define-key map (kbd "<tab>") #'agent-shell-viewport-next-item)
     (define-key map (kbd "<backtab>") #'agent-shell-viewport-previous-item)
     (define-key map (kbd "f") #'agent-shell-viewport-next-page)
@@ -681,7 +683,7 @@ For example, offer to kill associated shell session."
     map)
   "Keymap for `agent-shell-viewport-view-mode'.")
 
-(define-derived-mode agent-shell-viewport-view-mode text-mode "Agent Viewport (view)"
+(define-derived-mode agent-shell-viewport-view-mode text-mode "Agent Shell Viewport (View)"
   "Major mode for viewing agent shell prompts (read-only).
 
 \\{agent-shell-viewport-view-mode-map}"
