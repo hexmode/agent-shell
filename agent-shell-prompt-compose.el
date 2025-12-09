@@ -414,11 +414,23 @@ With EXISTING-ONLY, only return existing buffers without creating."
   (interactive)
   (when (agent-shell-prompt-compose--busy-p)
     (user-error "Busy, please wait"))
-  (with-current-buffer (agent-shell--shell-buffer)
-    (goto-char (point-max)))
-  (agent-shell-prompt-compose-edit-mode)
-  (agent-shell-prompt-compose--initialize)
-  (goto-char (point-min)))
+  (let* ((region (map-elt (agent-shell--get-region :deactivate t) :content))
+         (block-quoted-text (when region
+                              (concat
+                               (mapconcat (lambda (line)
+                                            (concat "> " line))
+                                          (split-string region "\n")
+                                          "\n")
+                               "\n\n"))))
+    (with-current-buffer (agent-shell--shell-buffer)
+      (goto-char (point-max)))
+    (agent-shell-prompt-compose-edit-mode)
+    (if block-quoted-text
+        (progn
+          (agent-shell-prompt-compose--initialize :prompt block-quoted-text)
+          (goto-char (point-max)))
+      (agent-shell-prompt-compose--initialize)
+      (goto-char (point-min)))))
 
 (defun agent-shell-prompt-compose-previous-interaction ()
   "Show previous interaction (request / response)."
