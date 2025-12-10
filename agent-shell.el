@@ -1737,6 +1737,7 @@ insert the character instead."
         (when (eq next-pos prompt-pos)
           (comint-skip-prompt))))))
 
+;;;###autoload
 (cl-defun agent-shell-make-environment-variables (&rest vars &key inherit-env load-env &allow-other-keys)
   "Return VARS in the form expected by `process-environment'.
 
